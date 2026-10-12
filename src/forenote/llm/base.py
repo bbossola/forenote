@@ -10,6 +10,8 @@ from typing import Any, Protocol
 from forenote.scheduler import CancelToken
 
 STALL_S = 120.0  # spec 10.2: no token for this time stops the generation
+PROMPT_TPS_FLOOR = 20.0  # prompt tokens per second on a slow CPU (decision 0003 measured 43 to 59)
+FIRST_TOKEN_MARGIN_S = 60.0
 
 
 class LlmError(RuntimeError):
@@ -34,6 +36,11 @@ class GenParams:
         # llama-cpp-python reads max_tokens <= 0 as "no limit".
         if self.max_tokens < 1:
             raise ValueError(f"max_tokens must be 1 or more, not {self.max_tokens}")
+
+
+def first_token_limit(prompt_tokens: int, tokens_per_s: float = PROMPT_TPS_FLOOR) -> float:
+    """The wait for the first token: the model reads the whole prompt first (spec B 8.1)."""
+    return max(STALL_S, prompt_tokens / tokens_per_s + FIRST_TOKEN_MARGIN_S)
 
 
 class TextGenerator(Protocol):

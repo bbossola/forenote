@@ -164,3 +164,11 @@ async def test_cancel_of_the_task_stops_the_cancel_wait_and_closes_the_stream():
 def test_gen_params_refuses_a_max_tokens_below_one(max_tokens):
     with pytest.raises(ValueError):
         GenParams(max_tokens=max_tokens)
+
+
+def test_first_token_limit_grows_with_the_prompt():
+    from forenote.llm.base import STALL_S, first_token_limit
+
+    assert first_token_limit(0) == STALL_S
+    assert first_token_limit(10_000) == 10_000 / 20 + 60
+    assert first_token_limit(10_000, tokens_per_s=50) == max(STALL_S, 10_000 / 50 + 60)
