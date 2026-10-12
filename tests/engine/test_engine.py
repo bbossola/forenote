@@ -121,6 +121,22 @@ async def test_unfinished_jobs_fail_on_restart(paths, hardware, test_manifest):
         await e.stop()
 
 
+async def test_recording_meetings_become_interrupted_on_restart(paths, hardware, test_manifest):
+    from forenote.store.meetings import MeetingStore
+
+    paths.ensure()
+    conn = connect(paths.db_path)
+    migrate(conn, paths.db_path)
+    mid = MeetingStore(conn).create("left open")
+    conn.close()
+
+    e = Engine(paths, hardware, fetch=fake_fetch, manifest=test_manifest)
+    await e.start()
+    try:
+        assert e.meetings.get(mid)["status"] == "interrupted"
+    finally:
+        await e.stop()
+
 async def test_shutdown_stops_the_engine(engine, client):
     assert await client.call("system.shutdown") is None
     await asyncio.wait_for(engine.wait_stopped(), 2)

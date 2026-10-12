@@ -21,6 +21,7 @@ from forenote.rpc.server import RpcServer
 from forenote.scheduler import Scheduler
 from forenote.store.db import connect
 from forenote.store.jobs import JobStore
+from forenote.store.meetings import MeetingStore
 from forenote.store.migrations import migrate
 from forenote.store.settings import Settings
 
@@ -47,6 +48,7 @@ class Engine(SystemHandlers, SettingsHandlers, JobsHandlers, ModelsHandlers):
         self._download_cancel = False
         self._download_task: asyncio.Task | None = None
         self.conn = None
+        self.meetings = None
         self.scheduler = None
         self._scheduler_task: asyncio.Task | None = None
         self._rpc_started = False
@@ -63,6 +65,10 @@ class Engine(SystemHandlers, SettingsHandlers, JobsHandlers, ModelsHandlers):
             stale = self.jobs.fail_unfinished("engine restarted")
             if stale:
                 log.warning("%d unfinished jobs marked as failed", stale)
+            self.meetings = MeetingStore(self.conn)
+            interrupted = self.meetings.mark_interrupted()
+            if interrupted:
+                log.warning("%d meetings were still recording and are now interrupted", interrupted)
             self.scheduler = Scheduler(self.jobs, listener=self._on_job)
             for name, handler in self._handlers().items():
                 self.rpc.register(name, handler)
