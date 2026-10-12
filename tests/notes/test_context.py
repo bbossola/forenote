@@ -87,3 +87,15 @@ def test_the_action_items_schema_shape():
     assert s["type"] == "array"
     assert s["items"]["required"] == ["owner", "text"]
     assert s["items"]["properties"]["owner"]["type"] == ["string", "null"]
+
+
+def test_group_parts_keeps_each_group_inside_the_budget():
+    gen = FakeTextGenerator([])
+    gen.context_size = context.PREFIX_RESERVE + 300  # room for the instructions and 2 or 3 parts
+    parts = ["w " * 60] * 5  # 60 tokens each
+    groups = context.group_parts(gen, parts, prompts.GROUP_TASK)
+    assert [p for g in groups for p in g] == parts
+    for g in groups:
+        text = prompts.HEADER + prompts.REDUCE_TITLE + "".join(p + "\n" for p in g) + prompts.GROUP_TASK
+        assert context.fits(gen, text) or len(g) == 1
+    assert len(groups) < len(parts)

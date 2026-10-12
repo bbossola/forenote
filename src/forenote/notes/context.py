@@ -101,3 +101,20 @@ def bullet_lines(
         picked[line["id"]] = line
         size += n
     return sorted(picked.values(), key=lambda line: line["id"])
+
+
+def group_parts(gen: Any, parts: list[str], task: str) -> list[list[str]]:
+    """Put the parts in groups, in order. Each group fits one prompt, or holds one part only."""
+    groups: list[list[str]] = []
+    current: list[str] = []
+    for part in parts:
+        candidate = current + [part]
+        text = prompts.HEADER + prompts.REDUCE_TITLE + "".join(p + "\n" for p in candidate) + task
+        if current and not fits(gen, text):
+            groups.append(current)
+            current = [part]
+        else:
+            current = candidate
+    if current:
+        groups.append(current)
+    return groups

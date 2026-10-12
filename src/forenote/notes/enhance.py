@@ -167,5 +167,52 @@ class _Job:
             await self._bullet(number, b, prefix + self._bullet_task(number, b, self._times(b)))
         await self._summary_and_items(prefix, "prefix")
 
-    async def _map_reduce_mode(self, lines: list[dict[str, Any]], bullets: list[Bullet], todo: list[tuple[int, Bullet]]) -> None:
-        raise NotesError("The transcript is too long for the language model.")  # Task 5 replaces this
+    async def _map_reduce_mode(
+        self, lines: list[dict[str, Any]], bullets: list[Bullet], todo: list[tuple[int, Bullet]]
+    ) -> None:
+        chunks = context.split_chunks(self.gen, lines, context.CHUNK_TOKENS)
+        self.steps_total = len(chunks) + len(todo) + 2
+        parts: list[str] = []
+        for i, chunk in enumerate(chunks, 1):
+            text = await self.generate(
+                prompts.HEADER + prompts.PARTS_TITLE + context.transcript_text(chunk) + "\n" + prompts.map_task(i, len(chunks)),
+                MAP_TOKENS,
+                None,
+            )
+            if text:
+                parts.append(text)
+            self.step_done(f"part {i} of {len(chunks)}")
+        notes_text = context.bullets_text(bullets)
+        for number, b in todo:
+            times = self._times(b)
+            picked = context.bullet_lines(self.gen, lines, b.t_written_ms, times, context.BULLET_LINES_TOKENS)
+            user_text = (
+                prompts.HEADER + prompts.PARTS_TITLE + context.transcript_text(picked) + "\n"
+                + notes_text + "\n" + self._bullet_task(number, b, times)
+            )
+            await self._bullet(number, b, user_text)
+        parts = await self._reduce(parts)
+        base = prompts.HEADER + prompts.REDUCE_TITLE + "".join(p + "\n" for p in parts) + "\n"
+        await self._summary_and_items(base, "map_reduce")
+
+    async def _reduce(self, parts: list[str]) -> list[str]:
+        """Combine the chunk notes in groups until the summary prompt fits (spec 5.4)."""
+        while len(parts) > 1:
+            base = prompts.HEADER + prompts.REDUCE_TITLE + "".join(p + "\n" for p in parts) + "\n"
+            if context.fits(self.gen, base + prompts.SUMMARY_TASK):
+                break
+            groups = context.group_parts(self.gen, parts, prompts.GROUP_TASK)
+            if len(groups) >= len(parts):
+                break  # no group holds two parts: a further round does not help
+            self.steps_total += len(groups)
+            combined = []
+            for group in groups:
+                text = await self.generate(
+                    prompts.HEADER + prompts.REDUCE_TITLE + "".join(p + "\n" for p in group) + prompts.GROUP_TASK,
+                    MAP_TOKENS,
+                    None,
+                )
+                combined.append(text)
+                self.step_done("combine notes")
+            parts = [p for p in combined if p]
+        return parts
