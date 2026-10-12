@@ -5,11 +5,14 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import itertools
+import logging
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
 
 from lookout.rpc.protocol import MAX_LINE, PROTOCOL_VERSION, RpcError, decode, encode, request
+
+log = logging.getLogger(__name__)
 
 Event = tuple[str, dict[str, Any]]
 
@@ -52,16 +55,22 @@ class RpcClient:
             return await asyncio.wait_for(fut, timeout)
         finally:
             self._pending.pop(mid, None)
+            if fut.done() and not fut.cancelled():
+                fut.exception()  # mark it as read
 
     async def events(self) -> AsyncIterator[Event]:
         while (item := await self._events.get()) is not None:
             yield item
+        self._events.put_nowait(None)
 
     async def next_event(self, name: str | None = None, timeout: float = 10.0) -> Event:
+        """Events that do not match `name` are dropped."""
+
         async def wait() -> Event:
             while True:
                 item = await self._events.get()
                 if item is None:
+                    self._events.put_nowait(None)
                     raise ConnectionError("engine connection closed")
                 if name is None or item[0] == name:
                     return item
@@ -73,7 +82,7 @@ class RpcClient:
         with contextlib.suppress(Exception):
             await self._writer.wait_closed()
         self._reader_task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
+        with contextlib.suppress(Exception, asyncio.CancelledError):
             await self._reader_task
 
     async def _read_loop(self) -> None:
@@ -98,8 +107,9 @@ class RpcClient:
                             fut.set_exception(err)
                 elif "method" in msg:
                     await self._events.put((msg["method"], msg.get("params") or {}))
-        except (ConnectionError, RpcError):
-            pass
+        except Exception as e:  # noqa: BLE001 - any bad input ends the connection
+            log.warning("RPC connection ended: %r", e)
+            self._writer.close()
         finally:
             self._closed = True
             for fut in self._pending.values():

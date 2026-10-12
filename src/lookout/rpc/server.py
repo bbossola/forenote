@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import fcntl
 import logging
 import os
 from collections.abc import Awaitable, Callable
@@ -17,6 +18,8 @@ from lookout.rpc import protocol as p
 
 log = logging.getLogger(__name__)
 
+OUTBOUND_LIMIT = 1000  # frames kept for one client
+
 Handler = Callable[[dict[str, Any]], Awaitable[Any]]
 
 
@@ -27,20 +30,37 @@ class EngineAlreadyRunning(RuntimeError):
 class _Conn:
     def __init__(self, writer: asyncio.StreamWriter):
         self.writer = writer
-        self.lock = asyncio.Lock()
+        self.queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue(maxsize=OUTBOUND_LIMIT)
+        self.writer_task: asyncio.Task | None = None
         self.ready = False
         self.client = "?"
 
-    async def send(self, msg: dict[str, Any]) -> None:
-        async with self.lock:
-            self.writer.write(p.encode(msg))
-            await self.writer.drain()
+    def send(self, msg: dict[str, Any]) -> None:
+        try:
+            self.queue.put_nowait(msg)
+        except asyncio.QueueFull:
+            log.warning("client %s is too slow; connection dropped", self.client)
+            self.abort()
+
+    def abort(self) -> None:
+        self.writer.transport.abort()
+
+    async def write_loop(self) -> None:
+        try:
+            while True:
+                msg = await self.queue.get()
+                if msg is None:
+                    return  # the connection ends, all earlier frames are sent
+                self.writer.write(p.encode(msg))
+                await self.writer.drain()
+        except (ConnectionError, RuntimeError):
+            self.abort()
 
 
 async def _is_alive(path: Path) -> bool:
     try:
         _, writer = await asyncio.open_unix_connection(str(path))
-    except OSError:
+    except (ConnectionRefusedError, FileNotFoundError):
         return False
     writer.close()
     with contextlib.suppress(OSError):
@@ -60,6 +80,7 @@ class RpcServer:
         self._conns: set[_Conn] = set()
         self._tasks: set[asyncio.Task] = set()
         self._server: asyncio.AbstractServer | None = None
+        self._lock_fd: int | None = None
 
     @property
     def methods(self) -> set[str]:
@@ -72,53 +93,81 @@ class RpcServer:
             raise ValueError("system.hello is built into the server")
         self._handlers[method] = handler
 
+    def _take_lock(self) -> None:
+        lock_path = self.socket_path.with_suffix(".lock")
+        fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            os.close(fd)
+            raise EngineAlreadyRunning(str(self.socket_path)) from None
+        self._lock_fd = fd
+
+    def _release_lock(self) -> None:
+        if self._lock_fd is not None:
+            with contextlib.suppress(OSError):
+                fcntl.flock(self._lock_fd, fcntl.LOCK_UN)
+            os.close(self._lock_fd)
+            self._lock_fd = None
+
     async def start(self) -> None:
-        if self.socket_path.exists():
-            if await _is_alive(self.socket_path):
-                raise EngineAlreadyRunning(str(self.socket_path))
-            self.socket_path.unlink()
-        self._server = await asyncio.start_unix_server(
-            self._serve, path=str(self.socket_path), limit=p.MAX_LINE
-        )
-        os.chmod(self.socket_path, 0o600)
+        self._take_lock()
+        try:
+            if self.socket_path.exists():
+                if await _is_alive(self.socket_path):
+                    raise EngineAlreadyRunning(str(self.socket_path))
+                self.socket_path.unlink()
+            self._server = await asyncio.start_unix_server(
+                self._serve, path=str(self.socket_path), limit=p.MAX_LINE
+            )
+            os.chmod(self.socket_path, 0o600)
+        except BaseException:
+            self._release_lock()
+            raise
 
     async def close(self) -> None:
         if self._server is None:
             return
         self._server.close()
+        stopping: list[asyncio.Task] = list(self._tasks)
         for conn in list(self._conns):
-            conn.writer.close()
+            conn.abort()
+            if conn.writer_task is not None:
+                stopping.append(conn.writer_task)
+        for task in stopping:
+            task.cancel()
+        await asyncio.gather(*stopping, return_exceptions=True)
         await self._server.wait_closed()
         self._server = None
         with contextlib.suppress(FileNotFoundError):
             self.socket_path.unlink()
+        self._release_lock()
 
     async def broadcast(self, event: str, params: dict[str, Any]) -> None:
         if event not in self._schema["events"]:
             raise ValueError(f"event is not in the schema: {event}")
         msg = p.notification(event, params)
         for conn in [c for c in self._conns if c.ready]:
-            try:
-                await conn.send(msg)
-            except (ConnectionError, RuntimeError):
-                self._conns.discard(conn)
+            conn.send(msg)
+        await asyncio.sleep(0)  # let the writer tasks run
 
     async def _serve(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         conn = _Conn(writer)
+        conn.writer_task = asyncio.create_task(conn.write_loop())
         self._conns.add(conn)
         try:
             while True:
                 try:
                     line = await reader.readline()
                 except (asyncio.LimitOverrunError, ValueError):
-                    await conn.send(p.error_response(None, p.RpcError(p.INVALID_REQUEST, "message too large")))
+                    conn.send(p.error_response(None, p.RpcError(p.INVALID_REQUEST, "message too large")))
                     break
                 if not line:
                     break
                 try:
                     msg = p.decode(line)
                 except p.RpcError as e:
-                    await conn.send(p.error_response(None, e))
+                    conn.send(p.error_response(None, e))
                     continue
                 if not conn.ready:
                     if not await self._handshake(conn, msg):
@@ -131,31 +180,36 @@ class RpcServer:
             pass
         finally:
             self._conns.discard(conn)
+            with contextlib.suppress(asyncio.QueueFull):
+                conn.queue.put_nowait(None)
+            with contextlib.suppress(Exception):
+                await asyncio.wait_for(conn.writer_task, 1)
+            conn.writer_task.cancel()
             writer.close()
             with contextlib.suppress(Exception):
-                await writer.wait_closed()
+                await asyncio.wait_for(writer.wait_closed(), 1)
 
     async def _handshake(self, conn: _Conn, msg: dict[str, Any]) -> bool:
         mid = msg.get("id")
         if msg.get("method") != "system.hello":
             err = p.RpcError(p.HANDSHAKE_REQUIRED, "the first call must be system.hello")
-            await conn.send(p.error_response(mid, err))
+            conn.send(p.error_response(mid, err))
             return False
         params = msg.get("params") or {}
         errors = list(self._validators["system.hello"].iter_errors(params))
         if errors:
-            await conn.send(p.error_response(mid, p.RpcError(p.INVALID_PARAMS, errors[0].message)))
+            conn.send(p.error_response(mid, p.RpcError(p.INVALID_PARAMS, errors[0].message)))
             return False
         if params["protocol"].split(".")[0] != p.PROTOCOL_VERSION.split(".")[0]:
             err = p.RpcError(
                 p.VERSION_MISMATCH,
                 f"the engine uses protocol {p.PROTOCOL_VERSION}, the client uses {params['protocol']}",
             )
-            await conn.send(p.error_response(mid, err))
+            conn.send(p.error_response(mid, err))
             return False
         conn.ready = True
         conn.client = params["client"]
-        await conn.send(p.response(mid, {"protocol": p.PROTOCOL_VERSION, "engine_version": __version__}))
+        conn.send(p.response(mid, {"protocol": p.PROTOCOL_VERSION, "engine_version": __version__}))
         return True
 
     async def _dispatch(self, conn: _Conn, msg: dict[str, Any]) -> None:
@@ -177,7 +231,7 @@ class RpcServer:
         if mid is None and not bad_id:
             return  # a notification from the client gets no reply
         with contextlib.suppress(ConnectionError, RuntimeError):
-            await conn.send(reply)
+            conn.send(reply)
 
     async def _call(self, msg: dict[str, Any]) -> Any:
         if msg.get("jsonrpc") != "2.0" or not isinstance(msg.get("method"), str):

@@ -5,6 +5,7 @@ import stat
 import pytest
 
 from lookout.rpc import protocol as p
+from lookout.rpc import server as server_module
 from lookout.rpc.client import RpcClient
 from lookout.rpc.server import EngineAlreadyRunning, RpcServer
 
@@ -22,6 +23,7 @@ SCHEMA = {
             "result": {"type": "integer"},
         },
         "boom.now": {"params": {"type": "object"}, "result": {}},
+        "slow.wait": {"params": {"type": "object"}, "result": {}},
     },
     "events": {"tick": {"type": "object"}},
 }
@@ -41,6 +43,13 @@ async def server(short_tmp):
 
     s.register("math.add", add)
     s.register("boom.now", boom)
+    s.started = asyncio.Event()
+
+    async def slow(params):
+        s.started.set()
+        await asyncio.sleep(30)
+
+    s.register("slow.wait", slow)
     await s.start()
     yield s
     await s.close()
@@ -180,3 +189,76 @@ async def test_bad_id_type_is_rejected(server):
     assert hello["result"]["protocol"] == "1.0"
     assert bad["error"]["code"] == p.INVALID_REQUEST
     assert bad["id"] is None
+
+
+async def _stuck_client(path):
+    reader, writer = await asyncio.open_unix_connection(str(path))
+    writer.write(HELLO)
+    await writer.drain()
+    await asyncio.wait_for(reader.readline(), 2)
+    return writer  # the caller never reads again
+
+
+async def test_slow_client_does_not_block_broadcast(server, monkeypatch):
+    monkeypatch.setattr(server_module, "OUTBOUND_LIMIT", 5)
+    stuck = await _stuck_client(server.socket_path)
+    good = await RpcClient.connect(server.socket_path, "pytest")
+    try:
+        for i in range(50):
+            await asyncio.wait_for(server.broadcast("tick", {"pad": "x" * 100_000, "n": i}), 2)
+        seen = None
+        while seen is None or seen[1]["n"] != 49:
+            seen = await good.next_event("tick", timeout=5)
+    finally:
+        stuck.close()
+        await good.close()
+
+
+async def test_close_does_not_hang_with_a_stuck_client(server):
+    stuck = await _stuck_client(server.socket_path)
+    for i in range(5):
+        await asyncio.wait_for(server.broadcast("tick", {"pad": "x" * 1_000_000}), 2)
+    await asyncio.wait_for(server.close(), 2)
+    stuck.close()
+
+
+async def test_close_cancels_in_flight_handlers(server, client):
+    call = asyncio.create_task(client.call("slow.wait"))
+    await asyncio.wait_for(server.started.wait(), 2)
+    await asyncio.wait_for(server.close(), 2)
+    assert not server._tasks
+    with pytest.raises(ConnectionError):
+        await call
+
+
+async def test_lock_prevents_a_second_server_even_without_a_socket(server):
+    server.socket_path.unlink()
+    other = RpcServer(server.socket_path, SCHEMA)
+    with pytest.raises(EngineAlreadyRunning):
+        await other.start()
+
+
+async def test_every_event_consumer_sees_the_end(server, client):
+    await server.close()
+    with pytest.raises(ConnectionError):
+        await client.next_event(timeout=2)
+    with pytest.raises(ConnectionError):
+        await client.next_event(timeout=2)
+
+
+async def test_client_survives_malformed_server_output(short_tmp):
+    async def handle(reader, writer):
+        await reader.readline()
+        writer.write(b'{"jsonrpc":"2.0","id":1,"error":"not an object"}\n')
+        await writer.drain()
+        await reader.read()
+        writer.close()
+
+    path = short_tmp / "bad.sock"
+    srv = await asyncio.start_unix_server(handle, path=str(path))
+    try:
+        with pytest.raises((ConnectionError, p.RpcError)):
+            await RpcClient.connect(path, "pytest", timeout=2)
+    finally:
+        srv.close()
+        await srv.wait_closed()
