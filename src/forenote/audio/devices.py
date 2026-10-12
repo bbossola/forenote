@@ -45,6 +45,33 @@ class WatcherState:
 DeviceEvent = DefaultsChanged | OutputAdded | OutputRemoved | WatcherState
 
 
+class StreamSet:
+    """The recording streams that the watcher has reported. It lives across reconnects."""
+
+    def __init__(self) -> None:
+        self._known: set[int] = set()
+
+    def added(self, index: int) -> bool:
+        """Return True if the stream is new. Return False if it is already known."""
+        if index in self._known:
+            return False
+        self._known.add(index)
+        return True
+
+    def removed(self, index: int) -> bool:
+        """Return True if the stream was known."""
+        if index in self._known:
+            self._known.discard(index)
+            return True
+        return False
+
+    def resync(self, current: set[int]) -> list[int]:
+        """Forget the known streams that are not in current. Return their indexes."""
+        gone = sorted(self._known - current)
+        self._known -= set(gone)
+        return gone
+
+
 def monitor_of(sink: str) -> str:
     return f"{sink}.monitor"
 
@@ -89,39 +116,38 @@ class DeviceWatcher:
         self._on_event = on_event
         self._stopping = threading.Event()
         self._thread = threading.Thread(target=self._run, name="forenote-devices", daemon=True)
-        self._pulse = None
+        self._streams = StreamSet()
+        self._connected = False
 
     def start(self) -> None:
         self._thread.start()
 
     def stop(self, timeout: float = 3.0) -> None:
+        # event_listen ends within 0.5 s, so the thread sees the flag soon.
         self._stopping.set()
-        pulse = self._pulse
-        if pulse is not None:
-            try:
-                pulse.event_listen_stop()
-            except Exception:  # noqa: BLE001 - best effort
-                pass
         self._thread.join(timeout)
 
     def _emit(self, event: DeviceEvent) -> None:
         try:
             self._on_event(event)
-        except Exception:  # noqa: BLE001 - a callback error must not stop the watcher
-            log.error("device event callback failed")
+        except Exception as e:  # noqa: BLE001 - a callback error must not stop the watcher
+            log.error("device event callback failed: %s", type(e).__name__)
 
     def _run(self) -> None:
         attempt = 0
         while not self._stopping.is_set():
             try:
                 self._watch()
-                attempt = 0
             except Exception as e:  # noqa: BLE001 - reconnect on any libpulse error
                 if self._stopping.is_set():
                     break
+                if self._connected:
+                    # The connection worked before. Start the backoff again.
+                    self._connected = False
+                    attempt = 0
+                    self._emit(WatcherState(False))
                 if attempt == 0:
                     log.warning("device watcher lost the audio server: %s", type(e).__name__)
-                self._emit(WatcherState(False))
                 delay = RECONNECT_DELAYS[min(attempt, len(RECONNECT_DELAYS) - 1)]
                 attempt += 1
                 self._stopping.wait(delay)
@@ -138,17 +164,22 @@ class DeviceWatcher:
             raise pulsectl.PulseLoopStop
 
         pulse = _connect("forenote-watch")
-        self._pulse = pulse
         try:
-            info = pulse.server_info()
-            defaults = Defaults(info.default_source_name, info.default_sink_name)
-            self._emit(WatcherState(True))
-            self._emit(DefaultsChanged(defaults))
-            for so in pulse.source_output_list():
-                app, binary = parse_app(so.proplist)
-                self._emit(OutputAdded(so.index, app, binary))
+            # Listen first, then list. A stream that opens in between is not missed.
             pulse.event_mask_set("server", "source_output")
             pulse.event_callback_set(collect)
+            info = pulse.server_info()
+            defaults = Defaults(info.default_source_name, info.default_sink_name)
+            outputs = pulse.source_output_list()
+            self._connected = True
+            self._emit(WatcherState(True))
+            self._emit(DefaultsChanged(defaults))
+            for index in self._streams.resync({so.index for so in outputs}):
+                self._emit(OutputRemoved(index))
+            for so in outputs:
+                if self._streams.added(so.index):
+                    app, binary = parse_app(so.proplist)
+                    self._emit(OutputAdded(so.index, app, binary))
             while not self._stopping.is_set():
                 pulse.event_listen(timeout=0.5)
                 events, pending[:] = pending[:], []
@@ -164,10 +195,11 @@ class DeviceWatcher:
                             so = pulse.source_output_info(index)
                         except pulsectl.PulseIndexError:
                             continue  # the stream closed again
-                        app, binary = parse_app(so.proplist)
-                        self._emit(OutputAdded(index, app, binary))
+                        if self._streams.added(index):
+                            app, binary = parse_app(so.proplist)
+                            self._emit(OutputAdded(index, app, binary))
                     elif facility == fac.source_output and t == typ.remove:
-                        self._emit(OutputRemoved(index))
+                        if self._streams.removed(index):
+                            self._emit(OutputRemoved(index))
         finally:
-            self._pulse = None
             pulse.close()
