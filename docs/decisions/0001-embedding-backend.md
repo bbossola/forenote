@@ -41,7 +41,7 @@ binary, but `llama-server --embeddings --mmproj` returned 768 numbers for all
   revision `24d962e906c7d332c6428e71c9676855024569e2`, file
   `embeddinggemma-2-740m.litertlm`, size 484622336 bytes, SHA-256
   `e7a8a2204b91e0f96e92960e84a09a89212e1633dcb7575a9bf3378b4df77f4c`.
-- Low-tier candidate: HF repo
+- Low-tier text model: HF repo
   `litert-community/embeddinggemma-2-text-270m-litert-lm`, revision
   `9be6e8b90982095dc05c2bd162e4b954ee4dbac7`, file
   `embeddinggemma-2-text-270m.litertlm`, size 164626432 bytes, SHA-256
@@ -70,7 +70,7 @@ binary, but `llama-server --embeddings --mmproj` returned 768 numbers for all
   3-4 chunks/s for the same target. No backend reached 5 chunks/s, not even
   the reference (3.75). With the original limit of 5 chunks/s, no backend
   passes. The original rule 6 would then have selected sentence-transformers.
-  The owner changed the rule after he saw the results. The spec target is 100
+  The owner changed the rule after seeing the results. The spec target is 100
   PDF pages per minute. One page has about 500 tokens. The spec chunks have
   about 512 tokens with 64 tokens of overlap. This gives about 120 chunks per
   minute, or about 2 chunks/s. The new rule 3 uses this spec target.
