@@ -2,10 +2,13 @@
 
 ## Start here
 
-- The work moved between machines on 2026-10-12. The active branch is
-  `feature/notes-b1`. If you are on `main`, check out that branch first.
-- Read `docs/superpowers/notes/2026-10-12-handoff.md` before you do anything
-  else. It gives the state of the work and the next step.
+- Plan B1 (LLM runtime) is complete. It is in PR #3 (`feature/notes-b1`).
+  If PR #3 is not merged yet, ask the owner before you start work that
+  builds on it.
+- The next step is to write plan B2. Read
+  `docs/superpowers/notes/2026-10-12-handoff.md` and
+  `docs/superpowers/notes/2026-10-12-carry-into-next-plans.md` first. The
+  carry note has a required first task for B2: "LLM instance lifecycle".
 - To set up a new machine, run `scripts/bootstrap-dev.sh --help`.
 
 ## Rules
