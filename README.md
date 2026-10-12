@@ -14,6 +14,8 @@ Status: early development. The engine records meetings and transcribes them (CLI
 
 - Linux x86_64 with AVX2, 16 GB RAM (8 GB works with smaller models)
 - Python 3.11 or later, and [uv](https://docs.astral.sh/uv/)
+- CMake and a C++ compiler (for example `sudo apt install cmake g++`).
+  `uv sync` builds llama-cpp-python from source.
 
 ## Development
 
