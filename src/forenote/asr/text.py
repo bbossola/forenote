@@ -19,5 +19,5 @@ def normalize(text: str) -> str:
 
 
 def similarity(a: str, b: str) -> float:
-    """Similarity of two texts after normalization, from 0.0 to 1.0. Compares words."""
-    return difflib.SequenceMatcher(None, normalize(a).split(), normalize(b).split(), autojunk=False).ratio()
+    """Similarity of two texts after normalization, from 0.0 to 1.0. Compares characters."""
+    return difflib.SequenceMatcher(None, normalize(a), normalize(b), autojunk=False).ratio()

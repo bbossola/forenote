@@ -26,3 +26,9 @@ def test_normalize_unicode_and_apostrophes():
     assert normalize("Don’t") == "don't"
     assert normalize("'quoted'") == "quoted"
     assert normalize("a_b") == "a b"
+
+
+def test_short_echo_variants_are_similar():
+    assert similarity("yeah I agree", "yes I agree") >= 0.8
+    assert similarity("okay let's start", "OK, let's start") >= 0.8
+    assert similarity("Can you hear me now?", "can you hear me know") >= 0.8
