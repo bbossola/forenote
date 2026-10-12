@@ -87,3 +87,43 @@ def test_deleting_the_meeting_deletes_the_notes(stores):
     meetings.delete(mid)
     assert notes.bullets(mid) == []
     assert notes.output(mid) is None
+
+
+def test_set_generated_does_not_overwrite_a_user_edit(stores):
+    notes, mid, _ = stores
+    a = notes.add_bullet(mid, "budget", 1000)
+    # The job reads the bullet, then the user edits, then the job writes.
+    assert notes.bullet(a.id).enhanced_edited is False
+    notes.set_enhanced(a.id, "mine", edited=True)
+    assert notes.set_generated(a.id, "generated") is False
+    got = notes.bullet(a.id)
+    assert (got.enhanced_text, got.enhanced_edited) == ("mine", True)
+
+
+def test_set_generated_writes_an_unedited_bullet_and_force_overwrites(stores):
+    notes, mid, _ = stores
+    a = notes.add_bullet(mid, "budget", 1000)
+    assert notes.set_generated(a.id, "first") is True
+    assert notes.bullet(a.id).enhanced_text == "first"
+    notes.set_enhanced(a.id, "mine", edited=True)
+    assert notes.set_generated(a.id, "forced", force=True) is True
+    got = notes.bullet(a.id)
+    assert (got.enhanced_text, got.enhanced_edited) == ("forced", False)
+    assert notes.set_generated(9999, "x") is False
+
+
+def test_replace_bullets_refuses_a_duplicate_id(stores):
+    notes, mid, _ = stores
+    a = notes.add_bullet(mid, "budget", 1000)
+    with pytest.raises(ValueError):
+        notes.replace_bullets(mid, [(a.id, "one"), (a.id, "two")], t_new_ms=None)
+    assert notes.bullet(a.id).text == "budget"
+
+
+def test_set_summary_and_action_items_report_a_missing_output(stores):
+    notes, mid, _ = stores
+    assert notes.set_summary(mid, "x") is False
+    assert notes.set_action_items(mid, []) is False
+    notes.start_output(mid, "gemma", "prefix")
+    assert notes.set_summary(mid, "x") is True
+    assert notes.set_action_items(mid, []) is True

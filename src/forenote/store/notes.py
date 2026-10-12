@@ -66,6 +66,9 @@ class NotesStore:
         self, meeting_id: int, items: list[tuple[int | None, str]], t_new_ms: int | None
     ) -> list[Bullet]:
         """Make the list of the meeting equal to items. Known ids keep time and expansion."""
+        ids = [bullet_id for bullet_id, _ in items if bullet_id is not None]
+        if len(ids) != len(set(ids)):
+            raise ValueError("a bullet id is twice in the list")
         known = {b.id for b in self.bullets(meeting_id)}
         for bullet_id, _ in items:
             if bullet_id is not None and bullet_id not in known:
@@ -91,6 +94,18 @@ class NotesStore:
             cur = self._conn.execute(
                 "UPDATE bullets SET enhanced_text = ?, enhanced_edited = ? WHERE id = ?",
                 (text, int(edited), bullet_id),
+            )
+        return cur.rowcount == 1
+
+    def set_generated(self, bullet_id: int, text: str, force: bool = False) -> bool:
+        """Store the text of the job. Keep an expansion that the user edited, unless force.
+
+        Return True when the text is stored.
+        """
+        with self._conn:
+            cur = self._conn.execute(
+                "UPDATE bullets SET enhanced_text = ?, enhanced_edited = 0 WHERE id = ? AND (enhanced_edited = 0 OR ?)",
+                (text, bullet_id, int(force)),
             )
         return cur.rowcount == 1
 
@@ -120,12 +135,14 @@ class NotesStore:
                 (meeting_id, model, mode, now_iso()),
             )
 
-    def set_summary(self, meeting_id: int, text: str) -> None:
+    def set_summary(self, meeting_id: int, text: str) -> bool:
         with self._conn:
-            self._conn.execute("UPDATE meeting_outputs SET summary = ? WHERE meeting_id = ?", (text, meeting_id))
+            cur = self._conn.execute("UPDATE meeting_outputs SET summary = ? WHERE meeting_id = ?", (text, meeting_id))
+        return cur.rowcount == 1
 
-    def set_action_items(self, meeting_id: int, items: list[dict[str, Any]]) -> None:
+    def set_action_items(self, meeting_id: int, items: list[dict[str, Any]]) -> bool:
         with self._conn:
-            self._conn.execute(
+            cur = self._conn.execute(
                 "UPDATE meeting_outputs SET action_items = ? WHERE meeting_id = ?", (json.dumps(items), meeting_id)
             )
+        return cur.rowcount == 1

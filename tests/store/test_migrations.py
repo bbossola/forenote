@@ -180,3 +180,25 @@ def test_the_transcript_index_follows_inserts_and_deletes(tmp_path):
     assert len(conn.execute("SELECT rowid FROM transcript_fts WHERE transcript_fts MATCH 'buttons'").fetchall()) == 1
     conn.execute("DELETE FROM meetings WHERE id = 1")  # the cascade deletes the line
     assert [tuple(r) for r in conn.execute("SELECT rowid FROM transcript_fts WHERE transcript_fts MATCH 'buttons'").fetchall()] == []
+
+
+def _fts_rowids(conn, term):
+    return [r[0] for r in conn.execute("SELECT rowid FROM transcript_fts WHERE transcript_fts MATCH ?", (term,))]
+
+
+def test_the_transcript_index_stems_words(tmp_path):
+    conn = connect(tmp_path / "t.db")
+    migrate(conn)
+    conn.execute("INSERT INTO meetings(id, title, started_at, status) VALUES (1, 'm', '2026-10-12T10:00:00+00:00', 'done')")
+    conn.execute("INSERT INTO transcript_lines(meeting_id, speaker, t_start_ms, t_end_ms, text) VALUES (1, 'me', 0, 900, 'the budgets are fixed')")
+    assert _fts_rowids(conn, "budget") == [1]
+
+
+def test_the_transcript_index_follows_updates(tmp_path):
+    conn = connect(tmp_path / "t.db")
+    migrate(conn)
+    conn.execute("INSERT INTO meetings(id, title, started_at, status) VALUES (1, 'm', '2026-10-12T10:00:00+00:00', 'done')")
+    conn.execute("INSERT INTO transcript_lines(meeting_id, speaker, t_start_ms, t_end_ms, text) VALUES (1, 'me', 0, 900, 'remote control buttons')")
+    conn.execute("UPDATE transcript_lines SET text = 'yellow banana' WHERE id = 1")
+    assert _fts_rowids(conn, "buttons") == []
+    assert _fts_rowids(conn, "banana") == [1]

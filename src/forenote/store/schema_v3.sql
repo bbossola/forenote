@@ -1,7 +1,8 @@
 -- Schema v3: notes enhancement (sub-project B, spec B section 4.3).
 -- Bullets can have no time and remember a user edit. Notes outputs are stored
 -- step by step, so summary and action items can be NULL. A full-text index
--- over the transcript lines serves the keyword search of the notes job.
+-- over the transcript lines serves the keyword search of the notes job. The
+-- porter tokenizer stems words, so "budget" finds "budgets".
 
 CREATE TABLE bullets_v3 (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -31,7 +32,8 @@ INSERT INTO meeting_outputs_v3(meeting_id, summary, action_items, model, mode, c
 DROP TABLE meeting_outputs;
 ALTER TABLE meeting_outputs_v3 RENAME TO meeting_outputs;
 
-CREATE VIRTUAL TABLE transcript_fts USING fts5(text, content='transcript_lines', content_rowid='id');
+CREATE VIRTUAL TABLE transcript_fts USING fts5(text, content='transcript_lines', content_rowid='id',
+    tokenize='porter unicode61');
 INSERT INTO transcript_fts(rowid, text) SELECT id, text FROM transcript_lines;
 
 -- Keep the full-text index in step with the transcript lines.
