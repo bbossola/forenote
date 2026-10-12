@@ -84,3 +84,21 @@ async def client(engine):
     c = await RpcClient.connect(engine.paths.socket_path, "pytest")
     yield c
     await c.close()
+
+
+@pytest.fixture(scope="session")
+def speech_model_dir():
+    """Return a function: model id -> installed model directory. Downloads if needed."""
+    from forenote.models.download import ModelStore
+    from forenote.models.manifest import load_manifest
+
+    store = ModelStore(Paths.from_env().models_dir)
+    entries = {e.id: e for e in load_manifest()}
+
+    def get(model_id: str):
+        entry = entries[model_id]
+        if not store.is_installed(entry):
+            store.install(entry)
+        return store.path(entry)
+
+    return get

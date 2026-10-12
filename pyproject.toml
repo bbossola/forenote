@@ -32,4 +32,8 @@ packages = ["src/forenote"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
-markers = ["models: needs downloaded models"]
+addopts = "-m 'not models and not audio'"
+markers = [
+  "models: needs downloaded models (run with -m models)",
+  "audio: needs a running audio server (run with -m audio)",
+]
