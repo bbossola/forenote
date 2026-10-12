@@ -30,8 +30,11 @@ def test_set_and_get(settings):
 
 def test_values_persist_in_the_database(settings, tmp_path):
     settings.set("gpu_enabled", False)
-    other = Settings(connect(tmp_path / "t.db"))
-    assert other.get("gpu_enabled") is False
+    conn = connect(tmp_path / "t.db")
+    try:
+        assert Settings(conn).get("gpu_enabled") is False
+    finally:
+        conn.close()
 
 
 @pytest.mark.parametrize(

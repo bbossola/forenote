@@ -4,7 +4,7 @@ import pytest
 import sqlite_vec
 
 from forenote.store import migrations
-from forenote.store.db import connect
+from forenote.store.db import connect as open_connection
 from forenote.store.migrations import SchemaTooNew, current_version, migrate
 
 TABLES = {
@@ -13,6 +13,22 @@ TABLES = {
     "chat_sessions", "chat_messages", "jobs", "schema_version", "meeting_markers",
     "transcript_fts",
 }
+
+
+@pytest.fixture(autouse=True)
+def connect(monkeypatch):
+    """Open connections in the tests below. Close all of them after each test."""
+    opened = []
+
+    def tracked(path):
+        conn = open_connection(path)
+        opened.append(conn)
+        return conn
+
+    monkeypatch.setitem(globals(), "connect", tracked)
+    yield tracked
+    for conn in opened:
+        conn.close()
 
 
 def tables(conn):
