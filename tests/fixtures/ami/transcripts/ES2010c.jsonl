@@ -1,0 +1,413 @@
+{"t_start_ms": 33300, "t_end_ms": 41460, "speaker": "me", "text": "Okay Hi Team Hope you had a good lunch Okay we're back for the conceptual design meeting Um let's get started"}
+{"t_start_ms": 42900, "t_end_ms": 60200, "speaker": "me", "text": "'Kay here is the agenda for today's meeting Um we're gonna open it and I'm gonna keep the minutes as Project Manager We're gonna have three presentations one from each of you again And then we are going to come to decision on the remote control concepts and then we're gonna close it up And we have forty minutes again"}
+{"t_start_ms": 61480, "t_end_ms": 68100, "speaker": "me", "text": "'Kay and just to reiterate um after this meeting the team will reach a decision on the concepts of the remote control"}
+{"t_start_ms": 70900, "t_end_ms": 76650, "speaker": "me", "text": "Okay Let's go ahead and start off with your presentations Who would like to go first"}
+{"t_start_ms": 79390, "t_end_ms": 80880, "speaker": "others", "text": "Just trying to move mine right now"}
+{"t_start_ms": 80890, "t_end_ms": 84350, "speaker": "me", "text": "Okay Um Courtney would you mind starting us off Okay"}
+{"t_start_ms": 83110, "t_end_ms": 84120, "speaker": "others", "text": "Yeah"}
+{"t_start_ms": 89150, "t_end_ms": 90950, "speaker": "me", "text": "Trend watching 'Kay"}
+{"t_start_ms": 90270, "t_end_ms": 90590, "speaker": "others", "text": "Yeah"}
+{"t_start_ms": 100470, "t_end_ms": 120280, "speaker": "others", "text": "Okay so trend watching Uh since we do put the fashion in electronics it is kind of important how our product looks So I guess we can go ahead and go to the next So what they want Right now customers want fancy versus functional Um basically about fifty eight percent of what"}
+{"t_start_ms": 120280, "t_end_ms": 140230, "speaker": "others", "text": "they like of the product that they want describing like the in order of how much they want fifty eight per cent of the decision of what it should look like fancy versus functional and then it has to also be technologically innovative and yet easy to use So the customer basically is confused They don't know exactly what they want"}
+{"t_start_ms": 140230, "t_end_ms": 160140, "speaker": "others", "text": "They want us to tell them Yes Exactly So we can go to next Okay So in Milan and Paris recently the trends have been showing that clothing shoes and furniture are basically just covered with fruits and vegetable patterns So"}
+{"t_start_ms": 142110, "t_end_ms": 145040, "speaker": "others", "text": "They want everything but simply Okay"}
+{"t_start_ms": 147390, "t_end_ms": 147800, "speaker": "me", "text": "Mm 'kay"}
+{"t_start_ms": 160140, "t_end_ms": 180140, "speaker": "others", "text": "I don't know if we want to go with that um and also the spongy feel is in in contrast to last year I don't know really I mean I guess the spongy could relate to the buttons if we want to rather than like a hard clicky button that you find on like some mobiles and stuff you'd want like a softer touch I mean do you guys know what I mean"}
+{"t_start_ms": 171250, "t_end_ms": 172750, "speaker": "me", "text": "Mm Mm"}
+{"t_start_ms": 179620, "t_end_ms": 180440, "speaker": "me", "text": "Right Yes"}
+{"t_start_ms": 179940, "t_end_ms": 180640, "speaker": "others", "text": "Yeah th"}
+{"t_start_ms": 180140, "t_end_ms": 196240, "speaker": "others", "text": "Yeah Um But as for the fruits and vegetable patterns I don't know if we really want to go with that because it is just a trend and our product we want to stay around for much longer than just a few months because Yeah I mean that could just be a Spring thing right now"}
+{"t_start_ms": 187490, "t_end_ms": 187850, "speaker": "me", "text": "Right"}
+{"t_start_ms": 191930, "t_end_ms": 194500, "speaker": "me", "text": "Right People don't buy a new remote every so often"}
+{"t_start_ms": 192160, "t_end_ms": 193130, "speaker": "others", "text": "I I can"}
+{"t_start_ms": 196340, "t_end_ms": 200490, "speaker": "others", "text": "I can address some of that issue I think with uh my presentation"}
+{"t_start_ms": 200960, "t_end_ms": 219760, "speaker": "others", "text": "Okay Awesome Um so design preferences um we need easy to read like large buttons clearly labelled so that I mean 'cause we talked about that being a problem Um and then also buttons illuminating upon touch you said that in your design with the bulb"}
+{"t_start_ms": 202180, "t_end_ms": 202640, "speaker": "me", "text": "Okay"}
+{"t_start_ms": 219760, "t_end_ms": 239700, "speaker": "others", "text": "Um and that could also tie in with the colour scheme Uh we need the Real Reaction logo and colour scheme obviously That's one of our key goals we wanna promote our product And I was thinking about different types of designs and I came up with something Actually right here So what we could do is something like an old-fashioned"}
+{"t_start_ms": 239700, "t_end_ms": 259570, "speaker": "others", "text": "telephone like this where we put the buttons around like we'd put a big on-off button or something else in the middle I mean it could be the arrows or whatever for channel up and down and then put the numbers around in like an old-fashioned dial shape 'Cause then it'll appeal to older generation and like said retro's cool So it's classically retro So I mean"}
+{"t_start_ms": 258390, "t_end_ms": 258700, "speaker": "me", "text": "Hmm"}
+{"t_start_ms": 259570, "t_end_ms": 267020, "speaker": "others", "text": "that's just an idea if you guys like it And yep And that's it"}
+{"t_start_ms": 260840, "t_end_ms": 264040, "speaker": "me", "text": "Very good I like it Okay ready for the next slide"}
+{"t_start_ms": 265460, "t_end_ms": 266770, "speaker": "me", "text": "Op mm 'kay"}
+{"t_start_ms": 267390, "t_end_ms": 267740, "speaker": "others", "text": "Okay"}
+{"t_start_ms": 267810, "t_end_ms": 269230, "speaker": "me", "text": "Great Great presentation"}
+{"t_start_ms": 271940, "t_end_ms": 272190, "speaker": "me", "text": "Ready"}
+{"t_start_ms": 274000, "t_end_ms": 274920, "speaker": "others", "text": "Okay hang on"}
+{"t_start_ms": 274900, "t_end_ms": 275540, "speaker": "me", "text": "'Kay"}
+{"t_start_ms": 276520, "t_end_ms": 277200, "speaker": "others", "text": "See if it's there"}
+{"t_start_ms": 289650, "t_end_ms": 290980, "speaker": "me", "text": "Which one is it"}
+{"t_start_ms": 291990, "t_end_ms": 295170, "speaker": "others", "text": "I don't know Hang on Interface concepts no"}
+{"t_start_ms": 296200, "t_end_ms": 298400, "speaker": "me", "text": "Interface concepts new"}
+{"t_start_ms": 298340, "t_end_ms": 302620, "speaker": "others", "text": "Either refresh it or it sh Oh wait maybe I didn't put it there Hang on"}
+{"t_start_ms": 300090, "t_end_ms": 300410, "speaker": "me", "text": "Y"}
+{"t_start_ms": 302970, "t_end_ms": 303170, "speaker": "me", "text": "'Kay"}
+{"t_start_ms": 303120, "t_end_ms": 308830, "speaker": "others", "text": "Mine will always read copy of something or other I I copied mine before I sent it over"}
+{"t_start_ms": 305480, "t_end_ms": 305980, "speaker": "me", "text": "Sorry"}
+{"t_start_ms": 309010, "t_end_ms": 309500, "speaker": "me", "text": "Oh okay"}
+{"t_start_ms": 309980, "t_end_ms": 311530, "speaker": "others", "text": "Sorry hang on"}
+{"t_start_ms": 312700, "t_end_ms": 314040, "speaker": "others", "text": "Don't know"}
+{"t_start_ms": 328600, "t_end_ms": 329530, "speaker": "me", "text": "Oh there we go"}
+{"t_start_ms": 329600, "t_end_ms": 330460, "speaker": "others", "text": "Okay"}
+{"t_start_ms": 343960, "t_end_ms": 353130, "speaker": "others", "text": "Okay um looking at the interface concept it's gonna be mostly examples of possibilities of where we can go with this Uh if you wanna start the next slide"}
+{"t_start_ms": 353090, "t_end_ms": 353640, "speaker": "me", "text": "Sure"}
+{"t_start_ms": 354490, "t_end_ms": 373980, "speaker": "others", "text": "Um uh can't really see but there's two possible ways on the r left if you see on th on the sides of of the remote you have the sort of scroll down so you have that option right there And then also there's the idea of the base That's sort of like an idea there And then on the right we have what's really big trend right now it's the"}
+{"t_start_ms": 373980, "t_end_ms": 393840, "speaker": "others", "text": "iPod It's becoming really and so you have this sort of very very simplistic menu section uh with the round buttons and it's sort of like you have the both kind of trendy and hip but also very sleek and um and very simple but technologically advanced So if you wanted to do that th if we could find a"}
+{"t_start_ms": 393840, "t_end_ms": 398560, "speaker": "others", "text": "way of sort of like using that idea in a remote control then sort of"}
+{"t_start_ms": 401200, "t_end_ms": 403130, "speaker": "others", "text": "look into it but Anyway next"}
+{"t_start_ms": 402340, "t_end_ms": 402870, "speaker": "me", "text": "Mm 'kay"}
+{"t_start_ms": 404600, "t_end_ms": 424540, "speaker": "others", "text": "Um there's the idea of like being able to do it by feel as well as by um by sight You'd you know you're in the dark you don't wanna be looking at the remote control And the picture particularly is pointing out if you look at the top volume button it's a V_ and so yo you're kind of feeling a V_ like volume up What it really"}
+{"t_start_ms": 424540, "t_end_ms": 444430, "speaker": "others", "text": "is is a V_ and what it you think it is is down because the down arrow And so it's like a sort of a criticism you'd probably turn that o the other way up Um but then you have you could either do it by raised type which could be you know iffy um sort of old-fashioned in a way Either that or just have it by shape for"}
+{"t_start_ms": 428920, "t_end_ms": 429150, "speaker": "me", "text": "Mm"}
+{"t_start_ms": 442370, "t_end_ms": 442730, "speaker": "me", "text": "Mm"}
+{"t_start_ms": 444430, "t_end_ms": 458710, "speaker": "others", "text": "example you have a specific triangular shape that you know you're looking at the up and down arrow And then the round ones you sort of feel by you know that's the second one down that sort of thing So it's sort of looking into how we wanted t to do it by feel Okay"}
+{"t_start_ms": 457100, "t_end_ms": 457450, "speaker": "me", "text": "Okay"}
+{"t_start_ms": 459880, "t_end_ms": 479780, "speaker": "others", "text": "Um this is sort of an example of going for a s certain demographic Um this is particularly geared towards children Um it's very cute and we could probably change it to yellow bright yellow for like a the for the company logo Um and you have the shapes and it's very simplistic and friendly looking Um and"}
+{"t_start_ms": 466220, "t_end_ms": 466810, "speaker": "others", "text": "That's cute"}
+{"t_start_ms": 479780, "t_end_ms": 484060, "speaker": "others", "text": "then the other thing that it would be able to do is just to pro be ab you program certain"}
+{"t_start_ms": 485640, "t_end_ms": 505440, "speaker": "others", "text": "channels that only these children would watch so it's like they ch watch you know the C_ Beebies or something like that uh keep them away from other channels So that's like another ar Um I mean these are three examples sort of looking at it You have the wider section for the main controls there Uh you could see how many buttons there are And then on the"}
+{"t_start_ms": 494990, "t_end_ms": 495360, "speaker": "me", "text": "Okay"}
+{"t_start_ms": 505440, "t_end_ms": 517730, "speaker": "others", "text": "left you have an example of the round buttons and a simpler design On the bottom we probably wouldn't need that because it's more for like a D_V_D_ function which we are not gonna be using Um"}
+{"t_start_ms": 519990, "t_end_ms": 527820, "speaker": "others", "text": "So again it's sort of like just give you ideas and then down at the bottom you have the logos and that's where you could put the R_R_ Real Reaction"}
+{"t_start_ms": 528340, "t_end_ms": 528620, "speaker": "me", "text": "'Kay"}
+{"t_start_ms": 531000, "t_end_ms": 539800, "speaker": "others", "text": "And then finally these are like the sort of same examples but also some more just possibilities that we could go with None of them I'm particularly keen on by the way"}
+{"t_start_ms": 540230, "t_end_ms": 540670, "speaker": "others", "text": "Yeah"}
+{"t_start_ms": 540670, "t_end_ms": 541030, "speaker": "others", "text": "Hmm"}
+{"t_start_ms": 541200, "t_end_ms": 541900, "speaker": "me", "text": "No"}
+{"t_start_ms": 543040, "t_end_ms": 552790, "speaker": "others", "text": "But it's sort of like just taking aspects out of that and saying well out of this one we like you know the round section of um b or we'd like the the button size on this"}
+{"t_start_ms": 551420, "t_end_ms": 556140, "speaker": "me", "text": "Mm Or I like you know the black finish or the silver finish or whatever"}
+{"t_start_ms": 555780, "t_end_ms": 556100, "speaker": "others", "text": "Right"}
+{"t_start_ms": 556560, "t_end_ms": 558210, "speaker": "others", "text": "I have four of those remotes"}
+{"t_start_ms": 559150, "t_end_ms": 563420, "speaker": "me", "text": "Good lord Okay Ready Oh yeah Okay"}
+{"t_start_ms": 561620, "t_end_ms": 562230, "speaker": "others", "text": "That's it"}
+{"t_start_ms": 564630, "t_end_ms": 565220, "speaker": "me", "text": "Great job"}
+{"t_start_ms": 566190, "t_end_ms": 566860, "speaker": "others", "text": "Okay my turn"}
+{"t_start_ms": 567820, "t_end_ms": 568160, "speaker": "me", "text": "Okay"}
+{"t_start_ms": 568360, "t_end_ms": 568800, "speaker": "others", "text": "Okay"}
+{"t_start_ms": 569200, "t_end_ms": 569890, "speaker": "others", "text": "Whoo"}
+{"t_start_ms": 569880, "t_end_ms": 571000, "speaker": "me", "text": "What's the title"}
+{"t_start_ms": 571190, "t_end_ms": 574480, "speaker": "others", "text": "It'll be copy of component design"}
+{"t_start_ms": 574180, "t_end_ms": 574860, "speaker": "me", "text": "Got it"}
+{"t_start_ms": 579350, "t_end_ms": 581180, "speaker": "others", "text": "Yeah Th that looks like it"}
+{"t_start_ms": 583600, "t_end_ms": 603350, "speaker": "others", "text": "'Kay So basic remote operation runs as follows press button makes connection with the power source and the rest of the circuit chip senses the connection chip produces a morse code infra-red signal specific to that button So you press the button it produces uh a signal that's encoded"}
+{"t_start_ms": 603350, "t_end_ms": 623230, "speaker": "others", "text": "specifically for that button Transistors amplify that signal and it goes to the T_V_'s centre which interprets the signal response accordingly changes channel etcetera So that being said Next slide please Findings oh which were the required materials for the basic internal construction so all the really"}
+{"t_start_ms": 623230, "t_end_ms": 642980, "speaker": "others", "text": "simplistic functions that we just discussed we need rubber for buttons aluminium for battery y contacts integrated circuit which consists of a diode transistor resonator resistors and a capacitator all those basic things that make a circuit function Um fibreglass and thin copper wire to create the actual circuit board itself"}
+{"t_start_ms": 644080, "t_end_ms": 663960, "speaker": "others", "text": "An L_E_D_ which is a light emitting diode um contact discs for the buttons plastic for the casing and a power-source whatever power-source we've actually determined we want Next slide please Thank you Uh personal preferences uh to save money for the components the remote should be mass-produced and"}
+{"t_start_ms": 663960, "t_end_ms": 677970, "speaker": "others", "text": "basic materials should be bought en masse Um if we find another company who can produce the required chips casing L_E_D_ any additional materials we decide we require at a less expensive rate than we ourselves are producing we should go for it"}
+{"t_start_ms": 679430, "t_end_ms": 698900, "speaker": "others", "text": "Next slide please Um just talking to the um manufacturing division They suggested power options solar cells hand dynamo and kinetic power so you shake it and it increases the power Um I'm not sure how the hand dynamo works they have yet to get back to me on that"}
+{"t_start_ms": 698900, "t_end_ms": 717870, "speaker": "others", "text": "So next slide please Suggested casing options Okay We can offer options for casing such as straight curved double-curved you know very specific to the customer Options for materials plastic rubber titanium wood I don't think anyone's gonna go for a wood one because splinters"}
+{"t_start_ms": 698920, "t_end_ms": 699120, "speaker": "me", "text": "Hmm"}
+{"t_start_ms": 700860, "t_end_ms": 701600, "speaker": "me", "text": "Interesting"}
+{"t_start_ms": 717030, "t_end_ms": 720170, "speaker": "others", "text": "That would be amazing though yeah No splinters would"}
+{"t_start_ms": 719570, "t_end_ms": 739550, "speaker": "others", "text": "Yeah Um certain restrictions do apply here though Uh latex you can't do solar power with a latex one So if they want some a soft squishy rubber they can't have the solar powered option Double-curved you can't do titanium Um that would be two curvatures so it would actually if you the shape of your hand you curve"}
+{"t_start_ms": 733240, "t_end_ms": 733880, "speaker": "others", "text": "What is that"}
+{"t_start_ms": 739550, "t_end_ms": 759480, "speaker": "others", "text": "here and you curve here so you could have two curves that match the shape of your hand to make it more comfortable to hold Now if you wanted that you can't do titanium And uh so you functions what for the buttons scrolling function could be very beneficial to us instead of actual"}
+{"t_start_ms": 741430, "t_end_ms": 741840, "speaker": "me", "text": "Mm"}
+{"t_start_ms": 745170, "t_end_ms": 745810, "speaker": "others", "text": "Mm"}
+{"t_start_ms": 753020, "t_end_ms": 753460, "speaker": "others", "text": "Right"}
+{"t_start_ms": 759480, "t_end_ms": 779420, "speaker": "others", "text": "buttons themselves I think I have one more slide No I didn't Um the manufacturing division also has said that um they have several types of chips and they've just developed a sample sensor or sample speaker chip which we could utilise Um push"}
+{"t_start_ms": 761260, "t_end_ms": 761710, "speaker": "me", "text": "'Kay"}
+{"t_start_ms": 762830, "t_end_ms": 763810, "speaker": "me", "text": "No okay"}
+{"t_start_ms": 779420, "t_end_ms": 799200, "speaker": "others", "text": "button requires a simple chip and scroll requires more complicated chip So depends on what we decide we wanna do In addition to that if we're offering all those different options to the customer for producing their remote we're going to have to have multiples of each type like"}
+{"t_start_ms": 799200, "t_end_ms": 818870, "speaker": "others", "text": "a double-curved in rubber um you know each option should have a certain select number produced with all those options So we'll have to mix it up make sure we produce enough of everyone But that could also drive up the price of the actual remote itself if they know that we only produced five"}
+{"t_start_ms": 815840, "t_end_ms": 816180, "speaker": "me", "text": "Mm"}
+{"t_start_ms": 818870, "t_end_ms": 823920, "speaker": "others", "text": "thousand you know double-curved wooden remotes"}
+{"t_start_ms": 821310, "t_end_ms": 821670, "speaker": "others", "text": "Right"}
+{"t_start_ms": 826030, "t_end_ms": 826360, "speaker": "others", "text": "Okay"}
+{"t_start_ms": 826040, "t_end_ms": 836750, "speaker": "me", "text": "Hmm Okay Alright well thank you for those informative presentations Let's go back to um Now we have to make some decisions Where were we"}
+{"t_start_ms": 826580, "t_end_ms": 827340, "speaker": "others", "text": "And that's all I got"}
+{"t_start_ms": 837460, "t_end_ms": 846530, "speaker": "others", "text": "Let me just add one more thing that I couldn't say before and that's just that there's the new technology that they've developed on the voice recognition Um"}
+{"t_start_ms": 839350, "t_end_ms": 839820, "speaker": "me", "text": "Sure"}
+{"t_start_ms": 846620, "t_end_ms": 848440, "speaker": "others", "text": "Oh this the thing we were talking about earlier"}
+{"t_start_ms": 848590, "t_end_ms": 865740, "speaker": "others", "text": "Right except that it's sort of odd and I'm no not exactly sure why they are explaining it in the way they are um there's a sample sensor and there's a sample speaker unit for So you would say like good morning coffeemaker and it would respond good morning Jill but"}
+{"t_start_ms": 866820, "t_end_ms": 885250, "speaker": "others", "text": "I'm not sure exactly how it's gonna work 'cause do you programme do we program the responses and the questions So does that mean that the user then has to ask the specific question and can't change it in order for it to be recognised or can it be altered in a certain way or does the actually user program it to say a channel means this"}
+{"t_start_ms": 878140, "t_end_ms": 878610, "speaker": "me", "text": "Mm"}
+{"t_start_ms": 883780, "t_end_ms": 885650, "speaker": "me", "text": "Right Right"}
+{"t_start_ms": 885110, "t_end_ms": 891690, "speaker": "others", "text": "Yeah like using the menu to be like enter your name into the screen like on the menu options So that way the remote reads it"}
+{"t_start_ms": 889750, "t_end_ms": 897690, "speaker": "others", "text": "Right so it's got like a limited memory and programme it So it's sort of iffy but that's kind of what you'd say"}
+{"t_start_ms": 895190, "t_end_ms": 895570, "speaker": "me", "text": "Mm"}
+{"t_start_ms": 898380, "t_end_ms": 900650, "speaker": "others", "text": "I feel like voice recognition would be"}
+{"t_start_ms": 902360, "t_end_ms": 907100, "speaker": "others", "text": "I don't know w it would be too hard to really I mean we could do it but"}
+{"t_start_ms": 902950, "t_end_ms": 903210, "speaker": "me", "text": "Hmm"}
+{"t_start_ms": 905300, "t_end_ms": 905920, "speaker": "me", "text": "Programme"}
+{"t_start_ms": 907940, "t_end_ms": 913280, "speaker": "me", "text": "If it's within our price to get that kind of chip that would you know technology"}
+{"t_start_ms": 911540, "t_end_ms": 912070, "speaker": "others", "text": "Technology"}
+{"t_start_ms": 912920, "t_end_ms": 917980, "speaker": "others", "text": "Well we are making the chip So I mean"}
+{"t_start_ms": 914970, "t_end_ms": 915490, "speaker": "me", "text": "Hmm"}
+{"t_start_ms": 919820, "t_end_ms": 927340, "speaker": "others", "text": "But I guess we have to look at w what our production cost is for the chip itself anyway Yeah"}
+{"t_start_ms": 924720, "t_end_ms": 929030, "speaker": "others", "text": "And it is a growing trend the higher technological like"}
+{"t_start_ms": 926480, "t_end_ms": 926940, "speaker": "me", "text": "Mm"}
+{"t_start_ms": 930050, "t_end_ms": 932240, "speaker": "others", "text": "the I mean just like the more advanced it is"}
+{"t_start_ms": 933030, "t_end_ms": 947410, "speaker": "others", "text": "Yeah I I thought offering some of those options for different materials that it could be made of different you know I think we'd have to decide on the power options maybe So that we could reduce cost Yeah"}
+{"t_start_ms": 933280, "t_end_ms": 934560, "speaker": "others", "text": "the better it'll sell"}
+{"t_start_ms": 945150, "t_end_ms": 945370, "speaker": "me", "text": "Hmm"}
+{"t_start_ms": 945350, "t_end_ms": 948290, "speaker": "others", "text": "Yeah 'cause we need to know how big it's gonna be and how heavy"}
+{"t_start_ms": 948130, "t_end_ms": 956120, "speaker": "me", "text": "Okay that kind of brings us to this let's let's see if we can decide what kind of energy source we want to have first and foremost Um"}
+{"t_start_ms": 950630, "t_end_ms": 950890, "speaker": "others", "text": "Okay"}
+{"t_start_ms": 959270, "t_end_ms": 966170, "speaker": "me", "text": "Do we wanna go for batteries or a stand like the one that we saw illustrated earlier"}
+{"t_start_ms": 968510, "t_end_ms": 969490, "speaker": "others", "text": "Oh the base yeah"}
+{"t_start_ms": 969360, "t_end_ms": 973490, "speaker": "me", "text": "The base the charging base with rechargeable batteries"}
+{"t_start_ms": 971880, "t_end_ms": 972340, "speaker": "others", "text": "I think the p"}
+{"t_start_ms": 971940, "t_end_ms": 983590, "speaker": "others", "text": "I always feel like first I wanna know what it looks like before 'Cause if it's something really really small then it's sort of harder to imagine a base for it that was p quite a s substantial size sort of standing up"}
+{"t_start_ms": 974880, "t_end_ms": 975140, "speaker": "me", "text": "Hmm"}
+{"t_start_ms": 983750, "t_end_ms": 990520, "speaker": "me", "text": "Yeah and we don't have multiple things that it has to control it just has to control the T_V_ It's not gonna be a huge universal remote"}
+{"t_start_ms": 983870, "t_end_ms": 984080, "speaker": "others", "text": "W"}
+{"t_start_ms": 991010, "t_end_ms": 997440, "speaker": "others", "text": "We need to decide well so we can figure how big it's gonna be like exactly what buttons we want and exactly"}
+{"t_start_ms": 991110, "t_end_ms": 991510, "speaker": "others", "text": "Right"}
+{"t_start_ms": 994150, "t_end_ms": 995450, "speaker": "me", "text": "What size battery and"}
+{"t_start_ms": 996660, "t_end_ms": 1008180, "speaker": "others", "text": "Well the other thing is like even if it's got a few buttons so we want it to be bigger than this 'cause it still fits in your hand so you still wanted something that's comfortable and substantial but not necessarily full of buttons"}
+{"t_start_ms": 1000080, "t_end_ms": 1002840, "speaker": "others", "text": "It could be like this Yes I'd well uh"}
+{"t_start_ms": 1007990, "t_end_ms": 1017450, "speaker": "others", "text": "This one is really comfortable like I like the sides whatever because But if we have the um the locator then we don't have to worry about that"}
+{"t_start_ms": 1011470, "t_end_ms": 1012840, "speaker": "others", "text": "Are you gonna lose it easier"}
+{"t_start_ms": 1017630, "t_end_ms": 1018230, "speaker": "others", "text": "That's true"}
+{"t_start_ms": 1018710, "t_end_ms": 1021360, "speaker": "others", "text": "So we can make it small if we have a l locating device"}
+{"t_start_ms": 1021550, "t_end_ms": 1029090, "speaker": "others", "text": "If we do a voice-activated locator though we're gonna be looking at a more substantial chip So"}
+{"t_start_ms": 1021550, "t_end_ms": 1021940, "speaker": "others", "text": "Yeah"}
+{"t_start_ms": 1027990, "t_end_ms": 1028220, "speaker": "others", "text": "Hmm"}
+{"t_start_ms": 1028390, "t_end_ms": 1030520, "speaker": "others", "text": "So i That's the other thing it's like"}
+{"t_start_ms": 1032200, "t_end_ms": 1037000, "speaker": "others", "text": "You know Are we gonna have certain chips that are gonna require bigger size period"}
+{"t_start_ms": 1037330, "t_end_ms": 1038230, "speaker": "others", "text": "Two double A_s"}
+{"t_start_ms": 1039470, "t_end_ms": 1040190, "speaker": "others", "text": "for this size"}
+{"t_start_ms": 1043830, "t_end_ms": 1049510, "speaker": "others", "text": "But like you know if we get more complicated then it's gonna v be have to be bigger to just accommodate the chip size"}
+{"t_start_ms": 1047010, "t_end_ms": 1047310, "speaker": "others", "text": "Right"}
+{"t_start_ms": 1049910, "t_end_ms": 1057160, "speaker": "others", "text": "Honestly I think the customer would be kind of irritated by the fact that it has a base if we did do a nice small compact"}
+{"t_start_ms": 1056640, "t_end_ms": 1060720, "speaker": "me", "text": "Right I agree it's either gonna be bigger with a base or smaller with just"}
+{"t_start_ms": 1057600, "t_end_ms": 1058010, "speaker": "others", "text": "Yeah"}
+{"t_start_ms": 1058110, "t_end_ms": 1058700, "speaker": "others", "text": "So we sh"}
+{"t_start_ms": 1059890, "t_end_ms": 1061840, "speaker": "others", "text": "Smaller without Yeah"}
+{"t_start_ms": 1061880, "t_end_ms": 1067460, "speaker": "me", "text": "A battery like this guy Alright so what direction do you want to go in You wanna vote"}
+{"t_start_ms": 1062680, "t_end_ms": 1062920, "speaker": "others", "text": "Yeah"}
+{"t_start_ms": 1062750, "t_end_ms": 1063760, "speaker": "others", "text": "Mm yeah"}
+{"t_start_ms": 1068230, "t_end_ms": 1072880, "speaker": "others", "text": "I think if we had a a locating device with the small one I think that seems way more advanced"}
+{"t_start_ms": 1072850, "t_end_ms": 1075790, "speaker": "me", "text": "I'm kind of I'm kind of leaning in the direction of this kind of"}
+{"t_start_ms": 1073710, "t_end_ms": 1074260, "speaker": "others", "text": "Yeah"}
+{"t_start_ms": 1074260, "t_end_ms": 1077900, "speaker": "others", "text": "I'm a away from the base Yeah"}
+{"t_start_ms": 1076920, "t_end_ms": 1080030, "speaker": "me", "text": "bigger and the base That just seems so clunky and"}
+{"t_start_ms": 1077760, "t_end_ms": 1078130, "speaker": "others", "text": "Yeah"}
+{"t_start_ms": 1078480, "t_end_ms": 1079140, "speaker": "others", "text": "'Kay so"}
+{"t_start_ms": 1080040, "t_end_ms": 1086430, "speaker": "others", "text": "Yeah because I mean if even looking at cellphones right now those trends the smaller the hotter it is yeah"}
+{"t_start_ms": 1084260, "t_end_ms": 1086120, "speaker": "others", "text": "Smaller and smaller yeah yeah yeah"}
+{"t_start_ms": 1086310, "t_end_ms": 1086780, "speaker": "me", "text": "Okay"}
+{"t_start_ms": 1086930, "t_end_ms": 1090080, "speaker": "others", "text": "The only problem with that is if you forget to take it out of your pocket and it goes in wash"}
+{"t_start_ms": 1090220, "t_end_ms": 1090980, "speaker": "others", "text": "Oh"}
+{"t_start_ms": 1091160, "t_end_ms": 1092000, "speaker": "others", "text": "You're kidding"}
+{"t_start_ms": 1092520, "t_end_ms": 1096920, "speaker": "others", "text": "You know it happens I've had three watches go that way too"}
+{"t_start_ms": 1093520, "t_end_ms": 1093780, "speaker": "me", "text": "Hmm"}
+{"t_start_ms": 1094290, "t_end_ms": 1094670, "speaker": "others", "text": "Yeah"}
+{"t_start_ms": 1096290, "t_end_ms": 1099280, "speaker": "others", "text": "Oh watches I've but I've never washed a cell phone"}
+{"t_start_ms": 1096410, "t_end_ms": 1096750, "speaker": "others", "text": "Ouch"}
+{"t_start_ms": 1098350, "t_end_ms": 1101250, "speaker": "others", "text": "A phone whoa that would wow that would hurt"}
+{"t_start_ms": 1101560, "t_end_ms": 1105020, "speaker": "me", "text": "Okay so what kind of material do we want to be made out of"}
+{"t_start_ms": 1101570, "t_end_ms": 1102490, "speaker": "others", "text": "Pieces everywhere"}
+{"t_start_ms": 1105520, "t_end_ms": 1108480, "speaker": "others", "text": "Well we have lots of options I don't think wood is a viable option"}
+{"t_start_ms": 1107690, "t_end_ms": 1108550, "speaker": "others", "text": "Yeah wood"}
+{"t_start_ms": 1109140, "t_end_ms": 1111490, "speaker": "me", "text": "No Oh what did you Oh sorry go ahead"}
+{"t_start_ms": 1109600, "t_end_ms": 1114450, "speaker": "others", "text": "Well titanium s I was saying that titanium if we're being restricted then"}
+{"t_start_ms": 1116050, "t_end_ms": 1117940, "speaker": "others", "text": "I would probably lean away from that"}
+{"t_start_ms": 1118310, "t_end_ms": 1121420, "speaker": "others", "text": "Yeah 'cause if it's gonna cost us more to produce a chip titanium will be more expensive"}
+{"t_start_ms": 1121640, "t_end_ms": 1123920, "speaker": "me", "text": "Right What would you recommend"}
+{"t_start_ms": 1122240, "t_end_ms": 1134180, "speaker": "others", "text": "However well we only wanna sell it for twenty five Euro right 'Cause I was thinking if we wanted to get the high in market then you could produce a few in titanium make them a rarity so to speak"}
+{"t_start_ms": 1124080, "t_end_ms": 1124400, "speaker": "others", "text": "Yeah"}
+{"t_start_ms": 1126980, "t_end_ms": 1127440, "speaker": "others", "text": "Yeah"}
+{"t_start_ms": 1129200, "t_end_ms": 1130140, "speaker": "others", "text": "That'll Yeah exactly"}
+{"t_start_ms": 1131660, "t_end_ms": 1132020, "speaker": "me", "text": "Mm"}
+{"t_start_ms": 1133160, "t_end_ms": 1134340, "speaker": "others", "text": "The selling point yeah"}
+{"t_start_ms": 1133720, "t_end_ms": 1139930, "speaker": "others", "text": "We could do that because all our research shows that people are definitely willing to spend more if"}
+{"t_start_ms": 1139060, "t_end_ms": 1140610, "speaker": "others", "text": "Are we restricted by this"}
+{"t_start_ms": 1139230, "t_end_ms": 1139570, "speaker": "others", "text": "Yeah"}
+{"t_start_ms": 1142500, "t_end_ms": 1144010, "speaker": "others", "text": "Well the original"}
+{"t_start_ms": 1142720, "t_end_ms": 1151900, "speaker": "me", "text": "I I think we should just focus on one design and one concept right now.I'm not sure that we'll have the time and money to produce a whole array of"}
+{"t_start_ms": 1143120, "t_end_ms": 1143910, "speaker": "others", "text": "Twenty five Euros"}
+{"t_start_ms": 1147570, "t_end_ms": 1147890, "speaker": "others", "text": "Okay"}
+{"t_start_ms": 1153280, "t_end_ms": 1160170, "speaker": "me", "text": "remotes If this was a successful remote we might then produce a higher end version of it I think"}
+{"t_start_ms": 1160490, "t_end_ms": 1161750, "speaker": "others", "text": "Yeah Good plan"}
+{"t_start_ms": 1160560, "t_end_ms": 1160940, "speaker": "others", "text": "Good plan"}
+{"t_start_ms": 1162420, "t_end_ms": 1166710, "speaker": "me", "text": "Okay so we wanna go for plastic or what would you recommend for materials"}
+{"t_start_ms": 1167110, "t_end_ms": 1187040, "speaker": "others", "text": "Honestly I'd recommend like um uh since we're going with batteries instead of solar power I'd recommend maybe a uh soft like latex because we could produce you know how cellphones have those overlays that you can change the colour We could do uh one that fits in with the trends of the year so because this"}
+{"t_start_ms": 1167790, "t_end_ms": 1168330, "speaker": "me", "text": "Hmm"}
+{"t_start_ms": 1182820, "t_end_ms": 1183720, "speaker": "others", "text": "Oh"}
+{"t_start_ms": 1182880, "t_end_ms": 1184640, "speaker": "me", "text": "Mm-hmm Mm"}
+{"t_start_ms": 1187040, "t_end_ms": 1198280, "speaker": "others", "text": "year is all fruit God only knows why um we could do f a cherry cover for this year and then i if next year is stripes or solids you know"}
+{"t_start_ms": 1189260, "t_end_ms": 1190840, "speaker": "others", "text": "Yeah who knows"}
+{"t_start_ms": 1198800, "t_end_ms": 1199190, "speaker": "me", "text": "Okay"}
+{"t_start_ms": 1198950, "t_end_ms": 1207140, "speaker": "others", "text": "So you're talking about like when it leaves our salesroom then it's all gonna be cherry-coloured or is it gonna be the kinda thing where people come back and swap it"}
+{"t_start_ms": 1206090, "t_end_ms": 1207950, "speaker": "others", "text": "O or we could like take off this"}
+{"t_start_ms": 1206870, "t_end_ms": 1209220, "speaker": "me", "text": "They could buy cases maybe"}
+{"t_start_ms": 1207110, "t_end_ms": 1224190, "speaker": "others", "text": "They could come back And buy the extra case So we could do like a b a hard base plastic and then we could give two latex covers to start"}
+{"t_start_ms": 1210270, "t_end_ms": 1210940, "speaker": "others", "text": "Okay"}
+{"t_start_ms": 1210420, "t_end_ms": 1213870, "speaker": "me", "text": "if they wanted I think it's good to sell a basic thing and then sell"}
+{"t_start_ms": 1214910, "t_end_ms": 1215450, "speaker": "me", "text": "options"}
+{"t_start_ms": 1217120, "t_end_ms": 1217640, "speaker": "others", "text": "Yeah"}
+{"t_start_ms": 1219420, "t_end_ms": 1221940, "speaker": "others", "text": "The what the top face right"}
+{"t_start_ms": 1221420, "t_end_ms": 1221870, "speaker": "others", "text": "Yeah"}
+{"t_start_ms": 1222010, "t_end_ms": 1223550, "speaker": "me", "text": "Okay Okay"}
+{"t_start_ms": 1225630, "t_end_ms": 1233080, "speaker": "others", "text": "Yeah because the soft latex definitely is squishy That's in Well I mean squishier than like yeah just a hard plastic"}
+{"t_start_ms": 1230950, "t_end_ms": 1236980, "speaker": "me", "text": "Right Right Okay and what kind of chip would we need for this guy"}
+{"t_start_ms": 1237220, "t_end_ms": 1239670, "speaker": "others", "text": "How complicated Are we gonna go with the voice activated"}
+{"t_start_ms": 1238750, "t_end_ms": 1239380, "speaker": "others", "text": "Yeah"}
+{"t_start_ms": 1239810, "t_end_ms": 1248240, "speaker": "me", "text": "I don't think we should do voice I think we should just do um the recognition for when it's lost you know could we Yeah"}
+{"t_start_ms": 1246750, "t_end_ms": 1247870, "speaker": "others", "text": "A tracker yeah"}
+{"t_start_ms": 1248480, "t_end_ms": 1258220, "speaker": "others", "text": "'Cause that uh what it type of yeah for voice activation would it be like a certain term what we would say like because people could just be talking and we don't want it going off all the time"}
+{"t_start_ms": 1254280, "t_end_ms": 1254710, "speaker": "me", "text": "Hmm"}
+{"t_start_ms": 1260520, "t_end_ms": 1260780, "speaker": "me", "text": "Right"}
+{"t_start_ms": 1261030, "t_end_ms": 1261440, "speaker": "others", "text": "So uh"}
+{"t_start_ms": 1261410, "t_end_ms": 1264840, "speaker": "others", "text": "Well we could give it a specific code you know remote missing"}
+{"t_start_ms": 1266580, "t_end_ms": 1276360, "speaker": "others", "text": "Ooh Uh see I'm uh I'm strangely attracted to it because I know that's it's definitely gonna be big because it's I don't know it's just so high-tech"}
+{"t_start_ms": 1275330, "t_end_ms": 1291520, "speaker": "others", "text": "Well my little sister got for Christmas she got one of those key finders that's like a key-ring and you have to whistle in a certain frequency for it to work And then she would laugh and it would start going off in her purse and you couldn't turn it off So it became highly irritating"}
+{"t_start_ms": 1284970, "t_end_ms": 1286630, "speaker": "others", "text": "Yeah see that would just irritate me"}
+{"t_start_ms": 1289190, "t_end_ms": 1289690, "speaker": "me", "text": "Oh dear"}
+{"t_start_ms": 1289330, "t_end_ms": 1290710, "speaker": "others", "text": "Oh then maybe voice"}
+{"t_start_ms": 1291480, "t_end_ms": 1291950, "speaker": "me", "text": "Okay"}
+{"t_start_ms": 1291960, "t_end_ms": 1293650, "speaker": "others", "text": "maybe voice activation won't be good"}
+{"t_start_ms": 1292320, "t_end_ms": 1294720, "speaker": "others", "text": "So I think having a key-phrase is much better"}
+{"t_start_ms": 1294840, "t_end_ms": 1302720, "speaker": "me", "text": "Okay Alright But it's not gonna be voice activated in the fact that you would say channel up and it would work right Just a Okay alright"}
+{"t_start_ms": 1300340, "t_end_ms": 1302280, "speaker": "others", "text": "Yeah n n no we just want it to be a finder"}
+{"t_start_ms": 1300940, "t_end_ms": 1301290, "speaker": "others", "text": "But then it"}
+{"t_start_ms": 1301130, "t_end_ms": 1301600, "speaker": "others", "text": "No"}
+{"t_start_ms": 1302850, "t_end_ms": 1304190, "speaker": "others", "text": "Hmm Okay"}
+{"t_start_ms": 1304150, "t_end_ms": 1306490, "speaker": "others", "text": "But do can your can the department make"}
+{"t_start_ms": 1306880, "t_end_ms": 1312840, "speaker": "others", "text": "That would be like a mid-class um Yeah So we don't actually have to go for"}
+{"t_start_ms": 1309840, "t_end_ms": 1310770, "speaker": "others", "text": "Oh brilliant then"}
+{"t_start_ms": 1314690, "t_end_ms": 1322640, "speaker": "others", "text": "Well if they've just developed the sample sensor sample speaker it's a brand new chip Why not introduce it in this way"}
+{"t_start_ms": 1321470, "t_end_ms": 1321800, "speaker": "me", "text": "No"}
+{"t_start_ms": 1323090, "t_end_ms": 1324060, "speaker": "others", "text": "Yeah good point"}
+{"t_start_ms": 1323440, "t_end_ms": 1323900, "speaker": "me", "text": "Mm 'kay"}
+{"t_start_ms": 1325080, "t_end_ms": 1329130, "speaker": "me", "text": "Uh and what size batteries double A_ triple A_"}
+{"t_start_ms": 1329570, "t_end_ms": 1331330, "speaker": "others", "text": "I think triple A_ it'll be lighter"}
+{"t_start_ms": 1331490, "t_end_ms": 1331790, "speaker": "me", "text": "Two"}
+{"t_start_ms": 1332910, "t_end_ms": 1333970, "speaker": "me", "text": "Could it run off of two"}
+{"t_start_ms": 1333010, "t_end_ms": 1335820, "speaker": "others", "text": "I mean more more come in a package Yeah"}
+{"t_start_ms": 1334150, "t_end_ms": 1335890, "speaker": "others", "text": "Well that depends on what the energy is needed"}
+{"t_start_ms": 1336540, "t_end_ms": 1356540, "speaker": "others", "text": "I think well we could d r do two or we could do one small lithium 'cause you know the lithium batteries are doing quite well in most other electronic products right So they're more widely available now And they also have a longer battery life than most batteries But if"}
+{"t_start_ms": 1354500, "t_end_ms": 1355730, "speaker": "me", "text": "They're more expensive though too"}
+{"t_start_ms": 1356540, "t_end_ms": 1359300, "speaker": "others", "text": "you only have to replace it every five years"}
+{"t_start_ms": 1358440, "t_end_ms": 1358770, "speaker": "me", "text": "Mm"}
+{"t_start_ms": 1361010, "t_end_ms": 1361780, "speaker": "others", "text": "That's a good point"}
+{"t_start_ms": 1361430, "t_end_ms": 1362640, "speaker": "me", "text": "Thoughts anybody"}
+{"t_start_ms": 1362150, "t_end_ms": 1363280, "speaker": "others", "text": "As long as we sell it with it"}
+{"t_start_ms": 1364430, "t_end_ms": 1372300, "speaker": "others", "text": "Well how about a initial you get one battery when you buy it 'cause I'm pretty sure we can get them pretty cheap on bulk Yeah"}
+{"t_start_ms": 1368680, "t_end_ms": 1369830, "speaker": "others", "text": "Right that's what I meant"}
+{"t_start_ms": 1370020, "t_end_ms": 1372800, "speaker": "others", "text": "We could think about it and come back to it next meeting We still have one more meeting"}
+{"t_start_ms": 1370840, "t_end_ms": 1373210, "speaker": "me", "text": "Okay Yeah Alright"}
+{"t_start_ms": 1380280, "t_end_ms": 1380650, "speaker": "me", "text": "Okay"}
+{"t_start_ms": 1382120, "t_end_ms": 1388620, "speaker": "me", "text": "So we've covered that first category User Interface Concept meaning design"}
+{"t_start_ms": 1388380, "t_end_ms": 1389890, "speaker": "others", "text": "What's it gonna Yeah what's it gonna look like"}
+{"t_start_ms": 1390080, "t_end_ms": 1400990, "speaker": "me", "text": "Okay I ki I kind of like your idea about the retro phone dial and that the central button could have maybe our logo on it"}
+{"t_start_ms": 1391170, "t_end_ms": 1392730, "speaker": "others", "text": "Um"}
+{"t_start_ms": 1402130, "t_end_ms": 1406290, "speaker": "me", "text": "It might be the four way scroll too I mean if Yeah"}
+{"t_start_ms": 1404400, "t_end_ms": 1412910, "speaker": "others", "text": "Yeah it could be whatever as long as there's something big in the middle because like the old phones there's like that just like piece of metal or like a picture or something in the middle"}
+{"t_start_ms": 1409060, "t_end_ms": 1409380, "speaker": "me", "text": "Yeah"}
+{"t_start_ms": 1411530, "t_end_ms": 1411870, "speaker": "me", "text": "Mm-hmm"}
+{"t_start_ms": 1411720, "t_end_ms": 1425410, "speaker": "others", "text": "Well my issue with that is if it got too big though 'cause if you have the circle and the button in the middle then is it gonna get wider than your your hands are because w And then would the buttons be too small if it was enough to fit on it"}
+{"t_start_ms": 1418630, "t_end_ms": 1418930, "speaker": "me", "text": "Mm"}
+{"t_start_ms": 1418960, "t_end_ms": 1419760, "speaker": "others", "text": "Oh that's true"}
+{"t_start_ms": 1425590, "t_end_ms": 1426180, "speaker": "others", "text": "Good point"}
+{"t_start_ms": 1426520, "t_end_ms": 1441760, "speaker": "others", "text": "In the sample ones that you showed us there was one that had the scroll buttons on the side which I think if we make it curved like a hand like a hand-shape like if we put the the scroll-button on the side that could be particularly useful"}
+{"t_start_ms": 1431280, "t_end_ms": 1431580, "speaker": "me", "text": "Yeah"}
+{"t_start_ms": 1431560, "t_end_ms": 1431940, "speaker": "others", "text": "Yeah"}
+{"t_start_ms": 1439060, "t_end_ms": 1439970, "speaker": "me", "text": "Oh I see what you mean"}
+{"t_start_ms": 1441330, "t_end_ms": 1441900, "speaker": "me", "text": "I think so"}
+{"t_start_ms": 1442370, "t_end_ms": 1444640, "speaker": "others", "text": "So scroll buttons on the side and then buttons on top"}
+{"t_start_ms": 1443460, "t_end_ms": 1444970, "speaker": "me", "text": "Yeah I like that 'Kay"}
+{"t_start_ms": 1456610, "t_end_ms": 1460250, "speaker": "others", "text": "But we definitely If we have scroll things on the side we definitely have to have 'em labelled"}
+{"t_start_ms": 1461440, "t_end_ms": 1461640, "speaker": "me", "text": "Mm"}
+{"t_start_ms": 1462020, "t_end_ms": 1466110, "speaker": "others", "text": "Yeah like on the side of it Oh if it's just up and down"}
+{"t_start_ms": 1463000, "t_end_ms": 1464500, "speaker": "others", "text": "Well if it's just up and down"}
+{"t_start_ms": 1466000, "t_end_ms": 1469910, "speaker": "others", "text": "But is that for Which"}
+{"t_start_ms": 1467880, "t_end_ms": 1470620, "speaker": "others", "text": "Volume or channel I don't know"}
+{"t_start_ms": 1470600, "t_end_ms": 1472470, "speaker": "others", "text": "Well you could do some on both sides"}
+{"t_start_ms": 1471110, "t_end_ms": 1472550, "speaker": "others", "text": "Do we have both sides"}
+{"t_start_ms": 1473330, "t_end_ms": 1473800, "speaker": "me", "text": "Can we"}
+{"t_start_ms": 1473470, "t_end_ms": 1483020, "speaker": "others", "text": "Mm yeah We should probably make it that you have to depress it to activate it then 'cause oth otherwise you're not just holding it and going like this you know"}
+{"t_start_ms": 1478790, "t_end_ms": 1481950, "speaker": "others", "text": "Yeah That's squishy That's squishy"}
+{"t_start_ms": 1479250, "t_end_ms": 1481340, "speaker": "me", "text": "So that you're just not holding it and it changes the chan"}
+{"t_start_ms": 1482610, "t_end_ms": 1487240, "speaker": "others", "text": "Well the other option is in instead of a scroll you just have the buttons up on the side which are on the side"}
+{"t_start_ms": 1484930, "t_end_ms": 1485770, "speaker": "others", "text": "have buttons"}
+{"t_start_ms": 1486370, "t_end_ms": 1488280, "speaker": "me", "text": "Mm Yeah"}
+{"t_start_ms": 1487690, "t_end_ms": 1487970, "speaker": "others", "text": "Okay"}
+{"t_start_ms": 1487940, "t_end_ms": 1489180, "speaker": "others", "text": "Yeah that"}
+{"t_start_ms": 1490370, "t_end_ms": 1490720, "speaker": "me", "text": "Hmm"}
+{"t_start_ms": 1500390, "t_end_ms": 1501520, "speaker": "me", "text": "'Kay any other ideas"}
+{"t_start_ms": 1503250, "t_end_ms": 1505790, "speaker": "others", "text": "Um what colour"}
+{"t_start_ms": 1506440, "t_end_ms": 1509940, "speaker": "me", "text": "Oh yeah Latex covers W"}
+{"t_start_ms": 1509620, "t_end_ms": 1520040, "speaker": "others", "text": "We have to make sure that logo always sticks out when we put the latex covers on so we'll have to like have a little square or something so that the our logo's available"}
+{"t_start_ms": 1518310, "t_end_ms": 1524550, "speaker": "others", "text": "Well I sort of like having the a yellow strip at the bottom with the R_R_ like that"}
+{"t_start_ms": 1525700, "t_end_ms": 1526010, "speaker": "others", "text": "Yeah"}
+{"t_start_ms": 1525840, "t_end_ms": 1526980, "speaker": "others", "text": "And that's at the bottom of it"}
+{"t_start_ms": 1527170, "t_end_ms": 1541050, "speaker": "me", "text": "I think maybe we should do it on a b button itself though because if people are able to change the covers I don't know maybe the on-off button something some the menu button I don't know but you know if we're gonna put our company logo on there and somebody could just get"}
+{"t_start_ms": 1531080, "t_end_ms": 1531810, "speaker": "others", "text": "Which button"}
+{"t_start_ms": 1542330, "t_end_ms": 1545710, "speaker": "me", "text": "another one Are they all gonna have our company logo on them Every cover"}
+{"t_start_ms": 1546080, "t_end_ms": 1552530, "speaker": "others", "text": "Yeah I don't think we should do that because that would just be icky So I think maybe putting it on a button is probably a good idea"}
+{"t_start_ms": 1549390, "t_end_ms": 1549970, "speaker": "me", "text": "Yeah"}
+{"t_start_ms": 1553090, "t_end_ms": 1555050, "speaker": "me", "text": "If we want it to be visible and"}
+{"t_start_ms": 1556960, "t_end_ms": 1576900, "speaker": "me", "text": "Um are all those those one that you showed where they were um s met silver-metallic looking But those are plastic right They're not titanium I kind of like that look Uh but or if it was really Yeah for the base or if we're going for the retro look I think like a really shiny black would"}
+{"t_start_ms": 1563830, "t_end_ms": 1564090, "speaker": "others", "text": "Yeah"}
+{"t_start_ms": 1565590, "t_end_ms": 1565940, "speaker": "others", "text": "Yeah"}
+{"t_start_ms": 1569680, "t_end_ms": 1571490, "speaker": "others", "text": "For our base one"}
+{"t_start_ms": 1576900, "t_end_ms": 1580750, "speaker": "me", "text": "be cool What are your thoughts Gun-metal gray"}
+{"t_start_ms": 1577830, "t_end_ms": 1582340, "speaker": "others", "text": "Yeah or like a gun-metal grey 'cause then it combines the silver and the black"}
+{"t_start_ms": 1582190, "t_end_ms": 1584000, "speaker": "me", "text": "There you go gun-metal gray"}
+{"t_start_ms": 1594820, "t_end_ms": 1597880, "speaker": "others", "text": "I'm just really wary of the putting anything on a button"}
+{"t_start_ms": 1597890, "t_end_ms": 1598170, "speaker": "me", "text": "Why"}
+{"t_start_ms": 1598720, "t_end_ms": 1600700, "speaker": "others", "text": "It'll wear off"}
+{"t_start_ms": 1599310, "t_end_ms": 1604250, "speaker": "others", "text": "What's the button Well w w then what's the button do and how do you know that that is what the button does"}
+{"t_start_ms": 1599540, "t_end_ms": 1600530, "speaker": "others", "text": "Yeah buttons wear off"}
+{"t_start_ms": 1600550, "t_end_ms": 1600840, "speaker": "me", "text": "Mm"}
+{"t_start_ms": 1606020, "t_end_ms": 1613110, "speaker": "others", "text": "I guess Just looking at examples y you just don't ever see the logo on a button it's always on the actual casing"}
+{"t_start_ms": 1613400, "t_end_ms": 1614090, "speaker": "me", "text": "Right"}
+{"t_start_ms": 1615820, "t_end_ms": 1616270, "speaker": "others", "text": "Hmm"}
+{"t_start_ms": 1618100, "t_end_ms": 1622330, "speaker": "others", "text": "There's nothing saying that we have to put the logo on the front of the actual"}
+{"t_start_ms": 1621510, "t_end_ms": 1624140, "speaker": "others", "text": "But we want it to be seen We need it to be seen"}
+{"t_start_ms": 1621520, "t_end_ms": 1629860, "speaker": "me", "text": "On the back It d visible Visibility though 'Cause if it was only on the back really the only time you're gonna see it is when you drop it or when you're changing the battery"}
+{"t_start_ms": 1621580, "t_end_ms": 1624210, "speaker": "others", "text": "But you don't But uh yeah you don't see it"}
+{"t_start_ms": 1627680, "t_end_ms": 1628810, "speaker": "others", "text": "Well hang on"}
+{"t_start_ms": 1630560, "t_end_ms": 1634570, "speaker": "others", "text": "The other option is I don't know if you can see it but it's like if"}
+{"t_start_ms": 1635340, "t_end_ms": 1636640, "speaker": "me", "text": "I can find it again"}
+{"t_start_ms": 1636720, "t_end_ms": 1639200, "speaker": "others", "text": "Yeah it's like the second to last slide"}
+{"t_start_ms": 1639330, "t_end_ms": 1642860, "speaker": "me", "text": "Okay And yours was called Interface Concept"}
+{"t_start_ms": 1641770, "t_end_ms": 1643020, "speaker": "others", "text": "Interface yeah"}
+{"t_start_ms": 1644710, "t_end_ms": 1649820, "speaker": "me", "text": "This one Well for some reason I can't get it to just go to that slide directly"}
+{"t_start_ms": 1645160, "t_end_ms": 1647040, "speaker": "others", "text": "Yeah Um"}
+{"t_start_ms": 1651200, "t_end_ms": 1671120, "speaker": "others", "text": "Okay it's the very right one You see at the bottom it's kind of difficult to see but you have like a d sort of s division between the bottom like where the logo is and if we have the replaceable section it's like the top It doesn't necessarily replace the entire top And so you have that one piece that stays and the rest just sort of clips in If c you"}
+{"t_start_ms": 1666030, "t_end_ms": 1666270, "speaker": "me", "text": "Mm"}
+{"t_start_ms": 1669890, "t_end_ms": 1672380, "speaker": "me", "text": "Okay yes yes"}
+{"t_start_ms": 1671120, "t_end_ms": 1678170, "speaker": "others", "text": "envisioning it And so that stays the same when you have the logo and then you have this s slip that kinda clips in and that's the bit that changes"}
+{"t_start_ms": 1678640, "t_end_ms": 1679070, "speaker": "me", "text": "Okay"}
+{"t_start_ms": 1679570, "t_end_ms": 1692290, "speaker": "others", "text": "The only problem is we're using a latex overlay so it actually would go over top of everything and have holes for the buttons so I was thinking maybe instead of doing that what we could do is leave a space for where the logo should be"}
+{"t_start_ms": 1684670, "t_end_ms": 1685140, "speaker": "others", "text": "Hmm"}
+{"t_start_ms": 1691330, "t_end_ms": 1692300, "speaker": "others", "text": "Yeah Yeah yeah"}
+{"t_start_ms": 1692310, "t_end_ms": 1696390, "speaker": "me", "text": "Like a little cut-out kind of Okay"}
+{"t_start_ms": 1693700, "t_end_ms": 1693980, "speaker": "others", "text": "Yeah"}
+{"t_start_ms": 1693940, "t_end_ms": 1700460, "speaker": "others", "text": "Right That's like you know a a cellphone it's like the the screen is always just left opened"}
+{"t_start_ms": 1698740, "t_end_ms": 1699020, "speaker": "others", "text": "Right"}
+{"t_start_ms": 1701670, "t_end_ms": 1704510, "speaker": "others", "text": "And so what we are gonna do it like bright yellow with the R_R_"}
+{"t_start_ms": 1705700, "t_end_ms": 1705980, "speaker": "others", "text": "Yeah"}
+{"t_start_ms": 1713660, "t_end_ms": 1714080, "speaker": "others", "text": "Some of tho"}
+{"t_start_ms": 1713720, "t_end_ms": 1716630, "speaker": "me", "text": "Anybody see anything that they liked in these ones"}
+{"t_start_ms": 1715720, "t_end_ms": 1735690, "speaker": "others", "text": "Well some of those buttons though are blue-based Um well a lot of those buttons are blue-based Well kind of Um and then if v we do have them illuminate upon contact they could illuminate yellow Like if we like the one all the way on the left uh you ca you can see it on your computer better Um where the button is actually blue but"}
+{"t_start_ms": 1718300, "t_end_ms": 1718830, "speaker": "me", "text": "Mm"}
+{"t_start_ms": 1720630, "t_end_ms": 1721000, "speaker": "me", "text": "Mm"}
+{"t_start_ms": 1725270, "t_end_ms": 1725660, "speaker": "others", "text": "Yellow"}
+{"t_start_ms": 1727040, "t_end_ms": 1728410, "speaker": "me", "text": "Yellow I like that idea"}
+{"t_start_ms": 1727270, "t_end_ms": 1727530, "speaker": "others", "text": "Yeah"}
+{"t_start_ms": 1733000, "t_end_ms": 1733190, "speaker": "me", "text": "Mm"}
+{"t_start_ms": 1735690, "t_end_ms": 1744450, "speaker": "others", "text": "the number itself is clear or white or whatever so if you pressed it would illuminate yellow So we'd have blue and yellow for the touch buttons"}
+{"t_start_ms": 1741500, "t_end_ms": 1741870, "speaker": "me", "text": "Mm"}
+{"t_start_ms": 1743860, "t_end_ms": 1744880, "speaker": "others", "text": "Oh that one"}
+{"t_start_ms": 1745320, "t_end_ms": 1749030, "speaker": "me", "text": "I like the yellow illumination idea very good"}
+{"t_start_ms": 1745700, "t_end_ms": 1745980, "speaker": "others", "text": "Yeah"}
+{"t_start_ms": 1753470, "t_end_ms": 1753850, "speaker": "me", "text": "Okay"}
+{"t_start_ms": 1756380, "t_end_ms": 1760040, "speaker": "me", "text": "Any other ideas or thoughts"}
+{"t_start_ms": 1764440, "t_end_ms": 1769230, "speaker": "me", "text": "We all seem to be fairly in agreement about what we wanna do with this project so 'Kay"}
+{"t_start_ms": 1764490, "t_end_ms": 1768880, "speaker": "others", "text": "Um Ha hang on Let me catch up"}
+{"t_start_ms": 1767870, "t_end_ms": 1768180, "speaker": "others", "text": "Mm yeah"}
+{"t_start_ms": 1776390, "t_end_ms": 1779790, "speaker": "others", "text": "Did we finalise what buttons we're including or we just everything that we said before"}
+{"t_start_ms": 1781880, "t_end_ms": 1785180, "speaker": "me", "text": "I think there will be time for that later I'm guessing"}
+{"t_start_ms": 1788730, "t_end_ms": 1808600, "speaker": "me", "text": "'Kay well we're gonna wrap this up Um next meeting is gonna start in thirty minutes and here's what we're each of us going to do The I_D_ is going to do the look and feel design the U_I_D_ the user interface design I think you're going to get a lot of I mean the final say on what buttons get put We'll all talk about it but I think that's pretty"}
+{"t_start_ms": 1808600, "t_end_ms": 1809820, "speaker": "me", "text": "much what you're gonna do right"}
+{"t_start_ms": 1810500, "t_end_ms": 1811450, "speaker": "others", "text": "Yeah"}
+{"t_start_ms": 1811150, "t_end_ms": 1821830, "speaker": "me", "text": "I guess 'Kay And you're gonna do some product evaluation Okay and right now the I_D_ and U_I_D_ you two are going to work together on a prototype using modelling clay"}
+{"t_start_ms": 1822990, "t_end_ms": 1824580, "speaker": "others", "text": "Great Play Doh"}
+{"t_start_ms": 1824100, "t_end_ms": 1824530, "speaker": "others", "text": "Fun"}
+{"t_start_ms": 1824910, "t_end_ms": 1831620, "speaker": "me", "text": "Yeah Okay and you should all be getting an email pretty soon Alright Well thank you for a very productive meeting"}
+{"t_start_ms": 1829870, "t_end_ms": 1830610, "speaker": "others", "text": "Wonderful"}
+{"t_start_ms": 1832030, "t_end_ms": 1832440, "speaker": "others", "text": "Ooh"}
