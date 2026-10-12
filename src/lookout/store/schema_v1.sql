@@ -2,7 +2,7 @@
 -- Timestamps are ISO 8601 strings in UTC.
 
 CREATE TABLE schema_version (
-    version INTEGER NOT NULL
+    version INTEGER PRIMARY KEY
 );
 
 CREATE TABLE settings (
@@ -67,18 +67,22 @@ CREATE TABLE documents (
     reason    TEXT
 );
 
+CREATE INDEX documents_folder ON documents(folder_id);
+
 CREATE TABLE chunks (
-    id          INTEGER PRIMARY KEY,
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
     document_id INTEGER REFERENCES documents(id) ON DELETE CASCADE,
     meeting_id  INTEGER REFERENCES meetings(id) ON DELETE CASCADE,
     kind        TEXT NOT NULL CHECK (kind IN ('file', 'transcript')),
     text        TEXT NOT NULL,
     locator     TEXT NOT NULL,         -- JSON: page, heading, or time range
-    CHECK ((document_id IS NULL) <> (meeting_id IS NULL))
+    CHECK ((document_id IS NULL) <> (meeting_id IS NULL)),
+    CHECK ((kind = 'file') = (document_id IS NOT NULL))
 );
 CREATE INDEX chunks_document ON chunks(document_id);
 CREATE INDEX chunks_meeting ON chunks(meeting_id);
 
+-- vec0 has no foreign key. Insert a chunk and its vector in one transaction.
 CREATE VIRTUAL TABLE chunks_vec USING vec0(
     chunk_id  INTEGER PRIMARY KEY,
     embedding float[768] distance_metric=cosine
@@ -97,6 +101,7 @@ CREATE TRIGGER chunks_after_delete AFTER DELETE ON chunks BEGIN
     DELETE FROM chunks_vec WHERE chunk_id = old.id;
 END;
 
+-- After a text update, the kb module must write the embedding again.
 CREATE TRIGGER chunks_after_update AFTER UPDATE OF text ON chunks BEGIN
     INSERT INTO chunks_fts(chunks_fts, rowid, text) VALUES ('delete', old.id, old.text);
     INSERT INTO chunks_fts(rowid, text) VALUES (new.id, new.text);
@@ -116,6 +121,7 @@ CREATE TABLE chat_messages (
     citations  TEXT NOT NULL DEFAULT '[]',   -- JSON list
     created_at TEXT NOT NULL
 );
+CREATE INDEX chat_messages_session ON chat_messages(session_id, id);
 
 CREATE TABLE jobs (
     id          INTEGER PRIMARY KEY,
@@ -129,4 +135,4 @@ CREATE TABLE jobs (
     started_at  TEXT,
     finished_at TEXT
 );
-CREATE INDEX jobs_status ON jobs(status);
+CREATE INDEX jobs_status ON jobs(status, priority, id);

@@ -103,3 +103,32 @@ def test_chunk_needs_exactly_one_owner(tmp_path):
     with pytest.raises(sqlite3.IntegrityError):
         with conn:
             conn.execute("INSERT INTO chunks(kind, text, locator) VALUES ('file', 'x', '{}')")
+
+
+def test_chunk_ids_are_not_reused(tmp_path):
+    conn = connect(tmp_path / "t.db")
+    migrate(conn)
+    with conn:
+        conn.execute("INSERT INTO folders(id, path) VALUES (1, '/f')")
+        conn.execute(
+            "INSERT INTO documents(id, folder_id, path, mtime, status) VALUES (1, 1, '/f/a.md', 0, 'indexed')"
+        )
+        conn.execute("INSERT INTO chunks(document_id, kind, text, locator) VALUES (1, 'file', 'a', '{}')")
+    first = conn.execute("SELECT id FROM chunks").fetchone()[0]
+    with conn:
+        conn.execute("DELETE FROM chunks WHERE id = ?", (first,))
+        conn.execute("INSERT INTO chunks(document_id, kind, text, locator) VALUES (1, 'file', 'b', '{}')")
+    assert first == 1
+    assert conn.execute("SELECT id FROM chunks").fetchone()[0] == 2
+
+
+def test_chunk_kind_must_match_owner(tmp_path):
+    conn = connect(tmp_path / "t.db")
+    migrate(conn)
+    with conn:
+        conn.execute(
+            "INSERT INTO meetings(id, title, started_at, status) VALUES (1, 'm', '2026-01-01T00:00:00+00:00', 'done')"
+        )
+    with pytest.raises(sqlite3.IntegrityError):
+        with conn:
+            conn.execute("INSERT INTO chunks(meeting_id, kind, text, locator) VALUES (1, 'file', 'x', '{}')")

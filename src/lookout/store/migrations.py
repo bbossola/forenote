@@ -48,6 +48,9 @@ def migrate(conn: sqlite3.Connection, db_path: Path | None = None) -> int:
 
     Before an upgrade of an existing database, copy the file to a backup
     (spec section 10.2). Each migration runs in one transaction.
+
+    Call this before any other write on the connection, because executescript
+    commits a pending transaction.
     """
     current = current_version(conn)
     latest = latest_version()
@@ -67,7 +70,7 @@ def migrate(conn: sqlite3.Connection, db_path: Path | None = None) -> int:
         )
         try:
             conn.executescript(script)
-        except sqlite3.Error:
+        except BaseException:
             if conn.in_transaction:
                 conn.execute("ROLLBACK")
             raise
