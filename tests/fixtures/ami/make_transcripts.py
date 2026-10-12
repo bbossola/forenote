@@ -25,7 +25,7 @@ LICENSE_EXTRA = """
 The files in transcripts/ are full meeting transcripts built from the AMI
 manual word annotations (ami_public_manual_1.6.2). Words of each speaker are
 joined into lines at pauses longer than 1 s or after 20 s. Speaker A is
-labelled "me", the other speakers "others".
+labelled "me", the other speakers "others". Punctuation tokens are not included.
 """
 
 
@@ -78,7 +78,7 @@ def main() -> None:
         with open(out_dir / f"{meeting}.jsonl", "w", encoding="utf-8") as f:
             for row in rows:
                 f.write(json.dumps(row) + "\n")
-        print(f"{meeting}: {len(rows)} lines, {rows[-1]['t_end_ms'] / 60000:.1f} min")
+        print(f"{meeting}: {len(rows)} lines, {max(r['t_end_ms'] for r in rows) / 60000:.1f} min")
     lic = HERE / "LICENSE"
     text = lic.read_text(encoding="utf-8")
     if LICENSE_EXTRA.strip() not in text:

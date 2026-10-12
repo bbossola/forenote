@@ -89,7 +89,10 @@ class TextGenerator(Protocol):
   `call_soon_threadsafe`. With `json_schema`, it uses the llama.cpp
   JSON-schema grammar.
 - The **watchdog** stops a generation when no token comes for 120 s
-  (spec 10.2). It raises `GenerationStalled`.
+  (spec 10.2). It raises `GenerationStalled`. The first token has its own
+  limit. The engine computes it from the prompt length and the measured
+  prompt speed (decision 0003), because the model reads the whole prompt
+  before the first token.
 - `FakeTextGenerator` returns scripted outputs and records each prompt. It
   counts tokens as words.
 - The import of `llama_cpp` happens only in the backend, when the engine
@@ -137,7 +140,7 @@ drop the old table, rename) and adds the full-text index:
 
 ```sql
 CREATE TABLE bullets (
-  id INTEGER PRIMARY KEY,
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
   meeting_id INTEGER NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
   position INTEGER NOT NULL,
   text TEXT NOT NULL,
@@ -157,14 +160,19 @@ CREATE TABLE meeting_outputs (
 );
 
 CREATE VIRTUAL TABLE transcript_fts USING fts5(
-  text, content='transcript_lines', content_rowid='id'
+  text, content='transcript_lines', content_rowid='id',
+  tokenize='porter unicode61'
 );
 ```
 
 - Copied `meeting_outputs` rows get `mode = 'map_reduce'`. In practice both
   tables are empty, because no code wrote them before B.
-- Triggers keep `transcript_fts` in step with inserts and deletes on
-  `transcript_lines`, like the `chunks_fts` triggers of v1. The migration
+- The porter tokenizer stems words, so the keyword search for "budget" finds
+  "budgets".
+- `bullets.id` uses AUTOINCREMENT. The engine never reuses an id, because
+  clients keep the ids.
+- Triggers keep `transcript_fts` in step with inserts, updates, and deletes
+  on `transcript_lines`, like the `chunks_fts` triggers of v1. The migration
   fills the index for existing lines.
 - The `meetings.status` CHECK already allows `processing`.
 - `chunks_fts` (v1) stays for sub-project C. `transcript_fts` serves the
@@ -247,6 +255,9 @@ the step and the fraction of steps done. `notes.done` comes at the end.
 - `notes.enhance` runs the job again. It does not change an edited expansion
   unless the call has `force: true`. It replaces the summary and the action
   items.
+- The job does not overwrite an edited expansion. This is true also when the
+  user edits during the job. The job writes with a conditional update
+  (`set_generated`), unless the call has `force: true`.
 - A meeting with no bullets gets only a summary and action items.
 
 ## 6. Model and runtime
@@ -353,7 +364,7 @@ the generation speed.
 |---|---|
 | LLM model not installed | The meeting becomes `done` with no notes. `notes.enhance` returns the error of section 7.1. |
 | Model load failure or out of memory | The job fails with that message and suggests the low tier (spec 10.2). No automatic retry. The engine releases the failed instance. |
-| No token for 120 s | The watchdog stops the generation. The job fails. |
+| No token for 120 s | The watchdog stops the generation. The job fails. The first token has its own limit. The engine computes it from the prompt length and the measured prompt speed (decision 0003), because the model reads the whole prompt before the first token. |
 | The user cancels the job | The job stops at the next token. Completed steps stay stored. |
 | A prompt is too long | The engine counts tokens before each call. The mode choice makes sure that each prompt fits. If a prompt still does not fit, the job fails with an error. |
 | Action-items JSON does not parse | The engine stores `[]` and logs a warning with no content. |
