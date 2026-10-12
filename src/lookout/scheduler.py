@@ -2,6 +2,9 @@
 
 One worker runs one job at a time. A lower Priority value runs first. Jobs of
 the same priority run in submit order. A paused priority stays in the queue.
+
+The scheduler is not thread-safe. Call submit, cancel, pause, and resume from
+the event loop thread only. Use loop.call_soon_threadsafe from other threads.
 """
 
 from __future__ import annotations
@@ -77,12 +80,18 @@ class Scheduler:
         return self._running.job_id if self._running else None
 
     def submit(self, type: str, priority: Priority, fn: JobFn, payload: dict[str, Any] | None = None) -> int:
+        if self._stopping:
+            raise RuntimeError("scheduler is stopped")
         job_id = self._jobs.create(type, int(priority), payload)
         heapq.heappush(self._heap, _Queued(int(priority), next(self._seq), job_id, type, fn))
         self._wake.set()
         return job_id
 
     def cancel(self, job_id: int) -> bool:
+        """Return True if a cancel was requested for the job.
+
+        A running job that never calls token.check() can still end as done.
+        """
         if self._running and self._running.job_id == job_id:
             self._running.token.cancel()
             return True
@@ -111,7 +120,15 @@ class Scheduler:
             await self._execute(q)
 
     async def stop(self) -> None:
+        """Cancel all jobs and refuse new jobs.
+
+        This does not wait for run() to exit. The owner cancels the run task
+        and awaits it.
+        """
         self._stopping = True
+        queued, self._heap = self._heap, []
+        for q in sorted(queued):
+            self._finish(q, "cancelled", None)
         if self._running:
             self._running.token.cancel()
         self._wake.set()
@@ -126,16 +143,18 @@ class Scheduler:
         return best
 
     async def _execute(self, q: _Queued) -> None:
-        self._running = q
-        self._jobs.set_status(q.job_id, "running")
-        self._notify(q, "running", None)
         try:
+            self._running = q
+            self._jobs.set_status(q.job_id, "running")
+            self._notify(q, "running", None)
             await q.fn(q.token)
         except JobCancelled:
             self._finish(q, "cancelled", None)
         except asyncio.CancelledError:
             self._finish(q, "cancelled", None)
-            raise
+            task = asyncio.current_task()
+            if task is not None and task.cancelling():
+                raise
         except Exception as e:  # noqa: BLE001 - a job failure must not stop the worker
             log.exception("job %d (%s) failed", q.job_id, q.type)
             self._finish(q, "failed", str(e) or type(e).__name__)
@@ -145,9 +164,15 @@ class Scheduler:
             self._running = None
 
     def _finish(self, q: _Queued, status: str, error: str | None) -> None:
-        self._jobs.set_status(q.job_id, status, error)
+        try:
+            self._jobs.set_status(q.job_id, status, error)
+        except Exception:  # noqa: BLE001 - a store error must not stop the worker
+            log.exception("cannot set status %s for job %d", status, q.job_id)
         self._notify(q, status, error)
 
     def _notify(self, q: _Queued, status: str, error: str | None) -> None:
         if self._listener:
-            self._listener({"id": q.job_id, "type": q.type, "status": status, "error": error})
+            try:
+                self._listener({"id": q.job_id, "type": q.type, "status": status, "error": error})
+            except Exception:  # noqa: BLE001 - a listener error must not stop the worker
+                log.exception("job listener failed")
