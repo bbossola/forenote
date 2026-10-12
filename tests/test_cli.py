@@ -344,3 +344,40 @@ def test_bench_asr_interrupt_and_runtime_error(tmp_path, capsys, monkeypatch):
     monkeypatch.setattr(forenote.hw, "detect", boom(KeyboardInterrupt()))
     assert cli.main(["bench", "asr", "--clips", str(tmp_path)]) == 130
     assert "Interrupted." in capsys.readouterr().err
+
+
+async def test_record_flushes_after_every_line():
+    class Counting(io.StringIO):
+        flushes = 0
+
+        def flush(self):
+            self.flushes += 1
+            super().flush()
+
+    out = Counting()
+    client = FakeClient(
+        {"meeting.start": {"meeting_id": 3, "started_at": "x"}},
+        events=[
+            ("transcript.final", {"meeting_id": 3, "id": 1, "speaker": "me", "t_start_ms": 0, "t_end_ms": 1, "text": "Hi."}),
+            ("meeting.state", {"meeting_id": 3, "status": "done", "stop_reason": "manual"}),
+        ],
+    )
+    await run(build_parser().parse_args(["record"]), client, out)
+    assert out.flushes >= len(out.getvalue().splitlines()) == 3
+
+
+async def test_meetings_shows_local_time(monkeypatch):
+    import time
+
+    monkeypatch.setenv("TZ", "Europe/Rome")
+    time.tzset()
+    try:
+        client = FakeClient({"meeting.list": [
+            {"id": 2, "title": "Sync", "started_at": "2026-10-12T14:43:00+00:00", "status": "done", "line_count": 1},
+            {"id": 1, "title": "Old", "started_at": "2026-10-12T14:43:00", "status": "done", "line_count": 1},
+        ]})
+        _, out = await run_cli(["meetings"], client)
+    finally:
+        monkeypatch.undo()
+        time.tzset()
+    assert out.count("2026-10-12 16:43") == 2

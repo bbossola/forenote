@@ -6,6 +6,7 @@ import argparse
 import asyncio
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, TextIO
 
@@ -70,6 +71,13 @@ def _marker_text(kind: str, speaker: str | None) -> str:
     return f"[{MARKER_TEXT[kind]}{who}]"
 
 
+def _local_time(iso: str) -> str:
+    t = datetime.fromisoformat(iso)
+    if t.tzinfo is None:
+        t = t.replace(tzinfo=timezone.utc)
+    return t.astimezone().strftime("%Y-%m-%d %H:%M")
+
+
 def _gib(n: int) -> str:
     return f"{n / 1024**3:.1f} GiB"
 
@@ -81,7 +89,7 @@ def _model_line(m: dict[str, Any]) -> str:
 
 async def run(args: argparse.Namespace, client: Any, out: TextIO = sys.stdout) -> int:
     def say(text: str) -> None:
-        print(text, file=out)
+        print(text, file=out, flush=True)
 
     if args.command == "status":
         s = await client.call("system.status")
@@ -163,7 +171,7 @@ async def run(args: argparse.Namespace, client: Any, out: TextIO = sys.stdout) -
         if not found:
             say("No meetings.")
         for m in found:
-            say(f"{m['id']:>5}  {m['started_at'][:16].replace('T', ' ')}  {m['status']:<11}  {m['line_count']:>4} lines  {m['title']}")
+            say(f"{m['id']:>5}  {_local_time(m['started_at'])}  {m['status']:<11}  {m['line_count']:>4} lines  {m['title']}")
         return 0
 
     if args.command == "transcript":
