@@ -44,6 +44,8 @@ class StreamingVad:
     def __call__(self, frame: np.ndarray) -> float:
         if frame.shape != (FRAME,):
             raise ValueError(f"a frame must have {FRAME} samples, not {frame.shape}")
+        if frame.dtype != np.int16 and not np.issubdtype(frame.dtype, np.floating):
+            raise ValueError(f"a frame must be int16 or floating point, not {frame.dtype}")
         x = frame.astype(np.float32)
         if frame.dtype == np.int16:
             x /= 32768.0

@@ -44,3 +44,8 @@ def test_reset_gives_the_same_result_again():
 def test_wrong_frame_size_is_rejected():
     with pytest.raises(ValueError):
         StreamingVad()(np.zeros(100, dtype=np.int16))
+
+
+def test_other_dtypes_are_rejected():
+    with pytest.raises(ValueError):
+        StreamingVad()(np.zeros(FRAME, dtype=np.int32))

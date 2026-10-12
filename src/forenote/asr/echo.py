@@ -34,6 +34,9 @@ class EchoFilter:
     """Decide which lines to store. Every method returns the lines to store now, in order.
 
     Call it from one thread only (the event loop).
+
+    The caller must call others_progress(t) when all "others" finals that end
+    before t are already passed to add_others.
     """
 
     def __init__(self, clock: Callable[[], float] = time.monotonic):
@@ -45,12 +48,12 @@ class EchoFilter:
     def add_others(self, line: Line) -> list[Line]:
         self._others.append(line)
         self._others = [o for o in self._others if o.t_end_ms >= line.t_end_ms - KEEP_OTHERS_MS]
-        return [line] + self._release(lambda held: held.t_end_ms <= self._others_done_ms)
+        return [line]
 
     def others_progress(self, t_ms: int) -> list[Line]:
         """The "others" stream has no open speech up to t_ms."""
         self._others_done_ms = max(self._others_done_ms, t_ms)
-        return self._release(lambda held: held.t_end_ms <= self._others_done_ms)
+        return self._release(lambda held, _deadline: held.t_end_ms <= self._others_done_ms)
 
     def add_me(self, line: Line) -> list[Line]:
         if line.t_end_ms <= self._others_done_ms:
@@ -60,17 +63,16 @@ class EchoFilter:
 
     def tick(self) -> list[Line]:
         now = self._clock()
-        deadline_of = {id(l): d for l, d in self._held}
-        return self._release(lambda held: deadline_of[id(held)] <= now)
+        return self._release(lambda _held, deadline: deadline <= now)
 
     def flush(self) -> list[Line]:
-        return self._release(lambda held: True)
+        return self._release(lambda _held, _deadline: True)
 
-    def _release(self, ready: Callable[[Line], bool]) -> list[Line]:
+    def _release(self, ready: Callable[[Line, float], bool]) -> list[Line]:
         out: list[Line] = []
         still: list[tuple[Line, float]] = []
         for held, deadline in self._held:
-            if ready(held):
+            if ready(held, deadline):
                 if self._keep(held):
                     out.append(held)
             else:
