@@ -206,9 +206,10 @@ IMAGES = HERE / "images"
 QUERY_PREFIX = "task: search result | query: "
 DOC_PREFIX = "title: none | text: "
 
-# A realistic chunk is about 512 tokens. We repeat a document to about 380
-# words to measure throughput on chunk-sized inputs.
-THROUGHPUT_REPEAT = 16
+# A realistic chunk is about 400 tokens. We repeat a document to about 300
+# words to measure throughput on chunk-sized inputs. Stay below 512 tokens,
+# so that no backend truncates the input.
+THROUGHPUT_REPEAT = 12
 THREADS = max(1, (os.cpu_count() or 2) // 2)
 
 
@@ -271,7 +272,11 @@ def agreement(other: np.ndarray, reference: np.ndarray) -> tuple[float, float]:
 
 def normalize(rows) -> np.ndarray:
     a = np.asarray(rows, dtype=np.float32)
-    return a / np.linalg.norm(a, axis=1, keepdims=True)
+    a = a / np.linalg.norm(a, axis=1, keepdims=True)
+    if not np.isfinite(a).all():
+        # float16 or a broken backend gives NaN without an error.
+        raise ValueError("non-finite embeddings")
+    return a
 
 
 def peak_rss_mb() -> float:
@@ -571,7 +576,15 @@ def main(quant: str):
     )
 
     with Timer() as load:
-        llm = Llama(model_path=path, embedding=True, n_ctx=2048, n_threads=THREADS, verbose=False)
+        llm = Llama(
+            model_path=path,
+            embedding=True,
+            n_ctx=2048,
+            n_batch=2048,
+            n_ubatch=2048,
+            n_threads=THREADS,
+            verbose=False,
+        )
 
     docs = normalize(llm.embed(corpus.doc_texts, normalize=True))
     queries = normalize(llm.embed(corpus.query_texts, normalize=True))
@@ -1041,7 +1054,8 @@ Use `results/comparison.md`, `results/package-size.md`, and `results/gguf-image-
 2. A backend is **rejected** if `Cos mean` is below 0.97 against the reference. A lower value means that the vectors differ from the reference model. Mixed vectors would make the index inconsistent after a backend change.
 3. From the remaining backends, select the one with the smallest package size whose `Chunks/s` is 5 or more. The spec target is 100 PDF pages per minute, which is about 3–4 chunks per second.
 4. Images are in v1 only if the selected backend has `Images` of 3/4 or better. Otherwise v1 indexes text only (spec section 12, fallback).
-5. If no backend passes rules 1–3, select sentence-transformers and record the package size as a known cost.
+5. Note: the 12 corpus documents differ a lot, so every working backend probably gets `R@3` = 1.0. Use `MRR` and `Cos mean` as the main quality signals, and say so in the decision record.
+6. If no backend passes rules 1–3, select sentence-transformers and record the package size as a known cost.
 
 - [ ] **Step 3: Write the decision record**
 
