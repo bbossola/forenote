@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 
 from forenote.asr.text import normalize
-from forenote.asr.transcriber import TranscriptResult, WhisperTranscriber, is_hallucination
+from forenote.asr.transcriber import TranscriptResult, WhisperTranscriber, _prompt_tail, is_hallucination
 
 AMI = Path(__file__).parent.parent / "fixtures" / "ami"
 
@@ -26,9 +26,18 @@ def test_empty_text_is_a_hallucination():
     assert is_hallucination(TranscriptResult("  ", 0.0, 0.0), duration_s=2)
 
 
+def test_prompt_tail_starts_at_a_word():
+    assert _prompt_tail("short text") == "short text"
+    text = "alpha " * 100
+    tail = _prompt_tail(text)
+    assert len(tail) < 200
+    assert tail.startswith("alpha")
+    assert _prompt_tail("x" * 300) == "x" * 200
+
+
 @pytest.mark.models
 def test_whisper_transcribes_meeting_speech(speech_model_dir):
-    t = WhisperTranscriber(speech_model_dir("whisper-base-en"), threads=4)
+    t = WhisperTranscriber(speech_model_dir("whisper-base-en"), cpu_threads=4)
     with wave.open(str(AMI / "ES2002a.wav")) as w:
         audio = np.frombuffer(w.readframes(16000 * 20), dtype=np.int16)
     result = t.transcribe(audio, final=True)

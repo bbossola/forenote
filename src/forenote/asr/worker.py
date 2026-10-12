@@ -21,8 +21,12 @@ class AsrWorker:
     """One thread that runs the transcriber.
 
     Finals run before partials, in arrival order. For each speaker only the
-    newest partial waits. Callbacks run in the worker thread; the caller must
-    move results to its own thread (for example with call_soon_threadsafe).
+    newest partial waits. on_result runs in the worker thread. on_delay can run
+    in the thread that calls submit or drop_queued. The caller must move
+    results to its own thread (for example with call_soon_threadsafe).
+
+    Call drain() first; stop() drops queued work. The transcriber must not go
+    to a new worker while this thread is alive.
     """
 
     def __init__(
@@ -56,16 +60,19 @@ class AsrWorker:
         with self._cond:
             if utterance.final:
                 self._finals.append((utterance, prompt))
+                self._partials.pop(utterance.speaker, None)
             elif not self._delayed:
                 self._partials[utterance.speaker] = utterance
-            self._check_delay()
-            self._cond.notify()
+            event = self._check_delay()
+            self._cond.notify_all()
+        self._notify_delay(event)
 
     def final_pending(self) -> bool:
         with self._cond:
             return bool(self._finals)
 
     def queued_seconds(self) -> float:
+        # The item in the decode now is not counted.
         with self._cond:
             return self._queued_seconds()
 
@@ -86,35 +93,45 @@ class AsrWorker:
             n = len(self._finals)
             self._finals.clear()
             self._partials.clear()
-            self._check_delay()
+            event = self._check_delay()
             self._cond.notify_all()
-            return n
+        self._notify_delay(event)
+        return n
 
-    def stop(self, timeout: float = 5.0) -> None:
+    def stop(self, timeout: float = 5.0) -> bool:
+        """Stop the thread. Return True if it ended within the timeout."""
         with self._cond:
             self._stopping = True
             self._cond.notify_all()
         if self._thread.is_alive():
             self._thread.join(timeout)
+        ended = not self._thread.is_alive()
+        if not ended:
+            log.warning("the ASR thread did not stop within %s s", timeout)
+        return ended
 
     def _queued_seconds(self) -> float:
         total = sum(u.duration_s for u, _ in self._finals)
         return total + sum(u.duration_s for u in self._partials.values())
 
-    def _check_delay(self) -> None:
-        """Call with the lock held."""
+    def _check_delay(self) -> tuple[bool, float] | None:
+        """Call with the lock held. Return the event for _notify_delay, or None."""
         queued = self._queued_seconds()
         if not self._delayed and queued > self._delay_on_s:
             self._delayed = True
             self._partials.clear()
-            self._notify_delay(True, queued)
-        elif self._delayed and queued < self._delay_off_s:
+            return True, queued
+        if self._delayed and queued < self._delay_off_s:
             self._delayed = False
-            self._notify_delay(False, queued)
+            return False, queued
+        return None
 
-    def _notify_delay(self, delayed: bool, queued: float) -> None:
+    def _notify_delay(self, event: tuple[bool, float] | None) -> None:
+        """Call without the lock."""
+        if event is None:
+            return
         try:
-            self._on_delay(delayed, queued)
+            self._on_delay(*event)
         except Exception:  # noqa: BLE001 - a callback error must not stop the worker
             log.exception("delay callback failed")
 
@@ -144,11 +161,16 @@ class AsrWorker:
             except Exception as e:  # noqa: BLE001 - report every decode failure
                 log.warning("transcription failed: %s", type(e).__name__)
                 error = e
+            with self._cond:
+                stopping = self._stopping
+            if stopping:
+                return
             try:
                 self._on_result(utterance, result, error)
             except Exception:  # noqa: BLE001 - a callback error must not stop the worker
                 log.exception("result callback failed")
             with self._cond:
                 self._busy = False
-                self._check_delay()
+                event = self._check_delay()
                 self._cond.notify_all()
+            self._notify_delay(event)

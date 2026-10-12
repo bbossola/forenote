@@ -21,8 +21,10 @@ class FakeTranscriber:
         self.calls = []
         self.gate = threading.Event()
         self.gate.set()
+        self.entered = threading.Event()
 
     def transcribe(self, audio, final, prompt=""):
+        self.entered.set()
         self.gate.wait(5)
         tag = int(audio[0])
         self.calls.append((tag, final, prompt))
@@ -68,10 +70,10 @@ def test_finals_go_before_partials_and_only_the_newest_partial_stays():
     t.gate.clear()  # hold the worker on its first item
     w = make(t, c)
     w.submit(utt(final=False, tag=1))
-    time.sleep(0.05)  # the worker now holds partial 1
+    assert t.entered.wait(2)  # the worker now holds partial 1
     w.submit(utt(final=False, tag=2))
     w.submit(utt(final=False, tag=3))  # replaces partial 2
-    w.submit(utt(final=True, tag=4))
+    w.submit(utt("others", final=True, tag=4))
     t.gate.set()
     assert w.drain(2)
     w.stop()
@@ -83,7 +85,7 @@ def test_partials_of_two_speakers_are_kept_separately():
     t.gate.clear()
     w = make(t, c)
     w.submit(utt(final=True, tag=9))
-    time.sleep(0.05)
+    assert t.entered.wait(2)
     w.submit(utt("me", final=False, tag=1))
     w.submit(utt("others", final=False, tag=2))
     t.gate.set()
@@ -97,7 +99,7 @@ def test_back_pressure_drops_partials_and_reports_the_delay():
     t.gate.clear()
     w = make(t, c, delay_on_s=3.0, delay_off_s=1.0)
     w.submit(utt(seconds=1, tag=1))
-    time.sleep(0.05)
+    assert t.entered.wait(2)
     for tag in range(2, 6):  # 4 s of finals queued
         w.submit(utt(seconds=1, tag=tag))
     w.submit(utt(final=False, tag=99))  # dropped while delayed
@@ -126,3 +128,31 @@ def test_stop_ends_the_thread():
     w = make(t, c)
     w.stop()
     assert not w.is_alive()
+
+
+def test_a_final_removes_the_queued_partial_of_the_same_speaker():
+    t, c = FakeTranscriber(), Collector()
+    t.gate.clear()
+    w = make(t, c)
+    w.submit(utt("others", tag=9))
+    assert t.entered.wait(2)
+    w.submit(utt("me", final=False, tag=1))
+    w.submit(utt("me", final=True, tag=2))
+    t.gate.set()
+    assert w.drain(2)
+    w.stop()
+    assert [tag for tag, _, _ in t.calls] == [9, 2]
+
+
+def test_stop_returns_true_and_drops_results_after_stop():
+    t, c = FakeTranscriber(), Collector()
+    t.gate.clear()
+    w = make(t, c)
+    w.submit(utt(tag=1))
+    assert t.entered.wait(2)
+    assert w.stop(timeout=0.1) is False  # the decode is still held
+    t.gate.set()
+    w._thread.join(2)
+    assert not w.is_alive()
+    assert c.results == []
+    assert w.stop() is True
