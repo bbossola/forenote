@@ -1,4 +1,4 @@
-"""Entry point: lookout-cli (spec section 5.5)."""
+"""Entry point: forenote-cli (spec section 5.5)."""
 
 from __future__ import annotations
 
@@ -8,14 +8,14 @@ import json
 import sys
 from typing import Any, TextIO
 
-from lookout.paths import Paths
-from lookout.rpc.client import RpcClient
-from lookout.rpc.launcher import EngineStartError, EngineStartTimeout, connect_or_start
-from lookout.rpc.protocol import RpcError
+from forenote.paths import Paths
+from forenote.rpc.client import RpcClient
+from forenote.rpc.launcher import EngineStartError, EngineStartTimeout, connect_or_start
+from forenote.rpc.protocol import RpcError
 
 
 def build_parser() -> argparse.ArgumentParser:
-    ap = argparse.ArgumentParser(prog="lookout-cli", description="Control the Lookout engine.")
+    ap = argparse.ArgumentParser(prog="forenote-cli", description="Control the Forenote engine.")
     ap.add_argument("--json", action="store_true", help="print raw JSON (status and models list only)")
     sub = ap.add_subparsers(dest="command", required=True)
     sub.add_parser("status", help="show the engine status")
@@ -102,9 +102,9 @@ async def _main(args: argparse.Namespace) -> int:
     client = None
     try:
         if args.command in ("status", "shutdown"):
-            client = await RpcClient.connect(paths.socket_path, "lookout-cli")
+            client = await RpcClient.connect(paths.socket_path, "forenote-cli")
         else:
-            client = await connect_or_start(paths.socket_path, "lookout-cli")
+            client = await connect_or_start(paths.socket_path, "forenote-cli")
         return await run(args, client)
     except (FileNotFoundError, ConnectionRefusedError):
         if client is None and args.command in ("status", "shutdown"):

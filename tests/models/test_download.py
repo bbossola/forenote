@@ -2,13 +2,13 @@ import hashlib
 
 import pytest
 
-from lookout.models.download import (
+from forenote.models.download import (
     ChecksumMismatch,
     DownloadCancelled,
     InsufficientDisk,
     ModelStore,
 )
-from lookout.models.manifest import ModelEntry, ModelFile
+from forenote.models.manifest import ModelEntry, ModelFile
 
 A = b"first file"
 B = b"second file content"

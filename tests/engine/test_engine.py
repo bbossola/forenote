@@ -5,12 +5,12 @@ import jsonschema
 import pytest
 
 from conftest import bad_fetch, fake_fetch
-from lookout.engine.app import Engine
-from lookout.rpc.protocol import APP_ERROR, INVALID_PARAMS, RpcError, load_schema
-from lookout.rpc.server import EngineAlreadyRunning
-from lookout.store.db import connect
-from lookout.store.jobs import JobStore
-from lookout.store.migrations import migrate
+from forenote.engine.app import Engine
+from forenote.rpc.protocol import APP_ERROR, INVALID_PARAMS, RpcError, load_schema
+from forenote.rpc.server import EngineAlreadyRunning
+from forenote.store.db import connect
+from forenote.store.jobs import JobStore
+from forenote.store.migrations import migrate
 
 
 async def collect_until_job_end(client, job_id, schema):
@@ -59,7 +59,7 @@ async def test_models_download_installs_files(client):
 
 
 async def test_download_checksum_failure_reports_job_failed(paths, hardware, test_manifest):
-    from lookout.rpc.client import RpcClient
+    from forenote.rpc.client import RpcClient
 
     e = Engine(paths, hardware, fetch=bad_fetch, manifest=test_manifest)
     await e.start()
@@ -177,7 +177,7 @@ async def test_status_shows_the_running_download(engine, client):
 
 
 async def test_stop_during_download_marks_the_job_cancelled(paths, hardware, test_manifest):
-    from lookout.rpc.client import RpcClient
+    from forenote.rpc.client import RpcClient
 
     gate = threading.Event()
     e = Engine(paths, hardware, fetch=gate_fetch(gate), manifest=test_manifest)
@@ -223,7 +223,7 @@ async def test_settings_get_unknown_key(client):
 
 
 async def test_download_refused_while_stopping(paths, hardware, test_manifest):
-    from lookout.rpc.client import RpcClient
+    from forenote.rpc.client import RpcClient
 
     gate = threading.Event()
     e = Engine(paths, hardware, fetch=gate_fetch(gate), manifest=test_manifest)

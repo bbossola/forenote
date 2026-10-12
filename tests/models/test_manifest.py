@@ -1,6 +1,6 @@
 import pytest
 
-from lookout.models.manifest import ROLES, TIERS, ManifestError, for_tier, load_manifest
+from forenote.models.manifest import ROLES, TIERS, ManifestError, for_tier, load_manifest
 
 VALID = """
 [[model]]

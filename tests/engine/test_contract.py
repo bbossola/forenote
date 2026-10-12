@@ -1,8 +1,8 @@
 import jsonschema
 import pytest
 
-from lookout.rpc.protocol import load_schema
-from lookout.scheduler import Priority
+from forenote.rpc.protocol import load_schema
+from forenote.scheduler import Priority
 
 
 def test_engine_implements_exactly_the_schema(engine):
@@ -54,7 +54,7 @@ async def test_shutdown_result_matches_the_schema(client):
 
 def test_client_names_in_tests_match_the_schema():
     pattern = load_schema()["methods"]["system.hello"]["params"]["properties"]["client"]
-    for name in ("lookout-cli", "pytest", "raw", "pytest-a"):
+    for name in ("forenote-cli", "pytest", "raw", "pytest-a"):
         jsonschema.validate(name, pattern)
     for bad in ("", "a b", "x" * 65, "a/b"):
         with pytest.raises(jsonschema.ValidationError):

@@ -1,8 +1,8 @@
 import pytest
 
-from lookout.store.db import connect
-from lookout.store.jobs import JobStore
-from lookout.store.migrations import migrate
+from forenote.store.db import connect
+from forenote.store.jobs import JobStore
+from forenote.store.migrations import migrate
 
 
 @pytest.fixture

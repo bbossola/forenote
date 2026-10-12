@@ -2,7 +2,7 @@ import subprocess
 
 import pytest
 
-from lookout.hw import (
+from forenote.hw import (
     HardwareReport,
     detect,
     detect_audio,

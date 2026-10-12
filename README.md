@@ -1,8 +1,8 @@
-# Lookout
+# Forenote
 
-Lookout is a private meeting notetaker and local knowledge assistant for
+Forenote is a private meeting notetaker and local knowledge assistant for
 Linux. All AI inference runs on your computer. See
-`docs/superpowers/specs/2026-10-12-lookout-design.md` for the design.
+`docs/superpowers/specs/2026-10-12-forenote-design.md` for the design.
 
 Status: early development. Only the engine skeleton exists.
 
@@ -18,19 +18,19 @@ Status: early development. Only the engine skeleton exists.
 
 Run the engine and the CLI:
 
-    uv run lookout-engine          # in one terminal
-    uv run lookout-cli status      # in another terminal
-    uv run lookout-cli models list
-    uv run lookout-cli models download   # about 6 GB for the default tier
-    uv run lookout-cli shutdown
+    uv run forenote-engine          # in one terminal
+    uv run forenote-cli status      # in another terminal
+    uv run forenote-cli models list
+    uv run forenote-cli models download   # about 6 GB for the default tier
+    uv run forenote-cli shutdown
 
-`lookout-cli models download` starts the engine if it does not run.
+`forenote-cli models download` starts the engine if it does not run.
 
 ## Files
 
 | What | Where |
 |---|---|
-| Database and models | `$XDG_DATA_HOME/lookout` (default `~/.local/share/lookout`) |
-| Logs | `$XDG_STATE_HOME/lookout/logs` (default `~/.local/state/lookout/logs`) |
-| Engine socket | `$XDG_RUNTIME_DIR/lookout/engine.sock` |
-| Engine lock | `$XDG_RUNTIME_DIR/lookout/engine.lock` (stays after the engine stops) |
+| Database and models | `$XDG_DATA_HOME/forenote` (default `~/.local/share/forenote`) |
+| Logs | `$XDG_STATE_HOME/forenote/logs` (default `~/.local/state/forenote/logs`) |
+| Engine socket | `$XDG_RUNTIME_DIR/forenote/engine.sock` |
+| Engine lock | `$XDG_RUNTIME_DIR/forenote/engine.lock` (stays after the engine stops) |

@@ -3,7 +3,7 @@ import sys
 
 import pytest
 
-from lookout.paths import Paths
+from forenote.paths import Paths
 
 
 @pytest.fixture
@@ -18,7 +18,7 @@ def test_start_failure_is_logged_and_returns_1(env_paths):
     env_paths.ensure()
     env_paths.db_path.write_bytes(b"not a database" * 100)
     proc = subprocess.run(
-        [sys.executable, "-m", "lookout.engine.main", "--no-hw-check"],
+        [sys.executable, "-m", "forenote.engine.main", "--no-hw-check"],
         capture_output=True,
         timeout=20,
     )
@@ -27,8 +27,8 @@ def test_start_failure_is_logged_and_returns_1(env_paths):
 
 
 def test_newer_schema_returns_3(env_paths):
-    from lookout.store.db import connect
-    from lookout.store.migrations import migrate
+    from forenote.store.db import connect
+    from forenote.store.migrations import migrate
 
     env_paths.ensure()
     conn = connect(env_paths.db_path)
@@ -37,7 +37,7 @@ def test_newer_schema_returns_3(env_paths):
         conn.execute("INSERT INTO schema_version(version) VALUES (999)")
     conn.close()
     proc = subprocess.run(
-        [sys.executable, "-m", "lookout.engine.main", "--no-hw-check"],
+        [sys.executable, "-m", "forenote.engine.main", "--no-hw-check"],
         capture_output=True,
         timeout=20,
     )
@@ -45,7 +45,7 @@ def test_newer_schema_returns_3(env_paths):
 
 
 def test_hardware_detection_failure_returns_1(env_paths, monkeypatch):
-    from lookout.engine import main as engine_main
+    from forenote.engine import main as engine_main
 
     def boom():
         raise OSError("no cpuinfo")

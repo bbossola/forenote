@@ -3,9 +3,9 @@ import sqlite3
 import pytest
 import sqlite_vec
 
-from lookout.store import migrations
-from lookout.store.db import connect
-from lookout.store.migrations import SchemaTooNew, current_version, migrate
+from forenote.store import migrations
+from forenote.store.db import connect
+from forenote.store.migrations import SchemaTooNew, current_version, migrate
 
 V1_TABLES = {
     "settings", "meetings", "transcript_lines", "bullets", "meeting_outputs",

@@ -2,13 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Select the backend that runs EmbeddingGemma 2 in Lookout, and record the decision.
+**Goal:** Select the backend that runs EmbeddingGemma 2 in Forenote, and record the decision.
 
 **Architecture:** Three small benchmark scripts embed the same fixture corpus with three backends: sentence-transformers (the reference), GGUF with `llama-cpp-python`, and LiteRT-LM. Each script writes a JSON result and a `.npy` file of embeddings. A compare script prints one table. A person then writes a decision record from the table. Each script declares its own dependencies (PEP 723), so `uv run --script` puts each backend in its own environment.
 
 **Tech Stack:** Python 3.12, uv, numpy, sentence-transformers 6.1.0 + torch (CPU), llama-cpp-python 0.3.36, litert-lm-api 0.18.0, Pillow, pytest.
 
-**Spec:** `docs/superpowers/specs/2026-10-12-lookout-design.md`, section 12.
+**Spec:** `docs/superpowers/specs/2026-10-12-forenote-design.md`, section 12.
 
 ---
 
@@ -780,7 +780,7 @@ git commit -m "Add LiteRT-LM backend to the embedding spike"
 
 ### Task 6: GGUF image check with the llama.cpp CLI
 
-`llama-cpp-python` has no image embedding API. This task checks if the llama.cpp CLI can embed images with `mmproj-Q8_0.gguf`. If it can, a future Lookout version could call llama.cpp directly. The task is timeboxed to 30 minutes.
+`llama-cpp-python` has no image embedding API. This task checks if the llama.cpp CLI can embed images with `mmproj-Q8_0.gguf`. If it can, a future Forenote version could call llama.cpp directly. The task is timeboxed to 30 minutes.
 
 **Files:**
 - Create: `spikes/embedding/results/gguf-image-cli.md`
@@ -1090,7 +1090,7 @@ Status: accepted
 
 ## Context
 
-Lookout needs EmbeddingGemma 2 for the knowledge base (spec section 12). We
+Forenote needs EmbeddingGemma 2 for the knowledge base (spec section 12). We
 compared sentence-transformers, GGUF with llama-cpp-python, and LiteRT-LM on
 <CPU model>, with <N> threads.
 

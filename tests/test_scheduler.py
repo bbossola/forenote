@@ -3,10 +3,10 @@ import contextlib
 
 import pytest
 
-from lookout.scheduler import CancelToken, JobCancelled, Priority, Scheduler
-from lookout.store.db import connect
-from lookout.store.jobs import JobStore
-from lookout.store.migrations import migrate
+from forenote.scheduler import CancelToken, JobCancelled, Priority, Scheduler
+from forenote.store.db import connect
+from forenote.store.jobs import JobStore
+from forenote.store.migrations import migrate
 
 FINAL = ("done", "failed", "cancelled")
 

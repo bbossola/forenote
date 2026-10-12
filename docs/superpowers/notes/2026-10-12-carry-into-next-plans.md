@@ -9,16 +9,16 @@ Each next plan must read this list first and handle the items that apply to it.
 
 - **Log content.** Exception messages from parsers, the LLM, or ASR can contain user text. They must never reach `log.exception` output (spec 10.1). Add a rule or a log filter before the first plan that handles user content.
 - **Engine handler size.** `engine/app.py` gets about 30 more RPC methods (meeting, notes, library, chat). Split the handlers into domain modules (for example `engine/handlers/models.py`) before a plan adds them.
-- **Shared worker helper.** `run_in_daemon_thread` is in `engine/app.py`. Move it to a shared module (for example `lookout/workers.py`) for embedding, parsing, and LLM jobs.
+- **Shared worker helper.** `run_in_daemon_thread` is in `engine/app.py`. Move it to a shared module (for example `forenote/workers.py`) for embedding, parsing, and LLM jobs.
 
 ## Knowledge base plan
 
 - **Database threading.** The engine has one `sqlite3` connection on the event loop thread, with `synchronous=FULL`. Each commit does an fsync on the loop. Indexing writes and live ASR writes need a writer thread or queue, or one connection for each thread. Decide this before the plan writes chunks and vectors.
 - **Embedding role.** Add `"embedding"` to `ROLES` in `models/manifest.py`. Decision 0001: the 740M file for the default and high tiers. The text-270m file gives bit-identical text vectors, so the low tier can use it for text with no re-index. The low tier then has no image embeddings.
-- **Cache directory.** LiteRT-LM needs an existing cache directory. Add `$XDG_CACHE_HOME/lookout` to `Paths` and to `Paths.ensure()`.
+- **Cache directory.** LiteRT-LM needs an existing cache directory. Add `$XDG_CACHE_HOME/forenote` to `Paths` and to `Paths.ensure()`.
 - **Settings.** The 50 MB and 500-page limits (spec 8.3) are not in `SPEC` yet. The UI cannot discover valid ranges from `settings.get`. Consider a `settings.schema` method (protocol 1.x, additive).
 - **Image quality risk.** The spike image check is a smoke test (4 synthetic shapes). Add a real image retrieval check with diagrams and screenshots.
-- **Throughput.** The spike measured 3.96 chunks/s on 12 threads, with one pass. `lookout-cli bench` must confirm at least 2 chunks/s on the 8-core baseline.
+- **Throughput.** The spike measured 3.96 chunks/s on 12 threads, with one pass. `forenote-cli bench` must confirm at least 2 chunks/s on the 8-core baseline.
 
 ## Scheduler (knowledge base, notes, LLM plans)
 
@@ -55,12 +55,12 @@ What Foresight does (from the installer analysis):
 - It subscribes to file changes through Google's own backend
   (`UnsubscribeFromFiles`, Firebase Cloud Messaging).
 
-Points the Lookout design must decide:
+Points the Forenote design must decide:
 
 - **Opt-in only.** Drive breaks the "no accounts, offline after the model
   download" rule. It must be off by default, and local files must work without
   it.
-- **OAuth client.** Lookout needs its own Google Cloud OAuth client ("desktop
+- **OAuth client.** Forenote needs its own Google Cloud OAuth client ("desktop
   app" type, loopback redirect, PKCE). Google must verify the app for the
   restricted `drive.readonly` scope, or the consent screen shows a warning and a
   user cap. A narrower option is `drive.file` with the Google Picker: the user
@@ -68,7 +68,7 @@ Points the Lookout design must decide:
   necessary.
 - **Token storage.** Store the refresh token in the desktop secret service
   (libsecret, through the Secret portal in Flatpak), not in SQLite.
-- **Sync.** Lookout has no backend for push notifications. Use the Drive
+- **Sync.** Forenote has no backend for push notifications. Use the Drive
   `changes.list` API with a saved page token, polled at an interval and at
   engine start.
 - **Export.** Google Docs export as text or Markdown, Slides as text, Sheets as

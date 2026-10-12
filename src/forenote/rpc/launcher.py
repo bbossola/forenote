@@ -8,8 +8,8 @@ import sys
 import threading
 from pathlib import Path
 
-from lookout.paths import Paths
-from lookout.rpc.client import RpcClient
+from forenote.paths import Paths
+from forenote.rpc.client import RpcClient
 
 START_TIMEOUT = 10.0
 START_GRACE = 2.0  # time to wait for the winning engine after a lock loser exits
@@ -26,7 +26,7 @@ def _reap_later(proc: subprocess.Popen) -> None:
         proc.wait()
         _children.discard(proc)
 
-    threading.Thread(target=wait, daemon=True, name="lookout-reaper").start()
+    threading.Thread(target=wait, daemon=True, name="forenote-reaper").start()
 
 
 class EngineStartTimeout(RuntimeError):
@@ -49,7 +49,7 @@ async def connect_or_start(
     except (FileNotFoundError, ConnectionRefusedError):
         pass
 
-    cmd = engine_cmd or [sys.executable, "-m", "lookout.engine.main"]
+    cmd = engine_cmd or [sys.executable, "-m", "forenote.engine.main"]
     proc = subprocess.Popen(
         cmd,
         stdin=subprocess.DEVNULL,
@@ -77,7 +77,7 @@ async def connect_or_start(
                 exit_time = now
             if rc == 3:
                 raise EngineStartError(
-                    f"The database comes from a newer version of Lookout. See {log}."
+                    f"The database comes from a newer version of Forenote. See {log}."
                 ) from None
             if rc == 2:
                 raise EngineStartError(

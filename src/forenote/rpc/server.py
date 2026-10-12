@@ -13,8 +13,8 @@ from typing import Any
 
 import jsonschema
 
-from lookout import __version__
-from lookout.rpc import protocol as p
+from forenote import __version__
+from forenote.rpc import protocol as p
 
 log = logging.getLogger(__name__)
 

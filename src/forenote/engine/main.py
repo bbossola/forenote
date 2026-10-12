@@ -1,4 +1,4 @@
-"""Entry point: lookout-engine."""
+"""Entry point: forenote-engine."""
 
 from __future__ import annotations
 
@@ -15,16 +15,16 @@ import signal  # noqa: E402
 import sys  # noqa: E402
 from logging.handlers import RotatingFileHandler  # noqa: E402
 
-from lookout import __version__  # noqa: E402
-from lookout.engine.app import Engine  # noqa: E402
-from lookout.hw import HardwareReport, detect  # noqa: E402
-from lookout.paths import Paths  # noqa: E402
-from lookout.rpc.server import EngineAlreadyRunning  # noqa: E402
-from lookout.store.migrations import SchemaTooNew  # noqa: E402
+from forenote import __version__  # noqa: E402
+from forenote.engine.app import Engine  # noqa: E402
+from forenote.hw import HardwareReport, detect  # noqa: E402
+from forenote.paths import Paths  # noqa: E402
+from forenote.rpc.server import EngineAlreadyRunning  # noqa: E402
+from forenote.store.migrations import SchemaTooNew  # noqa: E402
 
 EXIT_SCHEMA_TOO_NEW = 3
 
-log = logging.getLogger("lookout.engine")
+log = logging.getLogger("forenote.engine")
 
 
 def setup_logging(paths: Paths, level: str) -> None:
@@ -70,7 +70,7 @@ async def run(paths: Paths, hardware: HardwareReport) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="lookout-engine")
+    ap = argparse.ArgumentParser(prog="forenote-engine")
     ap.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"])
     ap.add_argument("--no-hw-check", action="store_true", help=argparse.SUPPRESS)
     ap.add_argument("--version", action="version", version=__version__)

@@ -5,9 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from lookout.hw import HardwareReport
-from lookout.models.manifest import ModelEntry, ModelFile
-from lookout.paths import Paths
+from forenote.hw import HardwareReport
+from forenote.models.manifest import ModelEntry, ModelFile
+from forenote.paths import Paths
 
 LLM_BYTES = b"fake llm weights"
 SPEECH_BYTES = b"fake speech model"
@@ -69,7 +69,7 @@ def test_manifest():
 
 @pytest.fixture
 async def engine(paths, hardware, test_manifest):
-    from lookout.engine.app import Engine
+    from forenote.engine.app import Engine
 
     e = Engine(paths, hardware, fetch=fake_fetch, manifest=test_manifest)
     await e.start()
@@ -79,7 +79,7 @@ async def engine(paths, hardware, test_manifest):
 
 @pytest.fixture
 async def client(engine):
-    from lookout.rpc.client import RpcClient
+    from forenote.rpc.client import RpcClient
 
     c = await RpcClient.connect(engine.paths.socket_path, "pytest")
     yield c

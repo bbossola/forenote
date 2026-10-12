@@ -128,9 +128,9 @@ class HardwareReport:
     def problems(self) -> list[str]:
         out = []
         if not self.avx2:
-            out.append("This CPU does not support AVX2. Lookout needs a CPU with AVX2.")
+            out.append("This CPU does not support AVX2. Forenote needs a CPU with AVX2.")
         if self.tier is None:
-            out.append(f"This computer has {self.ram_gib:.1f} GiB of RAM. Lookout needs 8 GiB or more.")
+            out.append(f"This computer has {self.ram_gib:.1f} GiB of RAM. Forenote needs 8 GiB or more.")
         return out
 
     @property
@@ -138,7 +138,7 @@ class HardwareReport:
         out = []
         if self.tier == "low":
             out.append(
-                f"This computer has {self.ram_gib:.1f} GiB of RAM. Lookout uses the low model tier. "
+                f"This computer has {self.ram_gib:.1f} GiB of RAM. Forenote uses the low model tier. "
                 "Quality and speed are lower."
             )
         if self.audio_server is None:

@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from enum import IntEnum
 from typing import Any
 
-from lookout.store.jobs import JobStore
+from forenote.store.jobs import JobStore
 
 log = logging.getLogger(__name__)
 

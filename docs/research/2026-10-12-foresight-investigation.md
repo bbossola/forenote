@@ -227,4 +227,4 @@ base. That combination is the gap that a Linux version can fill.
 | Speakers | "Me" (mic) and "Others" (system audio). No diarization in v1. |
 | Storage | SQLite with `sqlite-vec` and FTS5 |
 | Process model | A headless engine process and a Qt UI client, connected by JSON-RPC over a Unix socket |
-| Working name | "Lookout". We do not use the name "Foresight". |
+| Project name | "Forenote" (renamed from "Lookout", a trademark of Lookout, Inc.). We do not use the name "Foresight". |

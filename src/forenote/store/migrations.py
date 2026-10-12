@@ -14,11 +14,11 @@ MIGRATIONS: list[tuple[int, str]] = [(1, "schema_v1.sql")]
 
 
 class SchemaTooNew(RuntimeError):
-    """The database comes from a newer version of Lookout."""
+    """The database comes from a newer version of Forenote."""
 
 
 def _read(filename: str) -> str:
-    return resources.files("lookout.store").joinpath(filename).read_text(encoding="utf-8")
+    return resources.files("forenote.store").joinpath(filename).read_text(encoding="utf-8")
 
 
 def latest_version() -> int:

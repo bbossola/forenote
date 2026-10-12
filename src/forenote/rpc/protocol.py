@@ -15,7 +15,7 @@ INVALID_REQUEST = -32600
 METHOD_NOT_FOUND = -32601
 INVALID_PARAMS = -32602
 INTERNAL_ERROR = -32603
-# Lookout error codes.
+# Forenote error codes.
 APP_ERROR = -32000
 HANDSHAKE_REQUIRED = -32001
 VERSION_MISMATCH = -32002
@@ -72,5 +72,5 @@ def error_response(id: Any, err: RpcError) -> dict[str, Any]:
 
 
 def load_schema() -> dict[str, Any]:
-    text = resources.files("lookout.rpc").joinpath("schema.json").read_text(encoding="utf-8")
+    text = resources.files("forenote.rpc").joinpath("schema.json").read_text(encoding="utf-8")
     return json.loads(text)

@@ -4,9 +4,9 @@ import sys
 
 import pytest
 
-from lookout.paths import Paths
-from lookout.rpc import launcher
-from lookout.rpc.launcher import EngineStartError, EngineStartTimeout, connect_or_start
+from forenote.paths import Paths
+from forenote.rpc import launcher
+from forenote.rpc.launcher import EngineStartError, EngineStartTimeout, connect_or_start
 
 
 @pytest.fixture
@@ -18,7 +18,7 @@ def env_paths(tmp_path, short_tmp, monkeypatch):
 
 
 async def test_connect_or_start_launches_the_engine(env_paths):
-    cmd = [sys.executable, "-m", "lookout.engine.main", "--no-hw-check", "--log-level", "WARNING"]
+    cmd = [sys.executable, "-m", "forenote.engine.main", "--no-hw-check", "--log-level", "WARNING"]
     client = await connect_or_start(env_paths.socket_path, "pytest", engine_cmd=cmd)
     try:
         status = await client.call("system.status")
@@ -57,7 +57,7 @@ async def test_early_exit_is_reported(short_tmp):
 
 
 async def test_two_launchers_share_one_engine(env_paths):
-    cmd = [sys.executable, "-m", "lookout.engine.main", "--no-hw-check", "--log-level", "WARNING"]
+    cmd = [sys.executable, "-m", "forenote.engine.main", "--no-hw-check", "--log-level", "WARNING"]
     a, b = await asyncio.gather(
         connect_or_start(env_paths.socket_path, "pytest-a", engine_cmd=cmd),
         connect_or_start(env_paths.socket_path, "pytest-b", engine_cmd=cmd),
@@ -79,7 +79,7 @@ async def test_two_launchers_share_one_engine(env_paths):
 
 async def test_loser_exit_waits_for_the_winner(env_paths):
     procs = []
-    real = [sys.executable, "-m", "lookout.engine.main", "--no-hw-check", "--log-level", "WARNING"]
+    real = [sys.executable, "-m", "forenote.engine.main", "--no-hw-check", "--log-level", "WARNING"]
     asyncio.get_running_loop().call_later(0.5, lambda: procs.append(subprocess.Popen(real)))
     client = await connect_or_start(
         env_paths.socket_path, "pytest", engine_cmd=[sys.executable, "-c", "raise SystemExit(1)"]
@@ -92,7 +92,7 @@ async def test_loser_exit_waits_for_the_winner(env_paths):
 
 
 async def test_launched_engine_is_reaped(env_paths):
-    cmd = [sys.executable, "-m", "lookout.engine.main", "--no-hw-check", "--log-level", "WARNING"]
+    cmd = [sys.executable, "-m", "forenote.engine.main", "--no-hw-check", "--log-level", "WARNING"]
     client = await connect_or_start(env_paths.socket_path, "pytest", engine_cmd=cmd)
     try:
         await client.call("system.shutdown")

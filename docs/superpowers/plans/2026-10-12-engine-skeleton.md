@@ -2,13 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build the headless `lookout-engine` process with storage, hardware detection, model download, a job scheduler, and the JSON-RPC server, plus a `lookout-cli` client that can show the status and download models.
+**Goal:** Build the headless `forenote-engine` process with storage, hardware detection, model download, a job scheduler, and the JSON-RPC server, plus a `forenote-cli` client that can show the status and download models.
 
-**Architecture:** One Python package `lookout` (src layout). The engine owns one SQLite database (WAL, `sqlite-vec`, FTS5) and serves JSON-RPC 2.0 over a Unix socket. A JSON Schema file defines every method and event, and the server validates parameters against it. Clients (`lookout-cli` now, the Qt UI later) use only the RPC protocol. A launcher starts the engine on demand.
+**Architecture:** One Python package `forenote` (src layout). The engine owns one SQLite database (WAL, `sqlite-vec`, FTS5) and serves JSON-RPC 2.0 over a Unix socket. A JSON Schema file defines every method and event, and the server validates parameters against it. Clients (`forenote-cli` now, the Qt UI later) use only the RPC protocol. A launcher starts the engine on demand.
 
 **Tech Stack:** Python 3.11+ (3.12 on the dev machine), uv, hatchling, sqlite3 + `sqlite-vec` 0.1.9, `jsonschema` 4.26.0, `huggingface-hub` 2.2.0, pytest 9.1.1, pytest-asyncio 1.4.0.
 
-**Spec:** `docs/superpowers/specs/2026-10-12-lookout-design.md` (sections 4, 5.1, 5.5, 6, 7, 8.7, 9, 10).
+**Spec:** `docs/superpowers/specs/2026-10-12-forenote-design.md` (sections 4, 5.1, 5.5, 6, 7, 8.7, 9, 10).
 
 ---
 
@@ -32,30 +32,30 @@ Not in this plan: audio, ASR, LLM, embeddings, knowledge base, notes, chat, and 
 |---|---|
 | `pyproject.toml` | Package metadata, dependencies, entry points, pytest settings |
 | `.gitignore` | Python build and cache files |
-| `src/lookout/__init__.py` | `__version__` |
-| `src/lookout/paths.py` | XDG locations: data, state, runtime, models, database, logs, socket |
-| `src/lookout/store/__init__.py` | Package marker |
-| `src/lookout/store/db.py` | `connect()`: WAL, foreign keys, `sqlite-vec` |
-| `src/lookout/store/schema_v1.sql` | All v1 tables (spec section 7) |
-| `src/lookout/store/migrations.py` | Versioned migrations with backup and rollback |
-| `src/lookout/store/settings.py` | User settings with defaults and validation |
-| `src/lookout/store/jobs.py` | Persistent job records |
-| `src/lookout/hw.py` | CPU, RAM, GPU, and audio detection; tier selection |
-| `src/lookout/models/__init__.py` | Package marker |
-| `src/lookout/models/manifest.toml` | Pinned model files for each tier |
-| `src/lookout/models/manifest.py` | Manifest loading and validation |
-| `src/lookout/models/download.py` | `ModelStore`: download, resume, SHA-256 check, disk check |
-| `src/lookout/scheduler.py` | Priority job queue with pause and cancel |
-| `src/lookout/rpc/__init__.py` | Package marker |
-| `src/lookout/rpc/schema.json` | Methods and events of protocol 1.0 |
-| `src/lookout/rpc/protocol.py` | Framing, error codes, message builders |
-| `src/lookout/rpc/server.py` | `RpcServer`: handshake, validation, dispatch, events |
-| `src/lookout/rpc/client.py` | `RpcClient`: calls and event stream |
-| `src/lookout/rpc/launcher.py` | `connect_or_start()`: start the engine on demand |
-| `src/lookout/engine/__init__.py` | Package marker |
-| `src/lookout/engine/app.py` | `Engine`: wires store, scheduler, models, and RPC handlers |
-| `src/lookout/engine/main.py` | `lookout-engine` entry point: logging, hardware check, signals |
-| `src/lookout/cli.py` | `lookout-cli` entry point |
+| `src/forenote/__init__.py` | `__version__` |
+| `src/forenote/paths.py` | XDG locations: data, state, runtime, models, database, logs, socket |
+| `src/forenote/store/__init__.py` | Package marker |
+| `src/forenote/store/db.py` | `connect()`: WAL, foreign keys, `sqlite-vec` |
+| `src/forenote/store/schema_v1.sql` | All v1 tables (spec section 7) |
+| `src/forenote/store/migrations.py` | Versioned migrations with backup and rollback |
+| `src/forenote/store/settings.py` | User settings with defaults and validation |
+| `src/forenote/store/jobs.py` | Persistent job records |
+| `src/forenote/hw.py` | CPU, RAM, GPU, and audio detection; tier selection |
+| `src/forenote/models/__init__.py` | Package marker |
+| `src/forenote/models/manifest.toml` | Pinned model files for each tier |
+| `src/forenote/models/manifest.py` | Manifest loading and validation |
+| `src/forenote/models/download.py` | `ModelStore`: download, resume, SHA-256 check, disk check |
+| `src/forenote/scheduler.py` | Priority job queue with pause and cancel |
+| `src/forenote/rpc/__init__.py` | Package marker |
+| `src/forenote/rpc/schema.json` | Methods and events of protocol 1.0 |
+| `src/forenote/rpc/protocol.py` | Framing, error codes, message builders |
+| `src/forenote/rpc/server.py` | `RpcServer`: handshake, validation, dispatch, events |
+| `src/forenote/rpc/client.py` | `RpcClient`: calls and event stream |
+| `src/forenote/rpc/launcher.py` | `connect_or_start()`: start the engine on demand |
+| `src/forenote/engine/__init__.py` | Package marker |
+| `src/forenote/engine/app.py` | `Engine`: wires store, scheduler, models, and RPC handlers |
+| `src/forenote/engine/main.py` | `forenote-engine` entry point: logging, hardware check, signals |
+| `src/forenote/cli.py` | `forenote-cli` entry point |
 | `tests/conftest.py` | Shared fixtures |
 | `tests/...` | One test file for each module |
 
@@ -66,14 +66,14 @@ Not in this plan: audio, ASR, LLM, embeddings, knowledge base, notes, chat, and 
 **Files:**
 - Create: `pyproject.toml`
 - Create: `.gitignore`
-- Create: `src/lookout/__init__.py`
+- Create: `src/forenote/__init__.py`
 - Test: `tests/test_package.py`
 
 - [ ] **Step 1: Create `pyproject.toml`**
 
 ```toml
 [project]
-name = "lookout"
+name = "forenote"
 version = "0.1.0"
 description = "Private meeting notetaker and local knowledge assistant for Linux"
 requires-python = ">=3.11"
@@ -84,8 +84,8 @@ dependencies = [
 ]
 
 [project.scripts]
-lookout-engine = "lookout.engine.main:main"
-lookout-cli = "lookout.cli:main"
+forenote-engine = "forenote.engine.main:main"
+forenote-cli = "forenote.cli:main"
 
 [dependency-groups]
 dev = [
@@ -98,7 +98,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/lookout"]
+packages = ["src/forenote"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -123,24 +123,24 @@ build/
 Create `tests/test_package.py`:
 
 ```python
-import lookout
+import forenote
 
 
 def test_version():
-    assert lookout.__version__ == "0.1.0"
+    assert forenote.__version__ == "0.1.0"
 ```
 
 - [ ] **Step 4: Run the test to verify that it fails**
 
 Run: `uv sync && uv run pytest tests/test_package.py -q`
-Expected: FAIL with `ModuleNotFoundError: No module named 'lookout'` (or a hatchling error that `src/lookout` does not exist).
+Expected: FAIL with `ModuleNotFoundError: No module named 'forenote'` (or a hatchling error that `src/forenote` does not exist).
 
 - [ ] **Step 5: Create the package**
 
-Create `src/lookout/__init__.py`:
+Create `src/forenote/__init__.py`:
 
 ```python
-"""Lookout: private meeting notetaker and local knowledge assistant for Linux."""
+"""Forenote: private meeting notetaker and local knowledge assistant for Linux."""
 
 __version__ = "0.1.0"
 ```
@@ -153,7 +153,7 @@ Expected: `1 passed`
 - [ ] **Step 7: Commit**
 
 ```bash
-git add pyproject.toml .gitignore uv.lock src/lookout/__init__.py tests/test_package.py
+git add pyproject.toml .gitignore uv.lock src/forenote/__init__.py tests/test_package.py
 git commit -m "Add Python project scaffold" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
@@ -162,7 +162,7 @@ git commit -m "Add Python project scaffold" -m "Co-Authored-By: Claude Opus 5.5 
 ### Task 2: Paths
 
 **Files:**
-- Create: `src/lookout/paths.py`
+- Create: `src/forenote/paths.py`
 - Test: `tests/test_paths.py`
 
 - [ ] **Step 1: Write the failing tests**
@@ -175,27 +175,27 @@ import stat
 import tempfile
 from pathlib import Path
 
-from lookout.paths import Paths
+from forenote.paths import Paths
 
 
 def test_from_env_uses_xdg_dirs():
     p = Paths.from_env(
         {"HOME": "/h", "XDG_DATA_HOME": "/d", "XDG_STATE_HOME": "/s", "XDG_RUNTIME_DIR": "/r"}
     )
-    assert p.data_dir == Path("/d/lookout")
-    assert p.state_dir == Path("/s/lookout")
-    assert p.runtime_dir == Path("/r/lookout")
-    assert p.db_path == Path("/d/lookout/lookout.db")
-    assert p.models_dir == Path("/d/lookout/models")
-    assert p.log_dir == Path("/s/lookout/logs")
-    assert p.socket_path == Path("/r/lookout/engine.sock")
+    assert p.data_dir == Path("/d/forenote")
+    assert p.state_dir == Path("/s/forenote")
+    assert p.runtime_dir == Path("/r/forenote")
+    assert p.db_path == Path("/d/forenote/forenote.db")
+    assert p.models_dir == Path("/d/forenote/models")
+    assert p.log_dir == Path("/s/forenote/logs")
+    assert p.socket_path == Path("/r/forenote/engine.sock")
 
 
 def test_from_env_defaults_under_home():
     p = Paths.from_env({"HOME": "/h"})
-    assert p.data_dir == Path("/h/.local/share/lookout")
-    assert p.state_dir == Path("/h/.local/state/lookout")
-    assert p.runtime_dir == Path(tempfile.gettempdir()) / f"lookout-{os.getuid()}"
+    assert p.data_dir == Path("/h/.local/share/forenote")
+    assert p.state_dir == Path("/h/.local/state/forenote")
+    assert p.runtime_dir == Path(tempfile.gettempdir()) / f"forenote-{os.getuid()}"
 
 
 def test_ensure_creates_dirs_and_private_runtime_dir(tmp_path):
@@ -209,11 +209,11 @@ def test_ensure_creates_dirs_and_private_runtime_dir(tmp_path):
 - [ ] **Step 2: Run the tests to verify that they fail**
 
 Run: `uv run pytest tests/test_paths.py -q`
-Expected: FAIL with `ModuleNotFoundError: No module named 'lookout.paths'`
+Expected: FAIL with `ModuleNotFoundError: No module named 'forenote.paths'`
 
 - [ ] **Step 3: Write the implementation**
 
-Create `src/lookout/paths.py`:
+Create `src/forenote/paths.py`:
 
 ```python
 """File system locations, from the XDG Base Directory specification."""
@@ -226,7 +226,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-APP = "lookout"
+APP = "forenote"
 
 
 @dataclass(frozen=True)
@@ -241,7 +241,7 @@ class Paths:
 
     @property
     def db_path(self) -> Path:
-        return self.data_dir / "lookout.db"
+        return self.data_dir / "forenote.db"
 
     @property
     def log_dir(self) -> Path:
@@ -279,7 +279,7 @@ Expected: `3 passed`
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/lookout/paths.py tests/test_paths.py
+git add src/forenote/paths.py tests/test_paths.py
 git commit -m "Add XDG paths" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
@@ -288,10 +288,10 @@ git commit -m "Add XDG paths" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthr
 ### Task 3: Database connection, schema v1, and migrations
 
 **Files:**
-- Create: `src/lookout/store/__init__.py`
-- Create: `src/lookout/store/db.py`
-- Create: `src/lookout/store/schema_v1.sql`
-- Create: `src/lookout/store/migrations.py`
+- Create: `src/forenote/store/__init__.py`
+- Create: `src/forenote/store/db.py`
+- Create: `src/forenote/store/schema_v1.sql`
+- Create: `src/forenote/store/migrations.py`
 - Test: `tests/store/test_db.py`
 - Test: `tests/store/test_migrations.py`
 
@@ -300,7 +300,7 @@ git commit -m "Add XDG paths" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthr
 Create `tests/store/test_db.py`:
 
 ```python
-from lookout.store.db import connect
+from forenote.store.db import connect
 
 
 def test_connect_enables_wal_foreign_keys_and_vec(tmp_path):
@@ -318,9 +318,9 @@ import sqlite3
 import pytest
 import sqlite_vec
 
-from lookout.store import migrations
-from lookout.store.db import connect
-from lookout.store.migrations import SchemaTooNew, current_version, migrate
+from forenote.store import migrations
+from forenote.store.db import connect
+from forenote.store.migrations import SchemaTooNew, current_version, migrate
 
 V1_TABLES = {
     "settings", "meetings", "transcript_lines", "bullets", "meeting_outputs",
@@ -423,17 +423,17 @@ def test_chunk_needs_exactly_one_owner(tmp_path):
 - [ ] **Step 2: Run the tests to verify that they fail**
 
 Run: `uv run pytest tests/store -q`
-Expected: FAIL with `ModuleNotFoundError: No module named 'lookout.store'`
+Expected: FAIL with `ModuleNotFoundError: No module named 'forenote.store'`
 
 - [ ] **Step 3: Create the package marker and the connection module**
 
-Create `src/lookout/store/__init__.py`:
+Create `src/forenote/store/__init__.py`:
 
 ```python
 """SQLite storage. The engine is the only writer."""
 ```
 
-Create `src/lookout/store/db.py`:
+Create `src/forenote/store/db.py`:
 
 ```python
 """SQLite connection setup."""
@@ -467,10 +467,10 @@ def connect(path: Path | str) -> sqlite3.Connection:
 
 - [ ] **Step 4: Create the v1 schema**
 
-Create `src/lookout/store/schema_v1.sql`:
+Create `src/forenote/store/schema_v1.sql`:
 
 ```sql
--- Lookout schema v1 (spec section 7).
+-- Forenote schema v1 (spec section 7).
 -- Timestamps are ISO 8601 strings in UTC.
 
 CREATE TABLE schema_version (
@@ -606,7 +606,7 @@ CREATE INDEX jobs_status ON jobs(status);
 
 - [ ] **Step 5: Create the migration runner**
 
-Create `src/lookout/store/migrations.py`:
+Create `src/forenote/store/migrations.py`:
 
 ```python
 """Schema migrations. Each migration is one SQL file in this package."""
@@ -625,11 +625,11 @@ MIGRATIONS: list[tuple[int, str]] = [(1, "schema_v1.sql")]
 
 
 class SchemaTooNew(RuntimeError):
-    """The database comes from a newer version of Lookout."""
+    """The database comes from a newer version of Forenote."""
 
 
 def _read(filename: str) -> str:
-    return resources.files("lookout.store").joinpath(filename).read_text(encoding="utf-8")
+    return resources.files("forenote.store").joinpath(filename).read_text(encoding="utf-8")
 
 
 def latest_version() -> int:
@@ -696,7 +696,7 @@ If `test_deleting_a_document_removes_its_index_rows` fails on the `chunks_vec` c
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/lookout/store tests/store
+git add src/forenote/store tests/store
 git commit -m "Add database connection, schema v1, and migrations" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
@@ -705,7 +705,7 @@ git commit -m "Add database connection, schema v1, and migrations" -m "Co-Author
 ### Task 4: Settings
 
 **Files:**
-- Create: `src/lookout/store/settings.py`
+- Create: `src/forenote/store/settings.py`
 - Test: `tests/store/test_settings.py`
 
 - [ ] **Step 1: Write the failing tests**
@@ -715,9 +715,9 @@ Create `tests/store/test_settings.py`:
 ```python
 import pytest
 
-from lookout.store.db import connect
-from lookout.store.migrations import migrate
-from lookout.store.settings import DEFAULT_CALL_APPS, Settings
+from forenote.store.db import connect
+from forenote.store.migrations import migrate
+from forenote.store.settings import DEFAULT_CALL_APPS, Settings
 
 
 @pytest.fixture
@@ -780,11 +780,11 @@ def test_returned_default_is_a_copy(settings):
 - [ ] **Step 2: Run the tests to verify that they fail**
 
 Run: `uv run pytest tests/store/test_settings.py -q`
-Expected: FAIL with `ModuleNotFoundError: No module named 'lookout.store.settings'`
+Expected: FAIL with `ModuleNotFoundError: No module named 'forenote.store.settings'`
 
 - [ ] **Step 3: Write the implementation**
 
-Create `src/lookout/store/settings.py`:
+Create `src/forenote/store/settings.py`:
 
 ```python
 """User settings, stored as JSON values in the settings table."""
@@ -867,7 +867,7 @@ Expected: `11 passed`
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/lookout/store/settings.py tests/store/test_settings.py
+git add src/forenote/store/settings.py tests/store/test_settings.py
 git commit -m "Add user settings with defaults and validation" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
@@ -876,7 +876,7 @@ git commit -m "Add user settings with defaults and validation" -m "Co-Authored-B
 ### Task 5: Job records
 
 **Files:**
-- Create: `src/lookout/store/jobs.py`
+- Create: `src/forenote/store/jobs.py`
 - Test: `tests/store/test_jobs.py`
 
 - [ ] **Step 1: Write the failing tests**
@@ -886,9 +886,9 @@ Create `tests/store/test_jobs.py`:
 ```python
 import pytest
 
-from lookout.store.db import connect
-from lookout.store.jobs import JobStore
-from lookout.store.migrations import migrate
+from forenote.store.db import connect
+from forenote.store.jobs import JobStore
+from forenote.store.migrations import migrate
 
 
 @pytest.fixture
@@ -948,11 +948,11 @@ def test_fail_unfinished_marks_pending_and_running(jobs):
 - [ ] **Step 2: Run the tests to verify that they fail**
 
 Run: `uv run pytest tests/store/test_jobs.py -q`
-Expected: FAIL with `ModuleNotFoundError: No module named 'lookout.store.jobs'`
+Expected: FAIL with `ModuleNotFoundError: No module named 'forenote.store.jobs'`
 
 - [ ] **Step 3: Write the implementation**
 
-Create `src/lookout/store/jobs.py`:
+Create `src/forenote/store/jobs.py`:
 
 ```python
 """Persistent job records (table jobs)."""
@@ -1029,7 +1029,7 @@ Expected: `6 passed`
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/lookout/store/jobs.py tests/store/test_jobs.py
+git add src/forenote/store/jobs.py tests/store/test_jobs.py
 git commit -m "Add persistent job records" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
@@ -1038,7 +1038,7 @@ git commit -m "Add persistent job records" -m "Co-Authored-By: Claude Opus 5.5 <
 ### Task 6: Hardware detection
 
 **Files:**
-- Create: `src/lookout/hw.py`
+- Create: `src/forenote/hw.py`
 - Test: `tests/test_hw.py`
 
 - [ ] **Step 1: Write the failing tests**
@@ -1050,7 +1050,7 @@ import subprocess
 
 import pytest
 
-from lookout.hw import (
+from forenote.hw import (
     HardwareReport,
     detect,
     detect_audio,
@@ -1167,11 +1167,11 @@ def test_detect_reads_proc_files(tmp_path):
 - [ ] **Step 2: Run the tests to verify that they fail**
 
 Run: `uv run pytest tests/test_hw.py -q`
-Expected: FAIL with `ModuleNotFoundError: No module named 'lookout.hw'`
+Expected: FAIL with `ModuleNotFoundError: No module named 'forenote.hw'`
 
 - [ ] **Step 3: Write the implementation**
 
-Create `src/lookout/hw.py`:
+Create `src/forenote/hw.py`:
 
 ```python
 """Hardware detection and model tier selection (spec section 9.3)."""
@@ -1295,9 +1295,9 @@ class HardwareReport:
     def problems(self) -> list[str]:
         out = []
         if not self.avx2:
-            out.append("This CPU does not support AVX2. Lookout needs a CPU with AVX2.")
+            out.append("This CPU does not support AVX2. Forenote needs a CPU with AVX2.")
         if self.tier is None:
-            out.append(f"This computer has {self.ram_gib:.1f} GiB of RAM. Lookout needs 8 GiB or more.")
+            out.append(f"This computer has {self.ram_gib:.1f} GiB of RAM. Forenote needs 8 GiB or more.")
         return out
 
     @property
@@ -1305,7 +1305,7 @@ class HardwareReport:
         out = []
         if self.tier == "low":
             out.append(
-                f"This computer has {self.ram_gib:.1f} GiB of RAM. Lookout uses the low model tier. "
+                f"This computer has {self.ram_gib:.1f} GiB of RAM. Forenote uses the low model tier. "
                 "Quality and speed are lower."
             )
         if self.audio_server is None:
@@ -1350,13 +1350,13 @@ Expected: `12 passed`
 
 - [ ] **Step 5: Check on the real machine**
 
-Run: `uv run python -c "from lookout.hw import detect; import json; print(json.dumps(detect().to_dict(), indent=2))"`
+Run: `uv run python -c "from forenote.hw import detect; import json; print(json.dumps(detect().to_dict(), indent=2))"`
 Expected: JSON with the real CPU core count, RAM, and audio server. On the dev machine (Ryzen 9 3900X, 60 GB): `physical_cores` 12, `tier` `"default"`.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/lookout/hw.py tests/test_hw.py
+git add src/forenote/hw.py tests/test_hw.py
 git commit -m "Add hardware detection and tier selection" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
@@ -1365,9 +1365,9 @@ git commit -m "Add hardware detection and tier selection" -m "Co-Authored-By: Cl
 ### Task 7: Model manifest
 
 **Files:**
-- Create: `src/lookout/models/__init__.py`
-- Create: `src/lookout/models/manifest.toml`
-- Create: `src/lookout/models/manifest.py`
+- Create: `src/forenote/models/__init__.py`
+- Create: `src/forenote/models/manifest.toml`
+- Create: `src/forenote/models/manifest.py`
 - Test: `tests/models/test_manifest.py`
 
 - [ ] **Step 1: Write the failing tests**
@@ -1377,7 +1377,7 @@ Create `tests/models/test_manifest.py`:
 ```python
 import pytest
 
-from lookout.models.manifest import ROLES, TIERS, ManifestError, for_tier, load_manifest
+from forenote.models.manifest import ROLES, TIERS, ManifestError, for_tier, load_manifest
 
 VALID = """
 [[model]]
@@ -1446,17 +1446,17 @@ def test_for_tier_rejects_unknown_tier():
 - [ ] **Step 2: Run the tests to verify that they fail**
 
 Run: `uv run pytest tests/models -q`
-Expected: FAIL with `ModuleNotFoundError: No module named 'lookout.models'`
+Expected: FAIL with `ModuleNotFoundError: No module named 'forenote.models'`
 
 - [ ] **Step 3: Create the package marker and the manifest**
 
-Create `src/lookout/models/__init__.py`:
+Create `src/forenote/models/__init__.py`:
 
 ```python
 """Model manifest and download."""
 ```
 
-Create `src/lookout/models/manifest.toml`. The revisions, sizes, and SHA-256 values come from the Hugging Face API on 2026-10-12. Do not change them without a new check.
+Create `src/forenote/models/manifest.toml`. The revisions, sizes, and SHA-256 values come from the Hugging Face API on 2026-10-12. Do not change them without a new check.
 
 ```toml
 # Pinned model files (spec section 9.2).
@@ -1589,7 +1589,7 @@ sha256 = "ff77588746d3a2595d32ab5b69ffd7b95ce2441ac57533cb66fc3eb575a115cf"
 
 - [ ] **Step 4: Write the loader**
 
-Create `src/lookout/models/manifest.py`:
+Create `src/forenote/models/manifest.py`:
 
 ```python
 """Model manifest (spec section 9.2)."""
@@ -1650,7 +1650,7 @@ def _validate(e: ModelEntry) -> None:
 
 def load_manifest(text: str | None = None) -> list[ModelEntry]:
     if text is None:
-        text = resources.files("lookout.models").joinpath("manifest.toml").read_text(encoding="utf-8")
+        text = resources.files("forenote.models").joinpath("manifest.toml").read_text(encoding="utf-8")
     try:
         data = tomllib.loads(text)
         entries = [
@@ -1695,7 +1695,7 @@ Expected: `11 passed`
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/lookout/models tests/models
+git add src/forenote/models tests/models
 git commit -m "Add model manifest with pinned files" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
@@ -1704,7 +1704,7 @@ git commit -m "Add model manifest with pinned files" -m "Co-Authored-By: Claude 
 ### Task 8: Model download
 
 **Files:**
-- Create: `src/lookout/models/download.py`
+- Create: `src/forenote/models/download.py`
 - Test: `tests/models/test_download.py`
 
 - [ ] **Step 1: Write the failing tests**
@@ -1716,13 +1716,13 @@ import hashlib
 
 import pytest
 
-from lookout.models.download import (
+from forenote.models.download import (
     ChecksumMismatch,
     DownloadCancelled,
     InsufficientDisk,
     ModelStore,
 )
-from lookout.models.manifest import ModelEntry, ModelFile
+from forenote.models.manifest import ModelEntry, ModelFile
 
 A = b"first file"
 B = b"second file content"
@@ -1822,11 +1822,11 @@ def test_progress_is_reported_for_each_file(tmp_path):
 - [ ] **Step 2: Run the tests to verify that they fail**
 
 Run: `uv run pytest tests/models/test_download.py -q`
-Expected: FAIL with `ModuleNotFoundError: No module named 'lookout.models.download'`
+Expected: FAIL with `ModuleNotFoundError: No module named 'forenote.models.download'`
 
 - [ ] **Step 3: Write the implementation**
 
-Create `src/lookout/models/download.py`:
+Create `src/forenote/models/download.py`:
 
 ```python
 """Model download with resume and SHA-256 check (spec section 9.2)."""
@@ -1839,7 +1839,7 @@ import shutil
 from collections.abc import Callable
 from pathlib import Path
 
-from lookout.models.manifest import ModelEntry, ModelFile
+from forenote.models.manifest import ModelEntry, ModelFile
 
 log = logging.getLogger(__name__)
 
@@ -1952,7 +1952,7 @@ Expected: `18 passed`
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/lookout/models/download.py tests/models/test_download.py
+git add src/forenote/models/download.py tests/models/test_download.py
 git commit -m "Add model download with SHA-256 check" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
@@ -1961,7 +1961,7 @@ git commit -m "Add model download with SHA-256 check" -m "Co-Authored-By: Claude
 ### Task 9: Scheduler
 
 **Files:**
-- Create: `src/lookout/scheduler.py`
+- Create: `src/forenote/scheduler.py`
 - Test: `tests/test_scheduler.py`
 
 - [ ] **Step 1: Write the failing tests**
@@ -1974,10 +1974,10 @@ import contextlib
 
 import pytest
 
-from lookout.scheduler import CancelToken, JobCancelled, Priority, Scheduler
-from lookout.store.db import connect
-from lookout.store.jobs import JobStore
-from lookout.store.migrations import migrate
+from forenote.scheduler import CancelToken, JobCancelled, Priority, Scheduler
+from forenote.store.db import connect
+from forenote.store.jobs import JobStore
+from forenote.store.migrations import migrate
 
 FINAL = ("done", "failed", "cancelled")
 
@@ -2127,11 +2127,11 @@ async def test_cancel_unknown_job(sched):
 - [ ] **Step 2: Run the tests to verify that they fail**
 
 Run: `uv run pytest tests/test_scheduler.py -q`
-Expected: FAIL with `ModuleNotFoundError: No module named 'lookout.scheduler'`
+Expected: FAIL with `ModuleNotFoundError: No module named 'forenote.scheduler'`
 
 - [ ] **Step 3: Write the implementation**
 
-Create `src/lookout/scheduler.py`:
+Create `src/forenote/scheduler.py`:
 
 ```python
 """Priority job scheduler (spec section 8.7).
@@ -2151,7 +2151,7 @@ from dataclasses import dataclass, field
 from enum import IntEnum
 from typing import Any
 
-from lookout.store.jobs import JobStore
+from forenote.store.jobs import JobStore
 
 log = logging.getLogger(__name__)
 
@@ -2297,7 +2297,7 @@ Expected: `8 passed`
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/lookout/scheduler.py tests/test_scheduler.py
+git add src/forenote/scheduler.py tests/test_scheduler.py
 git commit -m "Add priority job scheduler" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
@@ -2306,9 +2306,9 @@ git commit -m "Add priority job scheduler" -m "Co-Authored-By: Claude Opus 5.5 <
 ### Task 10: RPC protocol and schema
 
 **Files:**
-- Create: `src/lookout/rpc/__init__.py`
-- Create: `src/lookout/rpc/protocol.py`
-- Create: `src/lookout/rpc/schema.json`
+- Create: `src/forenote/rpc/__init__.py`
+- Create: `src/forenote/rpc/protocol.py`
+- Create: `src/forenote/rpc/schema.json`
 - Test: `tests/rpc/test_protocol.py`
 
 - [ ] **Step 1: Write the failing tests**
@@ -2319,7 +2319,7 @@ Create `tests/rpc/test_protocol.py`:
 import jsonschema
 import pytest
 
-from lookout.rpc import protocol as p
+from forenote.rpc import protocol as p
 
 
 def test_encode_is_one_line_of_utf8_json():
@@ -2371,17 +2371,17 @@ def test_schema_is_valid_and_complete():
 - [ ] **Step 2: Run the tests to verify that they fail**
 
 Run: `uv run pytest tests/rpc/test_protocol.py -q`
-Expected: FAIL with `ModuleNotFoundError: No module named 'lookout.rpc'`
+Expected: FAIL with `ModuleNotFoundError: No module named 'forenote.rpc'`
 
 - [ ] **Step 3: Create the package marker and the protocol module**
 
-Create `src/lookout/rpc/__init__.py`:
+Create `src/forenote/rpc/__init__.py`:
 
 ```python
 """JSON-RPC 2.0 between the engine and its clients (spec section 6)."""
 ```
 
-Create `src/lookout/rpc/protocol.py`:
+Create `src/forenote/rpc/protocol.py`:
 
 ```python
 """JSON-RPC 2.0 framing: one JSON object per line, UTF-8."""
@@ -2401,7 +2401,7 @@ INVALID_REQUEST = -32600
 METHOD_NOT_FOUND = -32601
 INVALID_PARAMS = -32602
 INTERNAL_ERROR = -32603
-# Lookout error codes.
+# Forenote error codes.
 APP_ERROR = -32000
 HANDSHAKE_REQUIRED = -32001
 VERSION_MISMATCH = -32002
@@ -2452,13 +2452,13 @@ def error_response(id: Any, err: RpcError) -> dict[str, Any]:
 
 
 def load_schema() -> dict[str, Any]:
-    text = resources.files("lookout.rpc").joinpath("schema.json").read_text(encoding="utf-8")
+    text = resources.files("forenote.rpc").joinpath("schema.json").read_text(encoding="utf-8")
     return json.loads(text)
 ```
 
 - [ ] **Step 4: Create the schema**
 
-Create `src/lookout/rpc/schema.json`. This file lists only the methods and events of this plan. Later plans add their methods and events here.
+Create `src/forenote/rpc/schema.json`. This file lists only the methods and events of this plan. Later plans add their methods and events here.
 
 ```json
 {
@@ -2640,7 +2640,7 @@ Expected: `7 passed`
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/lookout/rpc tests/rpc/test_protocol.py
+git add src/forenote/rpc tests/rpc/test_protocol.py
 git commit -m "Add RPC framing and schema for protocol 1.0" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
@@ -2649,8 +2649,8 @@ git commit -m "Add RPC framing and schema for protocol 1.0" -m "Co-Authored-By: 
 ### Task 11: RPC server and client
 
 **Files:**
-- Create: `src/lookout/rpc/server.py`
-- Create: `src/lookout/rpc/client.py`
+- Create: `src/forenote/rpc/server.py`
+- Create: `src/forenote/rpc/client.py`
 - Create: `tests/conftest.py`
 - Test: `tests/rpc/test_server_client.py`
 
@@ -2686,9 +2686,9 @@ import stat
 
 import pytest
 
-from lookout.rpc import protocol as p
-from lookout.rpc.client import RpcClient
-from lookout.rpc.server import EngineAlreadyRunning, RpcServer
+from forenote.rpc import protocol as p
+from forenote.rpc.client import RpcClient
+from forenote.rpc.server import EngineAlreadyRunning, RpcServer
 
 SCHEMA = {
     "protocol": "1.0",
@@ -2852,11 +2852,11 @@ async def test_client_fails_pending_calls_when_server_closes(server, client):
 - [ ] **Step 3: Run the tests to verify that they fail**
 
 Run: `uv run pytest tests/rpc/test_server_client.py -q`
-Expected: FAIL with `ModuleNotFoundError: No module named 'lookout.rpc.client'`
+Expected: FAIL with `ModuleNotFoundError: No module named 'forenote.rpc.client'`
 
 - [ ] **Step 4: Write the server**
 
-Create `src/lookout/rpc/server.py`:
+Create `src/forenote/rpc/server.py`:
 
 ```python
 """JSON-RPC server over a Unix socket (spec section 6)."""
@@ -2873,8 +2873,8 @@ from typing import Any
 
 import jsonschema
 
-from lookout import __version__
-from lookout.rpc import protocol as p
+from forenote import __version__
+from forenote.rpc import protocol as p
 
 log = logging.getLogger(__name__)
 
@@ -3055,7 +3055,7 @@ class RpcServer:
 
 - [ ] **Step 5: Write the client**
 
-Create `src/lookout/rpc/client.py`:
+Create `src/forenote/rpc/client.py`:
 
 ```python
 """JSON-RPC client for the UI and the CLI."""
@@ -3069,7 +3069,7 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
 
-from lookout.rpc.protocol import MAX_LINE, PROTOCOL_VERSION, RpcError, decode, encode, request
+from forenote.rpc.protocol import MAX_LINE, PROTOCOL_VERSION, RpcError, decode, encode, request
 
 Event = tuple[str, dict[str, Any]]
 
@@ -3176,7 +3176,7 @@ Expected: `21 passed`
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/lookout/rpc/server.py src/lookout/rpc/client.py tests/conftest.py tests/rpc/test_server_client.py
+git add src/forenote/rpc/server.py src/forenote/rpc/client.py tests/conftest.py tests/rpc/test_server_client.py
 git commit -m "Add RPC server and client" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
@@ -3185,8 +3185,8 @@ git commit -m "Add RPC server and client" -m "Co-Authored-By: Claude Opus 5.5 <n
 ### Task 12: Engine application
 
 **Files:**
-- Create: `src/lookout/engine/__init__.py`
-- Create: `src/lookout/engine/app.py`
+- Create: `src/forenote/engine/__init__.py`
+- Create: `src/forenote/engine/app.py`
 - Modify: `tests/conftest.py`
 - Test: `tests/engine/test_engine.py`
 - Test: `tests/engine/test_contract.py`
@@ -3203,9 +3203,9 @@ from pathlib import Path
 
 import pytest
 
-from lookout.hw import HardwareReport
-from lookout.models.manifest import ModelEntry, ModelFile
-from lookout.paths import Paths
+from forenote.hw import HardwareReport
+from forenote.models.manifest import ModelEntry, ModelFile
+from forenote.paths import Paths
 
 LLM_BYTES = b"fake llm weights"
 SPEECH_BYTES = b"fake speech model"
@@ -3267,7 +3267,7 @@ def test_manifest():
 
 @pytest.fixture
 async def engine(paths, hardware, test_manifest):
-    from lookout.engine.app import Engine
+    from forenote.engine.app import Engine
 
     e = Engine(paths, hardware, fetch=fake_fetch, manifest=test_manifest)
     await e.start()
@@ -3277,7 +3277,7 @@ async def engine(paths, hardware, test_manifest):
 
 @pytest.fixture
 async def client(engine):
-    from lookout.rpc.client import RpcClient
+    from forenote.rpc.client import RpcClient
 
     c = await RpcClient.connect(engine.paths.socket_path, "pytest")
     yield c
@@ -3298,12 +3298,12 @@ import jsonschema
 import pytest
 
 from conftest import bad_fetch, fake_fetch
-from lookout.engine.app import Engine
-from lookout.rpc.protocol import APP_ERROR, INVALID_PARAMS, RpcError, load_schema
-from lookout.rpc.server import EngineAlreadyRunning
-from lookout.store.db import connect
-from lookout.store.jobs import JobStore
-from lookout.store.migrations import migrate
+from forenote.engine.app import Engine
+from forenote.rpc.protocol import APP_ERROR, INVALID_PARAMS, RpcError, load_schema
+from forenote.rpc.server import EngineAlreadyRunning
+from forenote.store.db import connect
+from forenote.store.jobs import JobStore
+from forenote.store.migrations import migrate
 
 
 async def collect_until_job_end(client, job_id, schema):
@@ -3352,7 +3352,7 @@ async def test_models_download_installs_files(client):
 
 
 async def test_download_checksum_failure_reports_job_failed(paths, hardware, test_manifest):
-    from lookout.rpc.client import RpcClient
+    from forenote.rpc.client import RpcClient
 
     e = Engine(paths, hardware, fetch=bad_fetch, manifest=test_manifest)
     await e.start()
@@ -3425,7 +3425,7 @@ Create `tests/engine/test_contract.py`:
 import jsonschema
 import pytest
 
-from lookout.rpc.protocol import load_schema
+from forenote.rpc.protocol import load_schema
 
 
 def test_engine_implements_exactly_the_schema(engine):
@@ -3453,17 +3453,17 @@ async def test_results_match_the_schema(client, method, params):
 - [ ] **Step 3: Run the tests to verify that they fail**
 
 Run: `uv run pytest tests/engine -q`
-Expected: FAIL with `ModuleNotFoundError: No module named 'lookout.engine'`
+Expected: FAIL with `ModuleNotFoundError: No module named 'forenote.engine'`
 
 - [ ] **Step 4: Write the engine**
 
-Create `src/lookout/engine/__init__.py`:
+Create `src/forenote/engine/__init__.py`:
 
 ```python
 """The headless engine process."""
 ```
 
-Create `src/lookout/engine/app.py`:
+Create `src/forenote/engine/app.py`:
 
 ```python
 """The engine: owns all state and serves RPC (spec section 4)."""
@@ -3477,18 +3477,18 @@ import threading
 from collections.abc import Callable
 from typing import Any
 
-from lookout import __version__
-from lookout.hw import HardwareReport
-from lookout.models.download import DownloadCancelled, Fetch, ModelStore, hf_fetch
-from lookout.models.manifest import ManifestError, ModelEntry, ModelFile, for_tier, load_manifest
-from lookout.paths import Paths
-from lookout.rpc.protocol import APP_ERROR, INVALID_PARAMS, PROTOCOL_VERSION, RpcError, load_schema
-from lookout.rpc.server import RpcServer
-from lookout.scheduler import Priority, Scheduler
-from lookout.store.db import connect
-from lookout.store.jobs import JobStore
-from lookout.store.migrations import migrate
-from lookout.store.settings import Settings
+from forenote import __version__
+from forenote.hw import HardwareReport
+from forenote.models.download import DownloadCancelled, Fetch, ModelStore, hf_fetch
+from forenote.models.manifest import ManifestError, ModelEntry, ModelFile, for_tier, load_manifest
+from forenote.paths import Paths
+from forenote.rpc.protocol import APP_ERROR, INVALID_PARAMS, PROTOCOL_VERSION, RpcError, load_schema
+from forenote.rpc.server import RpcServer
+from forenote.scheduler import Priority, Scheduler
+from forenote.store.db import connect
+from forenote.store.jobs import JobStore
+from forenote.store.migrations import migrate
+from forenote.store.settings import Settings
 
 log = logging.getLogger(__name__)
 
@@ -3518,7 +3518,7 @@ async def run_in_daemon_thread(fn: Callable[[], Any]) -> Any:
         with contextlib.suppress(RuntimeError):  # the loop can be closed already
             loop.call_soon_threadsafe(resolve, ok, value)
 
-    threading.Thread(target=work, daemon=True, name="lookout-worker").start()
+    threading.Thread(target=work, daemon=True, name="forenote-worker").start()
     return await fut
 
 
@@ -3748,7 +3748,7 @@ Expected: all tests pass (about 110).
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/lookout/engine tests/conftest.py tests/engine
+git add src/forenote/engine tests/conftest.py tests/engine
 git commit -m "Add engine application with RPC handlers" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
@@ -3757,8 +3757,8 @@ git commit -m "Add engine application with RPC handlers" -m "Co-Authored-By: Cla
 ### Task 13: Engine entry point and launcher
 
 **Files:**
-- Create: `src/lookout/engine/main.py`
-- Create: `src/lookout/rpc/launcher.py`
+- Create: `src/forenote/engine/main.py`
+- Create: `src/forenote/rpc/launcher.py`
 - Test: `tests/rpc/test_launcher.py`
 
 - [ ] **Step 1: Write the failing tests**
@@ -3771,8 +3771,8 @@ import sys
 
 import pytest
 
-from lookout.paths import Paths
-from lookout.rpc.launcher import EngineStartTimeout, connect_or_start
+from forenote.paths import Paths
+from forenote.rpc.launcher import EngineStartTimeout, connect_or_start
 
 
 @pytest.fixture
@@ -3784,7 +3784,7 @@ def env_paths(tmp_path, short_tmp, monkeypatch):
 
 
 async def test_connect_or_start_launches_the_engine(env_paths):
-    cmd = [sys.executable, "-m", "lookout.engine.main", "--no-hw-check", "--log-level", "WARNING"]
+    cmd = [sys.executable, "-m", "forenote.engine.main", "--no-hw-check", "--log-level", "WARNING"]
     client = await connect_or_start(env_paths.socket_path, "pytest", engine_cmd=cmd)
     try:
         status = await client.call("system.status")
@@ -3811,11 +3811,11 @@ async def test_connect_or_start_times_out(short_tmp):
 - [ ] **Step 2: Run the tests to verify that they fail**
 
 Run: `uv run pytest tests/rpc/test_launcher.py -q`
-Expected: FAIL with `ModuleNotFoundError: No module named 'lookout.rpc.launcher'`
+Expected: FAIL with `ModuleNotFoundError: No module named 'forenote.rpc.launcher'`
 
 - [ ] **Step 3: Write the launcher**
 
-Create `src/lookout/rpc/launcher.py`:
+Create `src/forenote/rpc/launcher.py`:
 
 ```python
 """Start the engine on demand (spec section 10.2)."""
@@ -3827,7 +3827,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from lookout.rpc.client import RpcClient
+from forenote.rpc.client import RpcClient
 
 START_TIMEOUT = 10.0
 
@@ -3848,7 +3848,7 @@ async def connect_or_start(
     except (FileNotFoundError, ConnectionRefusedError):
         pass
 
-    cmd = engine_cmd or [sys.executable, "-m", "lookout.engine.main"]
+    cmd = engine_cmd or [sys.executable, "-m", "forenote.engine.main"]
     subprocess.Popen(
         cmd,
         stdin=subprocess.DEVNULL,
@@ -3869,10 +3869,10 @@ async def connect_or_start(
 
 - [ ] **Step 4: Write the engine entry point**
 
-Create `src/lookout/engine/main.py`:
+Create `src/forenote/engine/main.py`:
 
 ```python
-"""Entry point: lookout-engine."""
+"""Entry point: forenote-engine."""
 
 from __future__ import annotations
 
@@ -3883,14 +3883,14 @@ import signal
 import sys
 from logging.handlers import RotatingFileHandler
 
-from lookout import __version__
-from lookout.engine.app import Engine
-from lookout.hw import HardwareReport, detect
-from lookout.paths import Paths
-from lookout.rpc.server import EngineAlreadyRunning
-from lookout.store.migrations import SchemaTooNew
+from forenote import __version__
+from forenote.engine.app import Engine
+from forenote.hw import HardwareReport, detect
+from forenote.paths import Paths
+from forenote.rpc.server import EngineAlreadyRunning
+from forenote.store.migrations import SchemaTooNew
 
-log = logging.getLogger("lookout.engine")
+log = logging.getLogger("forenote.engine")
 
 
 def setup_logging(paths: Paths, level: str) -> None:
@@ -3929,7 +3929,7 @@ async def run(paths: Paths, hardware: HardwareReport) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="lookout-engine")
+    ap = argparse.ArgumentParser(prog="forenote-engine")
     ap.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"])
     ap.add_argument("--no-hw-check", action="store_true", help=argparse.SUPPRESS)
     ap.add_argument("--version", action="version", version=__version__)
@@ -3958,13 +3958,13 @@ Expected: `2 passed`
 
 - [ ] **Step 6: Try the entry point by hand**
 
-Run: `uv run lookout-engine --version`
+Run: `uv run forenote-engine --version`
 Expected: `0.1.0`
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/lookout/engine/main.py src/lookout/rpc/launcher.py tests/rpc/test_launcher.py
+git add src/forenote/engine/main.py src/forenote/rpc/launcher.py tests/rpc/test_launcher.py
 git commit -m "Add engine entry point and on-demand launcher" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
@@ -3973,7 +3973,7 @@ git commit -m "Add engine entry point and on-demand launcher" -m "Co-Authored-By
 ### Task 14: CLI
 
 **Files:**
-- Create: `src/lookout/cli.py`
+- Create: `src/forenote/cli.py`
 - Test: `tests/test_cli.py`
 
 - [ ] **Step 1: Write the failing tests**
@@ -3985,7 +3985,7 @@ import io
 
 import pytest
 
-from lookout.cli import build_parser, run
+from forenote.cli import build_parser, run
 
 STATUS = {
     "engine_version": "0.1.0",
@@ -4081,14 +4081,14 @@ def test_parser_needs_a_command():
 - [ ] **Step 2: Run the tests to verify that they fail**
 
 Run: `uv run pytest tests/test_cli.py -q`
-Expected: FAIL with `ModuleNotFoundError: No module named 'lookout.cli'`
+Expected: FAIL with `ModuleNotFoundError: No module named 'forenote.cli'`
 
 - [ ] **Step 3: Write the implementation**
 
-Create `src/lookout/cli.py`:
+Create `src/forenote/cli.py`:
 
 ```python
-"""Entry point: lookout-cli (spec section 5.5)."""
+"""Entry point: forenote-cli (spec section 5.5)."""
 
 from __future__ import annotations
 
@@ -4098,14 +4098,14 @@ import json
 import sys
 from typing import Any, TextIO
 
-from lookout.paths import Paths
-from lookout.rpc.client import RpcClient
-from lookout.rpc.launcher import EngineStartTimeout, connect_or_start
-from lookout.rpc.protocol import RpcError
+from forenote.paths import Paths
+from forenote.rpc.client import RpcClient
+from forenote.rpc.launcher import EngineStartTimeout, connect_or_start
+from forenote.rpc.protocol import RpcError
 
 
 def build_parser() -> argparse.ArgumentParser:
-    ap = argparse.ArgumentParser(prog="lookout-cli")
+    ap = argparse.ArgumentParser(prog="forenote-cli")
     ap.add_argument("--json", action="store_true", help="print raw JSON")
     sub = ap.add_subparsers(dest="command", required=True)
     sub.add_parser("status", help="show the engine status")
@@ -4185,9 +4185,9 @@ async def _main(args: argparse.Namespace) -> int:
     paths = Paths.from_env()
     try:
         if args.command in ("status", "shutdown"):
-            client = await RpcClient.connect(paths.socket_path, "lookout-cli")
+            client = await RpcClient.connect(paths.socket_path, "forenote-cli")
         else:
-            client = await connect_or_start(paths.socket_path, "lookout-cli")
+            client = await connect_or_start(paths.socket_path, "forenote-cli")
     except (FileNotFoundError, ConnectionRefusedError):
         print("The engine is not running.", file=sys.stderr)
         return 1
@@ -4219,8 +4219,8 @@ Expected: `6 passed`
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/lookout/cli.py tests/test_cli.py
-git commit -m "Add lookout-cli with status and model commands" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+git add src/forenote/cli.py tests/test_cli.py
+git commit -m "Add forenote-cli with status and model commands" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
 ---
@@ -4241,17 +4241,17 @@ Use a temporary data directory, so that the check does not touch real user data:
 
 ```bash
 export XDG_DATA_HOME=$(mktemp -d) XDG_STATE_HOME=$(mktemp -d)
-uv run lookout-cli status; echo "exit $?"
+uv run forenote-cli status; echo "exit $?"
 ```
 
 Expected: `The engine is not running.` and `exit 1`.
 
 ```bash
-uv run lookout-engine &
+uv run forenote-engine &
 sleep 2
-uv run lookout-cli status
-uv run lookout-cli models list
-uv run lookout-cli shutdown
+uv run forenote-cli status
+uv run forenote-cli models list
+uv run forenote-cli shutdown
 wait
 ```
 
@@ -4267,11 +4267,11 @@ Do not run `models download` here. It downloads about 6 GB.
 Create `README.md`:
 
 ```markdown
-# Lookout
+# Forenote
 
-Lookout is a private meeting notetaker and local knowledge assistant for
+Forenote is a private meeting notetaker and local knowledge assistant for
 Linux. All AI inference runs on your computer. See
-`docs/superpowers/specs/2026-10-12-lookout-design.md` for the design.
+`docs/superpowers/specs/2026-10-12-forenote-design.md` for the design.
 
 Status: early development. Only the engine skeleton exists.
 
@@ -4287,21 +4287,21 @@ Status: early development. Only the engine skeleton exists.
 
 Run the engine and the CLI:
 
-    uv run lookout-engine          # in one terminal
-    uv run lookout-cli status      # in another terminal
-    uv run lookout-cli models list
-    uv run lookout-cli models download   # about 6 GB for the default tier
-    uv run lookout-cli shutdown
+    uv run forenote-engine          # in one terminal
+    uv run forenote-cli status      # in another terminal
+    uv run forenote-cli models list
+    uv run forenote-cli models download   # about 6 GB for the default tier
+    uv run forenote-cli shutdown
 
-`lookout-cli models download` starts the engine if it does not run.
+`forenote-cli models download` starts the engine if it does not run.
 
 ## Files
 
 | What | Where |
 |---|---|
-| Database and models | `$XDG_DATA_HOME/lookout` (default `~/.local/share/lookout`) |
-| Logs | `$XDG_STATE_HOME/lookout/logs` (default `~/.local/state/lookout/logs`) |
-| Engine socket | `$XDG_RUNTIME_DIR/lookout/engine.sock` |
+| Database and models | `$XDG_DATA_HOME/forenote` (default `~/.local/share/forenote`) |
+| Logs | `$XDG_STATE_HOME/forenote/logs` (default `~/.local/state/forenote/logs`) |
+| Engine socket | `$XDG_RUNTIME_DIR/forenote/engine.sock` |
 ```
 
 - [ ] **Step 4: Commit**

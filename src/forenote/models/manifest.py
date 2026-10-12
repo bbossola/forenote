@@ -65,7 +65,7 @@ def _validate(e: ModelEntry) -> None:
 
 def load_manifest(text: str | None = None) -> list[ModelEntry]:
     if text is None:
-        text = resources.files("lookout.models").joinpath("manifest.toml").read_text(encoding="utf-8")
+        text = resources.files("forenote.models").joinpath("manifest.toml").read_text(encoding="utf-8")
     try:
         data = tomllib.loads(text)
         entries = [

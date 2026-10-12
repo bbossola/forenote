@@ -4,10 +4,10 @@ import stat
 
 import pytest
 
-from lookout.rpc import protocol as p
-from lookout.rpc import server as server_module
-from lookout.rpc.client import RpcClient
-from lookout.rpc.server import EngineAlreadyRunning, RpcServer
+from forenote.rpc import protocol as p
+from forenote.rpc import server as server_module
+from forenote.rpc.client import RpcClient
+from forenote.rpc.server import EngineAlreadyRunning, RpcServer
 
 SCHEMA = {
     "protocol": "1.0",

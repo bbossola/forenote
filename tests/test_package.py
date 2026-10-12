@@ -1,5 +1,5 @@
-import lookout
+import forenote
 
 
 def test_version():
-    assert lookout.__version__ == "0.1.0"
+    assert forenote.__version__ == "0.1.0"

@@ -1,4 +1,4 @@
-# Lookout: design specification (v1)
+# Forenote: design specification (v1)
 
 Date: 2026-10-12
 Status: draft for review
@@ -6,12 +6,14 @@ Background: [Foresight investigation](../../research/2026-10-12-foresight-invest
 
 ## 1. Purpose
 
-Lookout is a private meeting notetaker and local knowledge assistant for
+Forenote is a private meeting notetaker and local knowledge assistant for
 Linux. It follows the idea of Google AI Edge Foresight, which exists only for
 macOS. All AI inference runs on the computer of the user. After the first model
 download, the app does not need a network connection.
 
-"Lookout" is a working name. We do not use the name "Foresight".
+"Forenote" is the project name. We do not use the name "Foresight". The first
+working name was "Lookout", which we changed because Lookout, Inc. holds that
+trademark. A full trademark search is still necessary before a public release.
 
 ## 2. Scope
 
@@ -66,12 +68,12 @@ Reference test systems: Ubuntu 24.04, Fedora 42, Debian 12.
 
 ```
 ┌──────────────────────┐   JSON-RPC 2.0    ┌───────────────────────────────────┐
-│ lookout (Qt 6 UI)    │◄─────────────────►│ lookout-engine (headless)         │
+│ forenote (Qt 6 UI)    │◄─────────────────►│ forenote-engine (headless)         │
 │ PySide6 + QML        │  Unix socket +    │                                   │
 │ tray, windows        │  event stream     │ audio → asr ─┐                    │
 └──────────────────────┘                   │ notes, chat ─┼─► scheduler ─► llm │
 ┌──────────────────────┐                   │ kb (watch, parse, index, search)  │
-│ lookout-cli          │◄─────────────────►│ embed, models, store (SQLite)     │
+│ forenote-cli          │◄─────────────────►│ embed, models, store (SQLite)     │
 └──────────────────────┘                   └───────────────────────────────────┘
 ```
 
@@ -80,7 +82,7 @@ Reference test systems: Ubuntu 24.04, Fedora 42, Debian 12.
   RPC protocol only.
 - A UI crash does not stop a recording. An engine crash does not freeze the
   UI.
-- Socket path: `$XDG_RUNTIME_DIR/lookout/engine.sock`, mode `0600`.
+- Socket path: `$XDG_RUNTIME_DIR/forenote/engine.sock`, mode `0600`.
 - Language: Python 3.11 or later, for the engine, the UI, and the CLI.
 
 ## 5. Components
@@ -128,7 +130,7 @@ class Embedder(Protocol):
 ```
 
 `FileAudioSource` implements `AudioSource` from WAV files, for tests and for
-`lookout-cli record --from-file`.
+`forenote-cli record --from-file`.
 
 ### 5.3 Supported file formats
 
@@ -161,14 +163,14 @@ Images (PNG, JPEG) are supported only if the spike confirms image embeddings.
 
 ### 5.5 CLI
 
-`lookout-cli status`, `record [--from-file F]`, `stop`, `index [PATH]`,
+`forenote-cli status`, `record [--from-file F]`, `stop`, `index [PATH]`,
 `ask "QUESTION"`, `bench`.
 
 ## 6. RPC protocol
 
 JSON-RPC 2.0 messages, one JSON object per line, UTF-8. The engine sends
 events as JSON-RPC notifications. One JSON Schema file
-(`src/lookout/rpc/schema.json`) defines all methods and events. The engine,
+(`src/forenote/rpc/schema.json`) defines all methods and events. The engine,
 the UI, and the CLI use the same file.
 
 The first call must be `system.hello` with the protocol version. If the major
@@ -199,7 +201,7 @@ connection.
 
 ## 7. Data model
 
-One SQLite database: `$XDG_DATA_HOME/lookout/lookout.db`, WAL mode.
+One SQLite database: `$XDG_DATA_HOME/forenote/forenote.db`, WAL mode.
 
 | Table | Main columns |
 |---|---|
@@ -301,7 +303,7 @@ Limits: files larger than 50 MB or longer than 500 pages get the status
    title is "<app name> call, <date> <time>". *Not now* calls
    `meeting.dismiss_detection`. The engine then sends no new event for the
    same app until the app closes all its mic streams.
-7. The engine never starts a recording without a user action. Lookout's own
+7. The engine never starts a recording without a user action. Forenote's own
    source outputs are ignored.
 8. If the notification gets no answer within 2 minutes, the UI removes it.
 
@@ -352,12 +354,12 @@ Estimated memory for the default tier: about 7–8 GB in total.
 
 ### 9.2 Model manifest and download
 
-- `src/lookout/models/manifest.toml` lists each model: role, tier, HF repo,
+- `src/forenote/models/manifest.toml` lists each model: role, tier, HF repo,
   pinned revision, file names, SHA-256, size, and license.
 - The `models` module downloads only files from the manifest. It resumes
   interrupted downloads and checks the SHA-256. It checks the free disk space
   before the download starts.
-- Storage: `$XDG_DATA_HOME/lookout/models`. The default tier needs about 6 GB.
+- Storage: `$XDG_DATA_HOME/forenote/models`. The default tier needs about 6 GB.
 - After the download, the engine makes no network connections. The optional
   Ollama backend connects only to the URL that the user sets.
 
@@ -392,7 +394,7 @@ selection of AVX2 and AVX-512) and Vulkan.
 - The engine never loses a transcript line that it already sent as final.
 - Each failure goes to the UI as an event with a message and an action for
   the user.
-- Logs go to `$XDG_STATE_HOME/lookout/logs`, with rotation. Logs never contain
+- Logs go to `$XDG_STATE_HOME/forenote/logs`, with rotation. Logs never contain
   transcript text, notes, chat text, or file content.
 - The app has no telemetry.
 
@@ -400,7 +402,7 @@ selection of AVX2 and AVX-512) and Vulkan.
 
 | Case | Behavior |
 |---|---|
-| No engine at UI start | The UI starts `lookout-engine` and waits up to 10 s |
+| No engine at UI start | The UI starts `forenote-engine` and waits up to 10 s |
 | Protocol version mismatch | The UI shows an error and does not continue |
 | Engine crash | The UI restarts the engine one time. A second crash within 60 s stops the restarts, and the UI shows the log path. |
 | UI crash or close | The engine continues. A recording continues. |
@@ -451,7 +453,7 @@ each call app; auto-stop after silence; GNOME and KDE; Wayland and X11 |
 
 ### 11.3 Performance targets
 
-Default tier, 8 CPU cores, no GPU. `lookout-cli bench` measures these values.
+Default tier, 8 CPU cores, no GPU. `forenote-cli bench` measures these values.
 
 | Metric | Target |
 |---|---|

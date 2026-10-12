@@ -5,7 +5,7 @@ Status: accepted
 
 ## Context
 
-Lookout needs EmbeddingGemma 2 for the knowledge base (spec section 12). We
+Forenote needs EmbeddingGemma 2 for the knowledge base (spec section 12). We
 compared sentence-transformers, GGUF with llama-cpp-python, and LiteRT-LM on
 an AMD Ryzen 9 3900X with 12 threads. The project owner (Bruno) made the
 decision on 2026-10-12.
@@ -76,7 +76,7 @@ binary, but `llama-server --embeddings --mmproj` returned 768 numbers for all
   minute, or about 2 chunks/s. The new rule 3 uses this spec target.
   LiteRT-LM 740M reaches 3.96 chunks/s on 12 threads. On the 8-core baseline we
   expect about 2.6 chunks/s, which meets the target. This is an estimate. The
-  engine benchmark (`lookout-cli bench`) must confirm it.
+  engine benchmark (`forenote-cli bench`) must confirm it.
 - Throughput note: each value is one timed pass over 12 texts, with no
   repeats. A difference under about 10 % is noise.
 - Rule 4: LiteRT-LM 740M embeds 4 of 4 images. This check is a smoke test. It

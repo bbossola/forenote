@@ -2,8 +2,8 @@ import io
 
 import pytest
 
-from lookout import cli
-from lookout.cli import build_parser, run
+from forenote import cli
+from forenote.cli import build_parser, run
 
 STATUS = {
     "engine_version": "0.1.0",

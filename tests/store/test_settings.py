@@ -1,8 +1,8 @@
 import pytest
 
-from lookout.store.db import connect
-from lookout.store.migrations import migrate
-from lookout.store.settings import DEFAULT_CALL_APPS, Settings
+from forenote.store.db import connect
+from forenote.store.migrations import migrate
+from forenote.store.settings import DEFAULT_CALL_APPS, Settings
 
 
 @pytest.fixture

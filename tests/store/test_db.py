@@ -1,4 +1,4 @@
-from lookout.store.db import connect
+from forenote.store.db import connect
 
 
 def test_connect_enables_wal_foreign_keys_and_vec(tmp_path):

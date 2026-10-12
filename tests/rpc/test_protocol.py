@@ -1,7 +1,7 @@
 import jsonschema
 import pytest
 
-from lookout.rpc import protocol as p
+from forenote.rpc import protocol as p
 
 
 def test_encode_is_one_line_of_utf8_json():

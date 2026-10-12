@@ -9,7 +9,7 @@ import shutil
 from collections.abc import Callable
 from pathlib import Path
 
-from lookout.models.manifest import ModelEntry, ModelFile
+from forenote.models.manifest import ModelEntry, ModelFile
 
 log = logging.getLogger(__name__)
 

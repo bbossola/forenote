@@ -9,18 +9,18 @@ import threading
 from collections.abc import Callable
 from typing import Any
 
-from lookout import __version__
-from lookout.hw import HardwareReport
-from lookout.models.download import DISK_MARGIN, DownloadCancelled, Fetch, ModelStore, _gib, hf_fetch
-from lookout.models.manifest import ManifestError, ModelEntry, ModelFile, for_tier, load_manifest
-from lookout.paths import Paths
-from lookout.rpc.protocol import APP_ERROR, INVALID_PARAMS, PROTOCOL_VERSION, RpcError, load_schema
-from lookout.rpc.server import RpcServer
-from lookout.scheduler import Priority, Scheduler
-from lookout.store.db import connect
-from lookout.store.jobs import JobStore
-from lookout.store.migrations import migrate
-from lookout.store.settings import Settings
+from forenote import __version__
+from forenote.hw import HardwareReport
+from forenote.models.download import DISK_MARGIN, DownloadCancelled, Fetch, ModelStore, _gib, hf_fetch
+from forenote.models.manifest import ManifestError, ModelEntry, ModelFile, for_tier, load_manifest
+from forenote.paths import Paths
+from forenote.rpc.protocol import APP_ERROR, INVALID_PARAMS, PROTOCOL_VERSION, RpcError, load_schema
+from forenote.rpc.server import RpcServer
+from forenote.scheduler import Priority, Scheduler
+from forenote.store.db import connect
+from forenote.store.jobs import JobStore
+from forenote.store.migrations import migrate
+from forenote.store.settings import Settings
 
 log = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ async def run_in_daemon_thread(fn: Callable[[], Any]) -> Any:
         with contextlib.suppress(RuntimeError):  # the loop can be closed already
             loop.call_soon_threadsafe(resolve, ok, value)
 
-    threading.Thread(target=work, daemon=True, name="lookout-worker").start()
+    threading.Thread(target=work, daemon=True, name="forenote-worker").start()
     return await fut
 
 

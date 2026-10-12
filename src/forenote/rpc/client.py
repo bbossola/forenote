@@ -10,7 +10,7 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
 
-from lookout.rpc.protocol import MAX_LINE, PROTOCOL_VERSION, RpcError, decode, encode, request
+from forenote.rpc.protocol import MAX_LINE, PROTOCOL_VERSION, RpcError, decode, encode, request
 
 log = logging.getLogger(__name__)
 

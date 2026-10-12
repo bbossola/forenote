@@ -1,4 +1,4 @@
--- Lookout schema v1 (spec section 7).
+-- Forenote schema v1 (spec section 7).
 -- Timestamps are ISO 8601 strings in UTC.
 
 CREATE TABLE schema_version (

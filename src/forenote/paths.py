@@ -9,7 +9,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-APP = "lookout"
+APP = "forenote"
 MAX_SOCKET_PATH = 107
 
 
@@ -30,7 +30,7 @@ class Paths:
 
     @property
     def db_path(self) -> Path:
-        return self.data_dir / "lookout.db"
+        return self.data_dir / "forenote.db"
 
     @property
     def log_dir(self) -> Path:
