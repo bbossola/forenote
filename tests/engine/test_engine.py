@@ -234,6 +234,10 @@ async def test_download_refused_while_stopping(paths, hardware, test_manifest):
         await wait_for_started(c, job["job_id"])
         stop_task = asyncio.create_task(e.stop())
         await asyncio.sleep(0)
+        assert e._closed
+        with pytest.raises(RpcError) as direct:
+            await e._models_download({})
+        assert direct.value.code == APP_ERROR
         with pytest.raises((RpcError, ConnectionError)) as err:
             await c.call("models.download", {})
         if isinstance(err.value, RpcError):
@@ -244,3 +248,13 @@ async def test_download_refused_while_stopping(paths, hardware, test_manifest):
         gate.set()
         await c.close()
         await e.stop()
+
+
+async def test_download_refused_without_disk_space(engine, client):
+    engine.models._disk_free = lambda p: 1
+    with pytest.raises(RpcError) as e:
+        await client.call("models.download", {})
+    assert e.value.code == APP_ERROR
+    assert "Not enough disk space" in e.value.message
+    assert await client.call("jobs.list") == []
+    assert (await client.call("system.status"))["running_job"] is None

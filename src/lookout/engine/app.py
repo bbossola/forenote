@@ -11,7 +11,7 @@ from typing import Any
 
 from lookout import __version__
 from lookout.hw import HardwareReport
-from lookout.models.download import DownloadCancelled, Fetch, ModelStore, hf_fetch
+from lookout.models.download import DISK_MARGIN, DownloadCancelled, Fetch, ModelStore, _gib, hf_fetch
 from lookout.models.manifest import ManifestError, ModelEntry, ModelFile, for_tier, load_manifest
 from lookout.paths import Paths
 from lookout.rpc.protocol import APP_ERROR, INVALID_PARAMS, PROTOCOL_VERSION, RpcError, load_schema
@@ -243,6 +243,14 @@ class Engine:
             raise RpcError(APP_ERROR, "a download is already running")
         tier = params.get("tier") or self.tier()
         entries = self._entries(tier)
+        need = self.models.missing_bytes(entries)
+        self.models.models_dir.mkdir(parents=True, exist_ok=True)
+        free = self.models._disk_free(self.models.models_dir)
+        if need and free < need + DISK_MARGIN:
+            raise RpcError(
+                APP_ERROR,
+                f"Not enough disk space: the models need {_gib(need)}, {_gib(free)} are free.",
+            )
         job_id = self.jobs.create(DOWNLOAD_JOB, int(Priority.INDEX), {"tier": tier})
         self._download_job = job_id
         self._download_cancel = False
