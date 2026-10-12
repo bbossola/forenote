@@ -124,3 +124,99 @@ async def test_unfinished_jobs_fail_on_restart(paths, hardware, test_manifest):
 async def test_shutdown_stops_the_engine(engine, client):
     assert await client.call("system.shutdown") is None
     await asyncio.wait_for(engine.wait_stopped(), 2)
+
+
+def gate_fetch(engine_or_models_owner, gate):
+    original = fake_fetch
+
+    def gated(*args):
+        gate.wait(5)
+        return original(*args)
+
+    return gated
+
+
+async def wait_for_started(client, job_id):
+    while True:
+        name, params = await client.next_event(timeout=5)
+        if name == "job.progress" and params["id"] == job_id:
+            return
+
+
+async def test_cancel_download_ends_as_cancelled(engine, client):
+    gate = threading.Event()
+    engine.models._fetch = gate_fetch(engine, gate)
+    job = await client.call("models.download", {})
+    await wait_for_started(client, job["job_id"])
+    assert await client.call("models.cancel_download") == {"cancelled": True}
+    gate.set()
+    events = await collect_until_job_end(client, job["job_id"], load_schema())
+    assert events[-1] == ("job.done", {"id": job["job_id"], "type": "models.download", "status": "cancelled"})
+    assert not all(m["installed"] for m in await client.call("models.list"))
+
+
+async def test_jobs_cancel_works_for_the_download_job(engine, client):
+    gate = threading.Event()
+    engine.models._fetch = gate_fetch(engine, gate)
+    job = await client.call("models.download", {})
+    await wait_for_started(client, job["job_id"])
+    assert await client.call("jobs.cancel", {"id": job["job_id"]}) == {"cancelled": True}
+    gate.set()
+    events = await collect_until_job_end(client, job["job_id"], load_schema())
+    assert events[-1][1]["status"] == "cancelled"
+    assert not all(m["installed"] for m in await client.call("models.list"))
+
+
+async def test_status_shows_the_running_download(engine, client):
+    gate = threading.Event()
+    engine.models._fetch = gate_fetch(engine, gate)
+    job = await client.call("models.download", {})
+    assert (await client.call("system.status"))["running_job"] == job["job_id"]
+    gate.set()
+    await collect_until_job_end(client, job["job_id"], load_schema())
+
+
+async def test_stop_during_download_marks_the_job_cancelled(paths, hardware, test_manifest):
+    from lookout.rpc.client import RpcClient
+
+    gate = threading.Event()
+    e = Engine(paths, hardware, fetch=gate_fetch(None, gate), manifest=test_manifest)
+    await e.start()
+    c = await RpcClient.connect(paths.socket_path, "pytest")
+    try:
+        job = await c.call("models.download", {})
+        await wait_for_started(c, job["job_id"])
+    finally:
+        await c.close()
+    await asyncio.wait_for(e.stop(), 5)
+    gate.set()
+    conn = connect(paths.db_path)
+    try:
+        assert JobStore(conn).list()[0]["status"] == "cancelled"
+    finally:
+        conn.close()
+
+
+async def test_stop_after_failed_start_and_twice(paths, hardware, test_manifest):
+    first = Engine(paths, hardware, fetch=fake_fetch, manifest=test_manifest)
+    await first.start()
+    second = Engine(paths, hardware, fetch=fake_fetch, manifest=test_manifest)
+    with pytest.raises(EngineAlreadyRunning):
+        await second.start()
+    await second.stop()
+    await first.stop()
+    await first.stop()
+
+
+async def test_download_with_explicit_tier_and_set_tier(client):
+    assert (await client.call("models.set_tier", {"tier": "default"}))["installed"] is False
+    job = await client.call("models.download", {"tier": "default"})
+    await collect_until_job_end(client, job["job_id"], load_schema())
+    assert (await client.call("models.set_tier", {"tier": "default"}))["installed"] is True
+    assert await client.call("settings.get", {"key": "model_tier"}) == "default"
+
+
+async def test_settings_get_unknown_key(client):
+    with pytest.raises(RpcError) as e:
+        await client.call("settings.get", {"key": "nope"})
+    assert e.value.code == INVALID_PARAMS

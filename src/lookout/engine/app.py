@@ -72,25 +72,33 @@ class Engine:
         self._tasks: set[asyncio.Task] = set()
         self._download_job: int | None = None
         self._download_cancel = False
+        self._download_task: asyncio.Task | None = None
+        self.conn = None
+        self.scheduler = None
+        self._scheduler_task: asyncio.Task | None = None
+        self._rpc_started = False
 
     # Lifecycle
 
     async def start(self) -> None:
         self.paths.ensure()
         self.conn = connect(self.paths.db_path)
-        migrate(self.conn, self.paths.db_path)
-        self.settings = Settings(self.conn)
-        self.jobs = JobStore(self.conn)
-        stale = self.jobs.fail_unfinished("engine restarted")
-        if stale:
-            log.warning("%d unfinished jobs marked as failed", stale)
-        self.scheduler = Scheduler(self.jobs, listener=self._on_job)
-        for name, handler in self._handlers().items():
-            self.rpc.register(name, handler)
         try:
+            migrate(self.conn, self.paths.db_path)
+            self.settings = Settings(self.conn)
+            self.jobs = JobStore(self.conn)
+            stale = self.jobs.fail_unfinished("engine restarted")
+            if stale:
+                log.warning("%d unfinished jobs marked as failed", stale)
+            self.scheduler = Scheduler(self.jobs, listener=self._on_job)
+            for name, handler in self._handlers().items():
+                self.rpc.register(name, handler)
             await self.rpc.start()
+            self._rpc_started = True
         except BaseException:
             self.conn.close()
+            self.conn = None
+            self.scheduler = None
             raise
         self._scheduler_task = asyncio.create_task(self.scheduler.run())
         log.info("engine %s listening on %s", __version__, self.paths.socket_path)
@@ -106,12 +114,22 @@ class Engine:
             return
         self._closed = True
         self._download_cancel = True
-        await self.scheduler.stop()
-        self._scheduler_task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await self._scheduler_task
-        await self.rpc.close()
-        self.conn.close()
+        if self.scheduler is not None:
+            await self.scheduler.stop()
+        if self._scheduler_task is not None:
+            self._scheduler_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._scheduler_task
+        if self._download_task is not None:
+            self._download_task.cancel()
+        # The download task reports "cancelled" and spawns broadcast tasks.
+        while self._tasks:
+            await asyncio.gather(*self._tasks, return_exceptions=True)
+        if self._rpc_started:
+            await self.rpc.close()
+        if self.conn is not None:
+            self.conn.close()
+            self.conn = None
         log.info("engine stopped")
 
     # Events
@@ -175,7 +193,7 @@ class Engine:
         }
 
     async def _shutdown(self, params: dict[str, Any]) -> None:
-        # Stop after the reply goes out.
+        """Reply first, then stop. The reply is best-effort: the stop starts after 0.1 s."""
         asyncio.get_running_loop().call_later(0.1, self.request_stop)
         return None
 
@@ -199,6 +217,7 @@ class Engine:
         return self.jobs.list(params.get("limit", 50))
 
     async def _jobs_cancel(self, params: dict[str, Any]) -> dict[str, bool]:
+        """Return True when a cancel was requested. A file that is downloading finishes first."""
         job_id = params["id"]
         if job_id == self._download_job:
             self._download_cancel = True
@@ -225,7 +244,9 @@ class Engine:
         job_id = self.jobs.create(DOWNLOAD_JOB, int(Priority.INDEX), {"tier": tier})
         self._download_job = job_id
         self._download_cancel = False
-        self._spawn(self._run_download(job_id, entries))
+        self._download_task = asyncio.get_running_loop().create_task(self._run_download(job_id, entries))
+        self._tasks.add(self._download_task)
+        self._download_task.add_done_callback(self._tasks.discard)
         return {"job_id": job_id}
 
     async def _run_download(self, job_id: int, entries: list[ModelEntry]) -> None:
@@ -233,17 +254,20 @@ class Engine:
 
         def progress(entry: ModelEntry, f: ModelFile, i: int, n: int) -> None:
             params = {"model": entry.id, "file": f.name, "index": i, "count": n}
-            loop.call_soon_threadsafe(self._spawn, self.rpc.broadcast("models.progress", params))
+            with contextlib.suppress(RuntimeError):  # the loop can be closed already
+                loop.call_soon_threadsafe(self._emit_progress, params)
 
         def work() -> None:
             for entry in entries:
                 self.models.install(entry, progress=progress, cancelled=lambda: self._download_cancel)
 
-        self._report(job_id, DOWNLOAD_JOB, "running")
         try:
+            self._report(job_id, DOWNLOAD_JOB, "running")
             await run_in_daemon_thread(work)
-        except DownloadCancelled:
+        except (DownloadCancelled, asyncio.CancelledError) as e:
             self._report(job_id, DOWNLOAD_JOB, "cancelled")
+            if isinstance(e, asyncio.CancelledError):
+                raise
         except Exception as e:  # noqa: BLE001 - report every download failure
             log.exception("model download failed")
             self._report(job_id, DOWNLOAD_JOB, "failed", str(e))
@@ -252,7 +276,12 @@ class Engine:
         finally:
             self._download_job = None
 
+    def _emit_progress(self, params: dict[str, Any]) -> None:
+        if not self._closed:
+            self._spawn(self.rpc.broadcast("models.progress", params))
+
     async def _models_cancel_download(self, params: dict[str, Any]) -> dict[str, bool]:
+        """Return True when a cancel was requested. A file that is downloading finishes first."""
         if self._download_job is None:
             return {"cancelled": False}
         self._download_cancel = True
