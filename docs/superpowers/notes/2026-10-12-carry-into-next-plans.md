@@ -80,3 +80,27 @@ Points the Forenote design must decide:
   changed Drive file is indexed again and a removed one is deleted.
 - **Calendar.** Google Calendar (meeting titles and attendees) can come with
   the same sign-in. Decide if it is in the same sub-project.
+
+## Open items from plan A2 (audio recording)
+
+These items stay open after the A2 reviews. None of them blocks the merge.
+
+- **Echo hold time.** The "me" lines wait 3 s (`HOLD_S`) for an "others"
+  final. Measure this against the real ASR latency on a slow PC. If the
+  "others" final often comes later, start the hold when the "others" stream
+  goes idle.
+- **Echo measure.** The filter compares whole lines. An echo that the segmenter
+  splits in a different place can pass. Consider a containment measure:
+  matched words divided by the words of the "me" line.
+- **Segmenter cut.** A 1-frame dip at the 20 s cut, followed by soft speech,
+  can lose up to 0.7 s of audio. Optional fix: stay in speech at the cut.
+- **Events for a deleted meeting.** A failed start can send `meeting.state`
+  for a meeting id that the engine then deletes. The GUI must ignore events
+  for an unknown meeting id.
+- **RPC server log.** `rpc/server.py` writes the full exception text of an
+  unexpected handler error. No path puts user content into these messages
+  today. Log only the error type before a handler accepts more user text.
+- **Debug file restarts.** A capture error on a debug recording starts the WAV
+  again from the beginning. This affects only `--debug-sources`.
+- **Audio server status.** `forenote-cli status` does not show whether the
+  engine found an audio server. Only the engine log shows it.
