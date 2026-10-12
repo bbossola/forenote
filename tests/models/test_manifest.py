@@ -44,6 +44,8 @@ def test_entry_total_size():
         VALID.replace("0123456789abcdef0123456789abcdef01234567", "main"),
         VALID.replace("0" * 64, "xyz"),
         VALID.replace("size = 10", "size = 0"),
+        VALID.replace('name = "a.gguf"', 'name = "../a.gguf"'),
+        VALID.replace('id = "a"', 'id = "x/a"'),
     ],
 )
 def test_invalid_entries_are_rejected(bad):

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 import shutil
 from collections.abc import Callable
 from pathlib import Path
@@ -39,6 +40,8 @@ class DownloadCancelled(DownloadError):
 
 def hf_fetch(repo: str, filename: str, revision: str, dest_dir: Path) -> Path:
     """Download one file from Hugging Face. An interrupted download resumes."""
+    # No progress bars from the worker thread.
+    os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
     from huggingface_hub import hf_hub_download
 
     return Path(hf_hub_download(repo, filename, revision=revision, local_dir=dest_dir))
@@ -98,13 +101,17 @@ class ModelStore:
                 raise DownloadCancelled(f"download of {entry.id} cancelled")
             if progress:
                 progress(entry, f, i, len(entry.files))
-            self._install_file(entry, f)
+            self._install_file(entry, f, cancelled)
 
-    def _install_file(self, entry: ModelEntry, f: ModelFile) -> None:
+    def _install_file(self, entry: ModelEntry, f: ModelFile, cancelled: Callable[[], bool]) -> None:
         target = self.path(entry, f)
         if self._size_ok(entry, f) and sha256_file(target) == f.sha256:
             return
+        # Remove a corrupt file so the fetch does not return it again.
+        target.unlink(missing_ok=True)
         for attempt in (1, 2):
+            if attempt == 2 and cancelled():
+                raise DownloadCancelled(f"download of {entry.id} cancelled")
             got = self._fetch(entry.repo, f.name, entry.revision, self.path(entry))
             if sha256_file(got) == f.sha256:
                 return

@@ -40,7 +40,14 @@ class ModelEntry:
         return sum(f.size for f in self.files)
 
 
+def _safe_name(name: str) -> bool:
+    """A name must be a plain relative path with no ".." part and no backslash."""
+    return bool(name) and not name.startswith("/") and "\\" not in name and ".." not in name.split("/")
+
+
 def _validate(e: ModelEntry) -> None:
+    if not _safe_name(e.id) or "/" in e.id:
+        raise ManifestError(f"bad model id {e.id!r}")
     if e.role not in ROLES:
         raise ManifestError(f"{e.id}: unknown role {e.role!r}")
     if not e.tiers or not set(e.tiers) <= set(TIERS):
@@ -50,6 +57,8 @@ def _validate(e: ModelEntry) -> None:
     if not e.files:
         raise ManifestError(f"{e.id}: no files")
     for f in e.files:
+        if not _safe_name(f.name):
+            raise ManifestError(f"{e.id}: bad file name {f.name!r}")
         if f.size <= 0 or not _SHA256.match(f.sha256):
             raise ManifestError(f"{e.id}/{f.name}: bad size or SHA-256")
 

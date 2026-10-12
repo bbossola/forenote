@@ -34,12 +34,14 @@ class FakeFetch:
 
     def __init__(self, bad_times=None):
         self.calls = []
+        self.existed = []
         self.bad_times = dict(bad_times or {})
 
     def __call__(self, repo, filename, revision, dest_dir):
         self.calls.append((repo, filename, revision))
         dest_dir.mkdir(parents=True, exist_ok=True)
         path = dest_dir / filename
+        self.existed.append(path.exists())
         content = {"a.bin": A, "b.bin": B}[filename]
         if self.bad_times.get(filename, 0) > 0:
             self.bad_times[filename] -= 1
@@ -103,3 +105,21 @@ def test_progress_is_reported_for_each_file(tmp_path):
     store = ModelStore(tmp_path, fetch=FakeFetch())
     store.install(ENTRY, progress=lambda e, f, i, n: seen.append((e.id, f.name, i, n)))
     assert seen == [("m", "a.bin", 1, 2), ("m", "b.bin", 2, 2)]
+
+
+def test_corrupt_file_is_removed_before_download(tmp_path):
+    (tmp_path / "m").mkdir()
+    (tmp_path / "m" / "a.bin").write_bytes(b"x" * len(A))
+    fetch = FakeFetch()
+    ModelStore(tmp_path, fetch=fetch).install(ENTRY)
+    assert [c[1] for c in fetch.calls].count("a.bin") == 1
+    assert fetch.existed[0] is False
+    assert (tmp_path / "m" / "a.bin").read_bytes() == A
+
+
+def test_cancel_before_retry(tmp_path):
+    fetch = FakeFetch(bad_times={"a.bin": 1})
+    answers = iter([False, True])
+    with pytest.raises(DownloadCancelled):
+        ModelStore(tmp_path, fetch=fetch).install(ENTRY, cancelled=lambda: next(answers, True))
+    assert len(fetch.calls) == 1
