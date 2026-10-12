@@ -144,7 +144,10 @@ All results go to the loop with `loop.call_soon_threadsafe`.
 - Speech starts when the VAD probability is 0.5 or more for 250 ms.
 - The utterance ends after 600 ms with a probability below 0.35.
 - A lead-in of 200 ms before the start is kept.
-- An utterance is cut at 20 s. The next frames start a new utterance at once.
+- An utterance is cut at 20 s. If the cut comes during trailing silence, the
+  utterance ends as a normal final and the segmenter goes back to idle.
+  Otherwise the next frames start a new utterance at once. A final never has
+  zero speech frames.
 - A partial request is made for every 1.5 s of new speech in an open
   utterance, but only while no final request waits in the queue.
 - At stop, an open utterance becomes a final.
@@ -159,10 +162,13 @@ offset comes from the monotonic clock. This stays exact when the ASR is late.
 ### 5.4 Echo filter
 
 - A "Me" final waits on the loop until the "Others" stream has a final or a
-  silence up to the end time of the "Me" line, or for 3 s at most.
+  silence up to the end time of the "Me" line, or for 3 s at most. The caller
+  reports this progress (`others_progress`) only when all "others" finals
+  before that time have passed through the ASR.
 - Then the filter compares it with each "Others" line that overlaps it in
   time. If the normalized text similarity (lower case, no punctuation,
-  `difflib.SequenceMatcher` ratio) is 0.8 or more, the "Me" line is dropped.
+  `difflib.SequenceMatcher` ratio over characters with `autojunk=False`, after
+  NFKC and case-folding) is 0.8 or more, the "Me" line is dropped.
 - "Others" lines are never dropped.
 
 ### 5.5 Storage and events
@@ -205,7 +211,8 @@ Parent spec 8.6, with these details:
 ### 6.1 Model
 
 `WhisperModel(<model dir from ModelStore>, device="cpu", compute_type="int8",
-cpu_threads=max(1, threads - 2))`. The model is the speech model of the active
+cpu_threads=max(1, physical_cores - 2))`. The caller computes the thread count
+and passes it to `WhisperTranscriber(cpu_threads=...)`. The model is the speech model of the active
 tier (`small.en` by default). It loads at the first `meeting.start` and stays
 loaded until the engine stops.
 
@@ -218,7 +225,8 @@ loaded until the engine stops.
 | `vad_filter` | False | False |
 | `condition_on_previous_text` | False | False |
 | `without_timestamps` | True | True |
-| `initial_prompt` | none | last final text of the same stream, last 200 characters |
+| `temperature` | 0.0 | (0.0, 0.2, 0.4) (short fallback) |
+| `initial_prompt` | none | last accepted final text of the same stream, last 200 characters, starting at a word |
 
 Hallucination guard for finals:
 - Drop a final if `no_speech_prob > 0.6` and `avg_logprob < -1.0`.
@@ -259,7 +267,8 @@ Default tier, 8 CPU cores, no GPU (parent spec 11.3):
 
 A meeting summary has `id`, `title`, `started_at`, `ended_at`, `status`,
 `start_reason`, `stop_reason`, `line_count`. A line has `id`, `speaker`,
-`t_start_ms`, `t_end_ms`, `text`. A marker has `id`, `t_ms`, `kind`, `speaker`.
+`t_start_ms`, `t_end_ms`, `text`. Lines come in storage (`id`) order, so that
+`after_id` paging never skips a line; the client sorts them by `t_start_ms`. A marker has `id`, `t_ms`, `kind`, `speaker`.
 
 The default title is "Meeting, <date> <time>" for a manual start and
 "<app> call, <date> <time>" for a detected start.

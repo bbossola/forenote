@@ -10,6 +10,14 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-12-audio-transcript-design.md` (sections 4, 5.2–5.4, 6, 8.2, 9, 10).
 
+> **Changes after code review (the code is the reference):** `WhisperTranscriber` takes
+> `cpu_threads` (the caller passes `max(1, physical_cores - 2)`); finals use temperature
+> (0.0, 0.2, 0.4); `similarity` compares characters with `autojunk=False`; `normalize` uses
+> NFKC and case-folding; a 20 s cut during silence ends the utterance; `MeetingStore.lines`
+> is in id order; `EchoFilter.add_others` does not release held lines; the ASR worker drops a
+> queued partial when its speaker's final arrives, calls `on_delay` outside its lock, and
+> `stop()` returns whether the thread ended.
+
 ---
 
 ## Rules for every task
