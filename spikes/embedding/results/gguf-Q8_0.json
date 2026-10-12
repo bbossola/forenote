@@ -1,0 +1,1 @@
+{"backend": "llama-cpp-python", "variant": "Q8_0", "error": "llama_model_load: error loading model: unknown model architecture: 'gemma-embedding2'"}
