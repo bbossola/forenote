@@ -60,3 +60,12 @@ def test_unknown_key_is_rejected(settings):
 def test_returned_default_is_a_copy(settings):
     settings.get("call_apps").append("changed")
     assert "changed" not in settings.get("call_apps")
+
+
+def test_asr_final_beam_size():
+    from forenote.store.settings import SPEC
+
+    default, valid = SPEC["asr_final_beam_size"]
+    assert default == 5
+    assert valid(1) and valid(10)
+    assert not valid(0) and not valid(11) and not valid(True)

@@ -35,6 +35,7 @@ SPEC: dict[str, tuple[Any, Callable[[Any], bool]]] = {
     "silence_timeout_min": (5, _is_int_in(0, 60)),  # 0 = off
     "bullet_window_before_s": (180, _is_int_in(0, 1800)),
     "bullet_window_after_s": (60, _is_int_in(0, 1800)),
+    "asr_final_beam_size": (5, _is_int_in(1, 10)),
     "ollama_url": ("", lambda v: isinstance(v, str)),
 }
 

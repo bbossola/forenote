@@ -213,7 +213,7 @@ Parent spec 8.6, with these details:
 `WhisperModel(<model dir from ModelStore>, device="cpu", compute_type="int8",
 cpu_threads=max(1, physical_cores - 2))`. The caller computes the thread count
 and passes it to `WhisperTranscriber(cpu_threads=...)`. The model is the speech model of the active
-tier (`small.en` by default). It loads at the first `meeting.start` and stays
+tier (`base.en` by default, see decision 0002). It loads at the first `meeting.start` and stays
 loaded until the engine stops.
 
 ### 6.2 Decoding
@@ -247,7 +247,7 @@ Hallucination guard for finals:
 Default tier, 8 CPU cores, no GPU (parent spec 11.3):
 - Real-time factor of 0.5 or less for two streams.
 - A final line no more than 3 s after the end of the utterance.
-- Memory for ASR and VAD: about 0.6 GB.
+- Memory for ASR and VAD: about 0.3 GB.
 
 ## 7. RPC and CLI
 
