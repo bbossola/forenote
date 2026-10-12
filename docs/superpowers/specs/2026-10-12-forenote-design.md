@@ -457,7 +457,7 @@ Default tier, 8 CPU cores, no GPU. `forenote-cli bench` measures these values.
 
 | Metric | Target |
 |---|---|
-| Speech real-time factor (`small.en`, two streams) | 0.5 or less |
+| Speech real-time factor (`base.en`, two streams) | 0.5 or less |
 | Final line after the end of an utterance | 3 s or less |
 | Chat, first token | 10 s or less |
 | Enhanced notes for a 30-minute meeting | 3 min or less |

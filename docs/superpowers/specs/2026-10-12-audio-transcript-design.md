@@ -78,6 +78,9 @@ class AudioSource(Protocol):
     def close(self) -> None: ...
 ```
 
+The reading thread is the only thread that calls `close()` and `read_frame()`.
+`close()` never runs while another thread is in `read_frame()`.
+
 `Transcriber` interface:
 
 ```python
@@ -96,6 +99,7 @@ class Transcriber(Protocol):
 - Move `run_in_daemon_thread` to `forenote/workers.py`.
 - At engine start, meetings with status `recording` become `interrupted` with
   `ended_at` set to the time of the last stored line (or `started_at`).
+  `stop_reason` stays NULL for these meetings.
 - `hw.detect_audio` uses `pulsectl` server info instead of `pactl`.
 - Log privacy rule (section 8.2).
 
@@ -202,9 +206,13 @@ The loop writes each final line in its own transaction, then sends
 Parent spec 8.6, with these details:
 - The check runs on the loop every second. The silence time is the time since
   the last final line of either stream.
-- `meeting.auto_stop_pending` has `seconds_left` = 60.
+- `meeting.auto_stop_pending` has `seconds_left` = 60 in the normal case. The
+  value can be less than 60 when the check runs late or when the call-close
+  rule shortens a countdown.
 - When the call app closes its last mic stream during a recording, the
   remaining silence time becomes 60 s if it was longer.
+- The call-close shortening is sticky. A new final line restarts the 60 s rule,
+  not the full silence time. Only `meeting.keep_recording` removes it.
 
 ## 6. Speech recognition
 
@@ -255,7 +263,7 @@ Default tier, 8 CPU cores, no GPU (parent spec 11.3):
 
 | Method | Params | Result |
 |---|---|---|
-| `meeting.start` | `title?` (1–200 chars), `start_reason?` (`manual` default, `detected`) | `{meeting_id, started_at}` |
+| `meeting.start` | `title?` (1–200 chars), `start_reason?` (`manual` default, `detected`), `app?` (used only for a detected start) | `{meeting_id, started_at}` |
 | `meeting.stop` | — | `{meeting_id, status}` |
 | `meeting.list` | `limit?` (1–500, default 50), `before_id?` | list of meeting summaries |
 | `meeting.get` | `id` | meeting summary |
@@ -271,7 +279,15 @@ A meeting summary has `id`, `title`, `started_at`, `ended_at`, `status`,
 `after_id` paging never skips a line; the client sorts them by `t_start_ms`. A marker has `id`, `t_ms`, `kind`, `speaker`.
 
 The default title is "Meeting, <date> <time>" for a manual start and
-"<app> call, <date> <time>" for a detected start.
+"<app> call, <date> <time>" for a detected start with the `app` param.
+
+`meeting.stop` during a start gives `APP_ERROR` "A recording is starting. Try
+again in a moment." `meeting.start` during the engine shutdown gives `APP_ERROR`
+"The engine is stopping." A failed start leaves no meeting record.
+
+With meeting detection off, the detector still tracks the streams, so the
+call-close rule (section 5.8) works. Only the `meeting.detected` announcement
+is off.
 
 ### 7.2 Events
 
@@ -321,6 +337,7 @@ Tests and `record --from-file` use it.
 | Speech model fails to load | `APP_ERROR` with the reason. No meeting record. |
 | A recording already runs | `meeting.start` → `APP_ERROR`. |
 | One source fails at start | Start with the other source, add a `source_lost` marker, send `audio.source_lost`. Both fail: `APP_ERROR`, no meeting. |
+| Unknown device name | PipeWire records from the default device. The source does not fail. The engine uses `@DEFAULT_SOURCE@` or `@DEFAULT_MONITOR@` when it knows no default device. |
 | Read error during a recording | 3 retries with backoff (0.5, 1, 2 s), then one try on the current default device. All fail: `source_lost` marker and event. The other stream continues. If both streams are lost, stop with `stop_reason = error`. |
 | A decode fails | Log the error type (never text), skip the utterance, add a `transcription_failed` marker. After 5 failures in a row: stop with `stop_reason = error`, send `engine.error`. |
 | Database error on a write (for example disk full) | Stop with `stop_reason = error`, keep stored data, send `engine.error`. |
@@ -334,7 +351,7 @@ Tests and `record --from-file` use it.
 
 No transcript text, partial text, or prompt text reaches a log. Log calls in
 the audio, asr and meeting modules use ids, counts, durations and error types
-only. A log filter on the `forenote` logger drops a record that has the
+only. A log filter on each handler drops a record that has the
 attribute `user_content=True`, as a guard for future code. A test runs an AMI
 clip through the recorder with `FakeTranscriber` returning the reference text,
 captures all log records, and checks that no five-word sequence of the
