@@ -10,22 +10,23 @@ from collections.abc import Callable
 from typing import Any
 
 from forenote import __version__
+from forenote.engine.handlers.jobs import JobsHandlers
+from forenote.engine.handlers.models import DOWNLOAD_JOB, ModelsHandlers  # noqa: F401 - DOWNLOAD_JOB is re-exported
+from forenote.engine.handlers.settings import SettingsHandlers
+from forenote.engine.handlers.system import SystemHandlers
 from forenote.hw import HardwareReport
-from forenote.models.download import DISK_MARGIN, DownloadCancelled, Fetch, ModelStore, _gib, hf_fetch
-from forenote.models.manifest import ManifestError, ModelEntry, ModelFile, for_tier, load_manifest
+from forenote.models.download import Fetch, ModelStore, hf_fetch
+from forenote.models.manifest import ModelEntry, load_manifest
 from forenote.paths import Paths
-from forenote.rpc.protocol import APP_ERROR, INVALID_PARAMS, PROTOCOL_VERSION, RpcError, load_schema
+from forenote.rpc.protocol import load_schema
 from forenote.rpc.server import RpcServer
-from forenote.scheduler import Priority, Scheduler
+from forenote.scheduler import Scheduler
 from forenote.store.db import connect
 from forenote.store.jobs import JobStore
 from forenote.store.migrations import migrate
 from forenote.store.settings import Settings
 
 log = logging.getLogger(__name__)
-
-DOWNLOAD_JOB = "models.download"
-
 
 async def run_in_daemon_thread(fn: Callable[[], Any]) -> Any:
     """Run fn in a daemon thread, so that a long download never blocks shutdown."""
@@ -54,7 +55,7 @@ async def run_in_daemon_thread(fn: Callable[[], Any]) -> Any:
     return await fut
 
 
-class Engine:
+class Engine(SystemHandlers, SettingsHandlers, JobsHandlers, ModelsHandlers):
     def __init__(
         self,
         paths: Paths,
@@ -154,18 +155,6 @@ class Engine:
         self._on_job({"id": job_id, "type": type, "status": status, "error": error})
 
     # Helpers
-
-    def tier(self) -> str | None:
-        return self.settings.get("model_tier") or self.hardware.tier
-
-    def _entries(self, tier: str | None) -> list[ModelEntry]:
-        if tier is None:
-            raise RpcError(APP_ERROR, "no model tier: this computer does not meet the minimum")
-        try:
-            return for_tier(self.manifest, tier)
-        except ManifestError as e:
-            raise RpcError(APP_ERROR, str(e)) from None
-
     # RPC handlers
 
     def _handlers(self):
@@ -181,124 +170,3 @@ class Engine:
             "models.cancel_download": self._models_cancel_download,
             "models.set_tier": self._models_set_tier,
         }
-
-    async def _status(self, params: dict[str, Any]) -> dict[str, Any]:
-        return {
-            "engine_version": __version__,
-            "protocol": PROTOCOL_VERSION,
-            "hardware": self.hardware.to_dict(),
-            "tier": self.tier(),
-            "models": await self._models_list({}),
-            "running_job": self.scheduler.running_job_id or self._download_job,
-        }
-
-    async def _shutdown(self, params: dict[str, Any]) -> None:
-        """Reply first, then stop. The reply is best-effort: the stop starts after 0.1 s."""
-        asyncio.get_running_loop().call_later(0.1, self.request_stop)
-        return None
-
-    async def _settings_get(self, params: dict[str, Any]) -> Any:
-        key = params.get("key")
-        if key is None:
-            return self.settings.all()
-        try:
-            return self.settings.get(key)
-        except KeyError as e:
-            raise RpcError(INVALID_PARAMS, e.args[0]) from None
-
-    async def _settings_set(self, params: dict[str, Any]) -> None:
-        try:
-            self.settings.set(params["key"], params["value"])
-        except (KeyError, ValueError) as e:
-            raise RpcError(INVALID_PARAMS, e.args[0]) from None
-        return None
-
-    async def _jobs_list(self, params: dict[str, Any]) -> list[dict[str, Any]]:
-        return self.jobs.list(params.get("limit", 50))
-
-    async def _jobs_cancel(self, params: dict[str, Any]) -> dict[str, bool]:
-        """Return True when a cancel was requested. A file that is downloading finishes first."""
-        job_id = params["id"]
-        if job_id == self._download_job:
-            self._download_cancel = True
-            return {"cancelled": True}
-        return {"cancelled": self.scheduler.cancel(job_id)}
-
-    async def _models_list(self, params: dict[str, Any]) -> list[dict[str, Any]]:
-        return [
-            {
-                "id": e.id,
-                "role": e.role,
-                "tiers": list(e.tiers),
-                "size": e.total_size,
-                "installed": self.models.is_installed(e),
-            }
-            for e in self.manifest
-        ]
-
-    async def _models_download(self, params: dict[str, Any]) -> dict[str, int]:
-        if self._closed:
-            raise RpcError(APP_ERROR, "the engine is stopping")
-        if self._download_job is not None:
-            raise RpcError(APP_ERROR, "a download is already running")
-        tier = params.get("tier") or self.tier()
-        entries = self._entries(tier)
-        need = self.models.missing_bytes(entries)
-        self.models.models_dir.mkdir(parents=True, exist_ok=True)
-        free = self.models._disk_free(self.models.models_dir)
-        if need and free < need + DISK_MARGIN:
-            raise RpcError(
-                APP_ERROR,
-                f"Not enough disk space: the models need {_gib(need)}, {_gib(free)} are free.",
-            )
-        job_id = self.jobs.create(DOWNLOAD_JOB, int(Priority.INDEX), {"tier": tier})
-        self._download_job = job_id
-        self._download_cancel = False
-        self._download_task = asyncio.get_running_loop().create_task(self._run_download(job_id, entries))
-        self._tasks.add(self._download_task)
-        self._download_task.add_done_callback(self._tasks.discard)
-        return {"job_id": job_id}
-
-    async def _run_download(self, job_id: int, entries: list[ModelEntry]) -> None:
-        loop = asyncio.get_running_loop()
-
-        def progress(entry: ModelEntry, f: ModelFile, i: int, n: int) -> None:
-            params = {"model": entry.id, "file": f.name, "index": i, "count": n}
-            with contextlib.suppress(RuntimeError):  # the loop can be closed already
-                loop.call_soon_threadsafe(self._emit_progress, params)
-
-        def work() -> None:
-            for entry in entries:
-                self.models.install(entry, progress=progress, cancelled=lambda: self._download_cancel)
-
-        try:
-            self._report(job_id, DOWNLOAD_JOB, "running")
-            await run_in_daemon_thread(work)
-        except (DownloadCancelled, asyncio.CancelledError) as e:
-            self._report(job_id, DOWNLOAD_JOB, "cancelled")
-            if isinstance(e, asyncio.CancelledError):
-                raise
-        except Exception as e:  # noqa: BLE001 - report every download failure
-            log.exception("model download failed")
-            self._report(job_id, DOWNLOAD_JOB, "failed", str(e))
-        else:
-            self._report(job_id, DOWNLOAD_JOB, "done")
-        finally:
-            self._download_job = None
-
-    def _emit_progress(self, params: dict[str, Any]) -> None:
-        if not self._closed:
-            self._spawn(self.rpc.broadcast("models.progress", params))
-
-    async def _models_cancel_download(self, params: dict[str, Any]) -> dict[str, bool]:
-        """Return True when a cancel was requested. A file that is downloading finishes first."""
-        if self._download_job is None:
-            return {"cancelled": False}
-        self._download_cancel = True
-        return {"cancelled": True}
-
-    async def _models_set_tier(self, params: dict[str, Any]) -> dict[str, Any]:
-        tier = params["tier"]
-        entries = self._entries(tier)
-        self.settings.set("model_tier", tier)
-        return {"tier": tier, "installed": all(self.models.is_installed(e) for e in entries)}
