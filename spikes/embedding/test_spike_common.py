@@ -56,3 +56,10 @@ def test_load_corpus_applies_prefixes():
     assert c.relevant == list(range(12))
     assert c.image_files[0].name == "red_square.png"
     assert c.image_relevant == [0, 1, 2, 3]
+
+
+def test_normalize_rejects_non_finite_rows():
+    from spike_common import normalize
+
+    with pytest.raises(ValueError):
+        normalize([[0.0, 0.0], [1.0, 0.0]])

@@ -18,9 +18,10 @@ IMAGES = HERE / "images"
 QUERY_PREFIX = "task: search result | query: "
 DOC_PREFIX = "title: none | text: "
 
-# A realistic chunk is about 512 tokens. We repeat a document to about 380
-# words to measure throughput on chunk-sized inputs.
-THROUGHPUT_REPEAT = 16
+# A realistic chunk is about 400 tokens. We repeat a document to about 300
+# words to measure throughput on chunk-sized inputs. Stay below 512 tokens,
+# so that no backend truncates the input.
+THROUGHPUT_REPEAT = 12
 THREADS = max(1, (os.cpu_count() or 2) // 2)
 
 
@@ -83,7 +84,11 @@ def agreement(other: np.ndarray, reference: np.ndarray) -> tuple[float, float]:
 
 def normalize(rows) -> np.ndarray:
     a = np.asarray(rows, dtype=np.float32)
-    return a / np.linalg.norm(a, axis=1, keepdims=True)
+    a = a / np.linalg.norm(a, axis=1, keepdims=True)
+    if not np.isfinite(a).all():
+        # float16 or a broken backend gives NaN without an error.
+        raise ValueError("non-finite embeddings")
+    return a
 
 
 def peak_rss_mb() -> float:
