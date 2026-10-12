@@ -162,3 +162,30 @@ grammar makes the action items about 25 % slower than the formula shows.
   Plan B1 Task 4 must keep a test with two tasks on the same prefix.
 - `forenote-cli bench llm` (plan B2) must measure the prompt speed and the
   generation speed on the user's machine.
+
+## Owner decision (2026-10-12)
+
+The project owner chose **live reading** to reach the speed target. While a
+recording runs, the engine gives the new transcript lines to the LLM, with no
+output (spec B section 5.5). At the stop, the notes job evaluates only the
+last lines, the bullets, and the tasks.
+
+Rejected options: a longer target (about 7 minutes on 8 cores), and E2B for
+the default tier (lower quality: in the spike, E2B gave an invented owner and
+listed presentations as action items).
+
+Estimate with live reading (E4B, 16k, `flash_attn` and `swa_full=False`):
+6 bullets × (1 s + 100 tokens at 7.4 tok/s) + summary (300 tokens) + action
+items (200 tokens, about 25 % slower with the grammar) ≈ 87 + 41 + 34 =
+about 160 s. This is inside the 3-minute target.
+
+Risks that plan B2 must check:
+
+- Speech recognition must keep its speed while the LLM evaluates new lines.
+  The live reading uses half of the physical cores and pauses when the ASR
+  queue grows.
+- The low tier (8 GB) has no live reading.
+- The thread count of a loaded model must change between the live reading and
+  the notes job. Plan B2 checks the llama-cpp-python API for this
+  (`llama_set_n_threads`), or loads the model with the smaller count and
+  measures the cost.

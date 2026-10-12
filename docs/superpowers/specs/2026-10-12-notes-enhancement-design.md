@@ -24,6 +24,7 @@ and a list of action items.
 - Bullet storage, notes output storage, and a full-text index over the
   transcript lines (migration v3).
 - The `processing` meeting status and the notes job after a recording.
+- The live reading of the transcript during a recording (section 5.5).
 - RPC methods and events for notes, and the CLI commands.
 - Quality tests on AMI transcripts, and `forenote-cli bench llm`.
 - A spike that checks the llama.cpp backend with Gemma 4 (decision 0003).
@@ -46,6 +47,13 @@ action items) adds only a short instruction after this prefix. llama.cpp keeps
 the evaluated tokens of the last prompt. When the next prompt starts with the
 same tokens, it evaluates only the new tail. The engine therefore reads the
 transcript only once for all tasks, and each task sees the full meeting.
+
+The engine also **reads the transcript during the meeting** (section 5.5).
+While the recording runs, it gives each new transcript line to the model,
+because live speech recognition uses only a small part of the CPU. At the
+stop, only the last lines, the bullets, and the tasks remain. Decision 0003
+shows why: on CPU, the first read of a 30-minute transcript takes 3 to 4
+minutes, more than the target for the full job.
 
 When the prefix does not fit the context budget, the job uses **map-reduce**
 (section 5.4). This happens only for long meetings, about 60 minutes or more
@@ -190,9 +198,10 @@ CREATE VIRTUAL TABLE transcript_fts USING fts5(
 3. When the notes job ends (done, failed, or cancelled), the status becomes
    `done`. `meeting.state` reports each change.
 
-Spec 8.7 applies. LLM jobs wait while a recording runs. A running notes job
-continues when a new recording starts, because the scheduler does not stop a
-running job.
+Spec 8.7 applies to scheduler jobs. LLM jobs wait while a recording runs. A
+running notes job continues when a new recording starts, because the
+scheduler does not stop a running job. The live reading of section 5.5 is not
+a scheduler job, and it is the only exception to this rule.
 
 ### 5.2 Bullets during a meeting
 
@@ -208,9 +217,12 @@ running job.
 
 ### 5.3 The notes job, prefix mode
 
-1. **Prefix.** The engine builds one prefix: the instructions, the full
-   transcript, and the numbered bullets with their times. The prefix fits if
-   its token count is no more than the context size minus 2,048.
+1. **Prefix.** The engine builds one prefix, in this order: the
+   instructions, the full transcript (lines in storage order), and then the
+   numbered bullets with their times. The prefix fits if its token count is
+   no more than the context size minus 2,048. The transcript part is the same
+   text that the live reading used (section 5.5), so the model evaluates only
+   the new tail.
 2. **Bullets.** For each bullet without an edited expansion, the engine adds
    one instruction. Example: "Expand bullet 3, «budget slip», written at
    12:30. The relevant part is probably between 09:30 and 13:30. Keyword
@@ -248,7 +260,40 @@ the step and the fraction of steps done. `notes.done` comes at the end.
    chunk notes. If the chunk notes do not fit one prompt, it reduces them in
    groups first.
 
-### 5.5 Re-runs and edits
+### 5.5 Live reading during the recording
+
+Project owner decision, 2026-10-12 (decision 0003, "Owner decision").
+
+1. When a recording starts, the engine loads the LLM of the tier in a worker
+   thread, if the model is installed and the tier is `default` or `high`. The
+   low tier has no live reading, because 8 GB of RAM cannot hold the LLM and
+   the speech model together.
+2. The live text starts with the instructions of section 5.3, followed by the
+   transcript lines in storage order, with the format of section 4.1. The
+   text only grows. Lines are never changed or removed.
+3. About every 30 s, if new final lines exist, the engine evaluates the new
+   tail of the live text, with no output. It uses fewer threads than a
+   notes job (half of the physical cores), so that speech recognition keeps
+   its speed.
+4. The live reading pauses while `asr.delayed` is active or the ASR queue
+   holds more than 5 s of audio. Speech recognition never waits for the LLM.
+5. The live reading stops for the rest of the meeting when the live text
+   would not fit the prefix budget of section 5.3. The notes job then uses
+   map-reduce.
+6. When the recording stops, the notes job uses the same model instance. Its
+   prompt starts with the live text, so only the lines after the last live
+   step, the bullets, and the task are new.
+7. Only one user of the model runs at a time. If a notes job of an earlier
+   meeting runs when a recording starts, the live reading waits until that job
+   ends. The notes job then reads the transcript itself after the stop.
+8. If the model cannot load, the engine logs the error type, and the
+   recording continues with no live reading. The notes job loads the model
+   after the stop as usual.
+
+Memory: during a recording, the LLM (about 7.5 GB at 16k for E4B with the
+options of decision 0003) and the speech model are in RAM together.
+
+### 5.6 Re-runs and edits
 
 - `notes.update_enhanced` stores the user's text and sets
   `enhanced_edited = 1`.
@@ -301,10 +346,13 @@ the plan, so the work stops for a decision by the project owner.
 
 | Metric | Target |
 |---|---|
-| Enhanced notes for a 30-minute meeting (default tier, 8 cores) | 3 min or less |
+| Enhanced notes for a 30-minute meeting, measured from the stop, with live reading (default tier, 8 cores) | 3 min or less |
+| Speech real-time factor while the live reading runs (spec A 6.4) | no worse than 0.5 |
 
-`forenote-cli bench llm` measures it, together with the prompt speed and
-the generation speed.
+`forenote-cli bench llm` measures the notes time, together with the prompt
+speed and the generation speed. Without live reading (for example after an
+engine restart), the job takes about 6 to 7 minutes for 30 minutes of
+transcript (decision 0003).
 
 ## 7. RPC and CLI
 
@@ -363,6 +411,7 @@ the generation speed.
 | Case | Behavior |
 |---|---|
 | LLM model not installed | The meeting becomes `done` with no notes. `notes.enhance` returns the error of section 7.1. |
+| Model load failure at the start of a recording | The engine logs the error type. The recording continues with no live reading (section 5.5). |
 | Model load failure or out of memory | The job fails with that message and suggests the low tier (spec 10.2). No automatic retry. The engine releases the failed instance. |
 | No token for 120 s | The watchdog stops the generation. The job fails. The first token has its own limit. The engine computes it from the prompt length and the measured prompt speed (decision 0003), because the model reads the whole prompt before the first token. |
 | The user cancels the job | The job stops at the next token. Completed steps stay stored. |
@@ -403,6 +452,9 @@ notes job with marker words and checks that the log has none of them.
 - Map-reduce chunking at line boundaries, and the group reduce.
 - Edited expansions with and without `force`.
 - Cancel between steps and during a step. The watchdog with a fake clock.
+- Live reading with `FakeTextGenerator`: the live text only grows; the notes
+  prompt starts with the last live text; a pause while ASR is delayed; the
+  stop at the prefix budget; no live reading on the low tier.
 - Status flow: `recording`, then `processing`, then `done`. No job without
   lines or without the model.
 
