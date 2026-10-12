@@ -5,6 +5,7 @@ import sys
 import pytest
 
 from lookout.paths import Paths
+from lookout.rpc import launcher
 from lookout.rpc.launcher import EngineStartError, EngineStartTimeout, connect_or_start
 
 
@@ -88,3 +89,17 @@ async def test_loser_exit_waits_for_the_winner(env_paths):
     finally:
         await client.close()
     procs[0].wait(timeout=10)
+
+
+async def test_launched_engine_is_reaped(env_paths):
+    cmd = [sys.executable, "-m", "lookout.engine.main", "--no-hw-check", "--log-level", "WARNING"]
+    client = await connect_or_start(env_paths.socket_path, "pytest", engine_cmd=cmd)
+    try:
+        await client.call("system.shutdown")
+    finally:
+        await client.close()
+    for _ in range(100):
+        if not launcher._children:
+            break
+        await asyncio.sleep(0.1)
+    assert not launcher._children

@@ -33,3 +33,4 @@ Run the engine and the CLI:
 | Database and models | `$XDG_DATA_HOME/lookout` (default `~/.local/share/lookout`) |
 | Logs | `$XDG_STATE_HOME/lookout/logs` (default `~/.local/state/lookout/logs`) |
 | Engine socket | `$XDG_RUNTIME_DIR/lookout/engine.sock` |
+| Engine lock | `$XDG_RUNTIME_DIR/lookout/engine.lock` (stays after the engine stops) |
