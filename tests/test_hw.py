@@ -114,3 +114,28 @@ def test_detect_reads_proc_files(tmp_path):
     assert r.tier == "default"
     assert r.physical_cores == 2
     assert r.gpus == ("NVIDIA GeForce GTX 1650 SUPER",)
+
+
+def test_child_processes_use_c_locale():
+    seen = {}
+
+    def run(cmd, **kwargs):
+        seen.update(kwargs)
+        return subprocess.CompletedProcess(cmd, 0, stdout=PACTL, stderr="")
+
+    detect_audio(run)
+    assert seen["env"]["LC_ALL"] == "C"
+    assert seen["env"]["LANGUAGE"] == "C"
+
+
+def test_permission_error_means_not_available():
+    assert detect_audio(fake_run({"pactl": PermissionError()})) is None
+
+
+def test_detect_gpus_removes_duplicates():
+    text = VULKAN + (
+        "GPU2:\n"
+        "\tdeviceType         = PHYSICAL_DEVICE_TYPE_DISCRETE_GPU\n"
+        "\tdeviceName         = NVIDIA GeForce GTX 1650 SUPER\n"
+    )
+    assert detect_gpus(fake_run({"vulkaninfo": text})) == ["NVIDIA GeForce GTX 1650 SUPER"]

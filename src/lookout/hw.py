@@ -66,8 +66,15 @@ def select_tier(ram_gib: float) -> str | None:
 
 def _run(run: Run, cmd: list[str], timeout: float) -> str | None:
     try:
-        out = run(cmd, capture_output=True, text=True, timeout=timeout)
-    except (FileNotFoundError, subprocess.TimeoutExpired):
+        out = run(
+            cmd,
+            capture_output=True,
+            text=True,
+            errors="replace",
+            timeout=timeout,
+            env={**os.environ, "LC_ALL": "C", "LANGUAGE": "C"},
+        )
+    except (OSError, subprocess.TimeoutExpired):
         return None
     return out.stdout if out.returncode == 0 else None
 
@@ -96,8 +103,10 @@ def detect_gpus(run: Run = subprocess.run) -> list[str]:
         key, value = key.strip(), value.strip()
         if key == "deviceType":
             device_type = value
-        elif key == "deviceName" and device_type != "PHYSICAL_DEVICE_TYPE_CPU":
-            gpus.append(value)
+        elif key == "deviceName":
+            if device_type != "PHYSICAL_DEVICE_TYPE_CPU" and value not in gpus:
+                gpus.append(value)
+            device_type = ""
     return gpus
 
 
