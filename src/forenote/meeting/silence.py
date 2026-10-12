@@ -10,28 +10,38 @@ WARN_S = 60
 
 
 class SilenceTimer:
-    """Track silence. check() returns ("warn", seconds_left), ("stop", 0) or None."""
+    """Track silence. check() returns ("warn", seconds_left), ("stop", 0) or None.
+
+    check() returns ("stop", 0) on every call after the stop time; the caller acts once.
+    """
 
     def __init__(self, timeout_s: int, clock: Callable[[], float] = time.monotonic):
         self._timeout = timeout_s
         self._clock = clock
+        self._call_closed = False
         self.speech()
 
     def speech(self) -> None:
         """A final line arrived."""
         now = self._clock()
-        self._warn_at = now + self._timeout
-        self._stop_at = self._warn_at + WARN_S
+        if self._call_closed:
+            self._warn_at = now
+            self._stop_at = now + WARN_S
+        else:
+            self._warn_at = now + self._timeout
+            self._stop_at = self._warn_at + WARN_S
         self._warned = False
 
     def keep(self) -> bool:
         """The user wants to keep recording. Return True if a warning was pending."""
         pending = self._warned
+        self._call_closed = False
         self.speech()
         return pending
 
     def call_app_closed(self) -> None:
         """The call app closed its last mic stream: stop in 60 s at the latest."""
+        self._call_closed = True
         now = self._clock()
         self._stop_at = min(self._stop_at, now + WARN_S)
         self._warn_at = min(self._warn_at, now)

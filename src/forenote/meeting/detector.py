@@ -11,7 +11,10 @@ OWN_APP = "forenote"
 
 
 class MeetingDetector:
-    """Decide when to offer a transcript. Call it from one thread only."""
+    """Decide when to offer a transcript. Call it from one thread only.
+
+    A stream that opens during a recording is not announced after the recording ends.
+    """
 
     def __init__(self, call_apps: list[str], clock: Callable[[], float] = time.monotonic):
         self._clock = clock
@@ -34,6 +37,8 @@ class MeetingDetector:
         The call app list matches the process binary or the application name.
         (Chrome reports the name "Google Chrome" but the binary "chrome".)
         """
+        if index in self._streams:
+            self.output_removed(index)  # a removal event was missed
         if app.lower() == OWN_APP:
             return None
         name = self._match(binary) or self._match(app)
@@ -70,7 +75,7 @@ class MeetingDetector:
         self._dismissed.add(app.lower())
 
     def _announce(self, name: str) -> str | None:
-        if self._recording or name in self._announced or name in self._dismissed:
+        if self._recording or name not in self._call_apps or name in self._announced or name in self._dismissed:
             return None
         self._announced.add(name)
         return name
@@ -80,6 +85,6 @@ class MeetingDetector:
         if not key or key == OWN_APP:
             return None
         for call_app in self._call_apps:
-            if key == call_app or key.startswith(call_app):
+            if key == call_app or key.startswith(tuple(call_app + sep for sep in "-_ .")):
                 return call_app
         return None

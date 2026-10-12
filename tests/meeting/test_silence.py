@@ -71,3 +71,29 @@ def test_call_app_closed_does_not_lengthen_a_shorter_time():
     s.call_app_closed()
     clock.t = 120
     assert s.check() == ("stop", 0)
+
+
+def test_speech_after_the_call_closed_keeps_the_short_time():
+    clock = Clock()
+    s = SilenceTimer(300, clock)
+    clock.t = 10
+    s.call_app_closed()
+    assert s.check() == ("warn", WARN_S)
+    clock.t = 40
+    s.speech()
+    assert s.check() == ("warn", WARN_S)
+    clock.t = 99
+    assert s.check() is None
+    clock.t = 100
+    assert s.check() == ("stop", 0)
+
+
+def test_keep_returns_to_the_normal_timeout_after_the_call_closed():
+    clock = Clock()
+    s = SilenceTimer(300, clock)
+    s.call_app_closed()
+    s.keep()
+    clock.t = 299
+    assert s.check() is None
+    clock.t = 300
+    assert s.check() == ("warn", WARN_S)

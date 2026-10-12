@@ -95,3 +95,29 @@ def test_call_apps_can_change():
     d.set_call_apps(["slack"])
     assert d.output_added(1, "zoom") is None
     assert d.output_added(2, "slack") == "slack"
+
+
+def test_names_match_on_word_boundaries():
+    d = MeetingDetector(APPS + ["teams"], Clock())
+    assert d.output_added(1, "zoomit") is None
+    assert d.output_added(2, "teamspeak") is None
+    assert d.output_added(3, "zoom-us") == "zoom"
+    d2 = MeetingDetector(APPS, Clock())
+    assert d2.output_added(4, "zoom voiceengine") == "zoom"
+
+
+def test_app_removed_from_the_list_is_not_announced_by_tick():
+    clock = Clock()
+    d = MeetingDetector(APPS, clock)
+    d.output_added(1, "chrome")
+    d.set_call_apps(["zoom"])
+    clock.t = 11
+    assert d.tick() is None
+
+
+def test_added_index_that_is_still_known_replaces_the_old_stream():
+    d = MeetingDetector(APPS, Clock())
+    assert d.output_added(1, "zoom") == "zoom"
+    d.dismiss("zoom")
+    # Removal of stream 1 was missed. The reused index counts as a new stream.
+    assert d.output_added(1, "zoom") == "zoom"
