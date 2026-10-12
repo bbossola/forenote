@@ -211,6 +211,14 @@ async def test_a_deleted_meeting_stops_the_job_and_stores_nothing(db):
 async def test_the_first_token_limit_grows_with_the_prompt(db, monkeypatch):
     import forenote.notes.enhance as enhance
 
+    from forenote.llm.base import first_token_limit
+
+    class BigPrompt(FakeTextGenerator):
+        context_size = 32768
+
+        def count_tokens(self, prompt):
+            return 10_000
+
     conn, _, _, mid = db
     seen = []
     real = enhance.collect
@@ -220,5 +228,5 @@ async def test_the_first_token_limit_grows_with_the_prompt(db, monkeypatch):
         return await real(*args, **kw)
 
     monkeypatch.setattr(enhance, "collect", spy)
-    await run(conn, mid, FakeTextGenerator(script()))
-    assert seen and all(s >= 120.0 for s in seen)
+    await run(conn, mid, BigPrompt(script()))
+    assert seen and set(seen) == {first_token_limit(10_000)} == {560.0}
