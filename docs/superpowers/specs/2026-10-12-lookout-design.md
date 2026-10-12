@@ -33,7 +33,9 @@ download, the app does not need a network connection.
 
 - Live assistance (automatic answers during the meeting). This is the next
   sub-project.
-- Google Drive, Google Calendar, or any account or cloud service.
+- Google Drive, Google Calendar, or any account or cloud service. Google
+  Drive integration is a planned follow-up sub-project (see
+  `docs/superpowers/notes/2026-10-12-carry-into-next-plans.md`).
 - Web bookmarks.
 - Languages other than English.
 - Speaker diarization inside one audio stream.

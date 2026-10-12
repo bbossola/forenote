@@ -40,3 +40,43 @@ Each next plan must read this list first and handle the items that apply to it.
 - **Client events.** `RpcClient` has no limit on its event queue. A long-lived client must read events all the time. The client does not check the engine's minor protocol version before it calls newer methods.
 - **High tier.** `models.set_tier` accepts "high" on a 16 GB computer. Spec 9.1 says high is opt-in for 32 GB. Show a warning.
 - **Launcher log path.** The launcher finds the log path with `Paths.from_env()`. Pass the paths in, so that a custom socket path and the log path agree.
+
+## Follow-up sub-project: Google Drive integration
+
+Requested by the project owner on 2026-10-12. It comes after v1 (A + B + C) and
+gets its own spec, plan, and review cycle.
+
+What Foresight does (from the installer analysis):
+
+- Google Sign-In with read-only OAuth scopes: `drive.readonly`,
+  `documents.readonly`, `presentations.readonly`, and also
+  `calendar.events.readonly`.
+- It fetches Google Docs and Slides as text, and other Drive files as files.
+- It subscribes to file changes through Google's own backend
+  (`UnsubscribeFromFiles`, Firebase Cloud Messaging).
+
+Points the Lookout design must decide:
+
+- **Opt-in only.** Drive breaks the "no accounts, offline after the model
+  download" rule. It must be off by default, and local files must work without
+  it.
+- **OAuth client.** Lookout needs its own Google Cloud OAuth client ("desktop
+  app" type, loopback redirect, PKCE). Google must verify the app for the
+  restricted `drive.readonly` scope, or the consent screen shows a warning and a
+  user cap. A narrower option is `drive.file` with the Google Picker: the user
+  selects files and folders, and no verification of a restricted scope is
+  necessary.
+- **Token storage.** Store the refresh token in the desktop secret service
+  (libsecret, through the Secret portal in Flatpak), not in SQLite.
+- **Sync.** Lookout has no backend for push notifications. Use the Drive
+  `changes.list` API with a saved page token, polled at an interval and at
+  engine start.
+- **Export.** Google Docs export as text or Markdown, Slides as text, Sheets as
+  CSV. Other files download and go through the local parsers.
+- **Privacy.** Downloaded content stays local, like local files. Logs must not
+  contain file names or content.
+- **Data model.** A new source type next to `folders` (for example
+  `drive_sources`) and a `remote_id` / `revision` on `documents`, so that a
+  changed Drive file is indexed again and a removed one is deleted.
+- **Calendar.** Google Calendar (meeting titles and attendees) can come with
+  the same sign-in. Decide if it is in the same sub-project.
