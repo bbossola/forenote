@@ -89,6 +89,8 @@ class Recorder:
         self._tasks: set[asyncio.Task] = set()
         self._restarts: dict[str, asyncio.Task] = {}  # one restart per speaker at a time
         self._finished = False
+        self._write_failed = False  # a database write failed: the stop reason becomes "error"
+        self._worker_closed = False  # _abort_begin stopped the worker
         self.meeting_id: int | None = None
         self.worker_stopped = True
 
@@ -145,10 +147,11 @@ class Recorder:
             self.worker_stopped = False
             for speaker, source in self._sources.items():
                 self._start_capture(speaker, source)
-            self._emit("meeting.state", {"meeting_id": meeting_id, "status": "recording"})
+            self._send("meeting.state", {"meeting_id": meeting_id, "status": "recording"})
             for speaker in lost:
                 self._mark_lost(speaker, "the device could not be opened")
             self._tick_task = asyncio.create_task(self._tick())
+            self._tick_task.add_done_callback(self._task_done)
         except Exception as e:
             log.error("the recording failed to begin: %s", type(e).__name__)
             await self._abort_begin()
@@ -164,6 +167,7 @@ class Recorder:
                 cap.stop()
             await self._join(list(self._captures.values()))
             if self._worker is not None:
+                self._worker_closed = True
                 self.worker_stopped = await run_in_daemon_thread(self._worker.stop)
             await self.close()
         except Exception as e:  # noqa: BLE001 - keep the first error for the caller
@@ -228,6 +232,11 @@ class Recorder:
             elif kind == "error":
                 self._request_restart(speaker, changed=False)
 
+    def _send(self, name: str, params: dict) -> None:
+        """Send an event. After the meeting is finished, send nothing."""
+        if not self._finished:
+            self._emit(name, params)
+
     @property
     def _stopping(self) -> bool:
         return self._stop_task is not None
@@ -240,7 +249,7 @@ class Recorder:
             return
         self._shown_delayed = delayed
         queued = round(self._worker.queued_seconds(), 1)
-        self._emit("asr.delayed", {"meeting_id": self.meeting_id, "delayed": delayed, "queued_s": queued})
+        self._send("asr.delayed", {"meeting_id": self.meeting_id, "delayed": delayed, "queued_s": queued})
 
     def _check_all_ended(self) -> None:
         live = set(self._speakers) - self._lost
@@ -250,7 +259,7 @@ class Recorder:
     def _on_result(self, u, result, error) -> None:
         if not u.final:
             if result is not None and normalize(result.text):
-                self._emit(
+                self._send(
                     "transcript.partial",
                     {
                         "meeting_id": self.meeting_id,
@@ -291,7 +300,7 @@ class Recorder:
     def _fail(self, message: str) -> None:
         """Send engine.error and stop with stop_reason = error, once."""
         if not self._stopping:
-            self._emit("engine.error", {"message": message})
+            self._send("engine.error", {"message": message})
             self._spawn(self.stop("error"))
 
     def _store_lines(self, lines: list[Line]) -> None:
@@ -300,9 +309,10 @@ class Recorder:
                 line_id = self._store.add_line(self.meeting_id, line.speaker, line.t_start_ms, line.t_end_ms, line.text)
             except Exception as e:  # noqa: BLE001 - disk full or a database error
                 log.error("cannot store a transcript line: %s", type(e).__name__)
+                self._write_failed = True
                 self._fail("Forenote cannot save the transcript. The recording stops.")
                 return
-            self._emit(
+            self._send(
                 "transcript.final",
                 {
                     "meeting_id": self.meeting_id,
@@ -315,10 +325,13 @@ class Recorder:
             )
 
     def _marker(self, t_ms: int, kind: str, speaker: str | None) -> None:
+        if self._finished:
+            return  # never write into a finished meeting
         try:
             self._store.add_marker(self.meeting_id, t_ms, kind, speaker)
         except Exception as e:  # noqa: BLE001 - disk full or a database error
             log.error("cannot store a marker: %s", type(e).__name__)
+            self._write_failed = True
             self._fail("Forenote cannot save the transcript. The recording stops.")
 
     def _now_ms(self) -> int:
@@ -327,7 +340,7 @@ class Recorder:
     def _mark_lost(self, speaker: str, reason: str) -> None:
         self._lost.add(speaker)
         self._marker(self._now_ms(), "source_lost", speaker)
-        self._emit("audio.source_lost", {"meeting_id": self.meeting_id, "speaker": speaker, "reason": reason})
+        self._send("audio.source_lost", {"meeting_id": self.meeting_id, "speaker": speaker, "reason": reason})
         if self._lost >= set(self._speakers):
             self._fail("All audio sources are lost. The recording stops.")
         else:
@@ -371,11 +384,12 @@ class Recorder:
             self._start_capture(speaker, source)
             if changed:
                 self._marker(self._now_ms(), "source_changed", speaker)
-                self._emit(
+                self._send(
                     "audio.source_changed", {"meeting_id": self.meeting_id, "speaker": speaker, "device": source.device}
                 )
             return
-        self._mark_lost(speaker, "the device failed and did not come back")
+        if not self._stopping:  # a restart that ends after the stop changes nothing
+            self._mark_lost(speaker, "the device failed and did not come back")
 
     # Silence and ticks
 
@@ -391,7 +405,7 @@ class Recorder:
             self._store_lines(self._echo.tick())
             action = self._silence.check()
             if action and action[0] == "warn":
-                self._emit("meeting.auto_stop_pending", {"meeting_id": self.meeting_id, "seconds_left": action[1]})
+                self._send("meeting.auto_stop_pending", {"meeting_id": self.meeting_id, "seconds_left": action[1]})
             elif action and action[0] == "stop":
                 self._spawn(self.stop("silence"))
                 return
@@ -420,7 +434,7 @@ class Recorder:
                 await asyncio.wait(list(self._restarts.values()), timeout=self._join_timeout)
             await self._join(self._all_captures())
             await self.close()
-            if self._worker is not None:
+            if self._worker is not None and not self._worker_closed:
                 if not await self._drain():
                     dropped = self._worker.drop_queued()
                     log.warning("stop dropped %d queued utterances", dropped)
@@ -435,6 +449,8 @@ class Recorder:
             log.error("stop failed: %s", type(e).__name__)
             reason = "error"
         finally:
+            if self._write_failed:
+                reason = "error"
             self._finished = True
             if self.meeting_id is not None:
                 try:

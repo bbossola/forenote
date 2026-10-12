@@ -467,3 +467,69 @@ async def test_open_closes_started_sources_when_all_fail(store):
     rec = Recorder(store, FakeTranscriber(), f, ("me", "others"), Events(), 300)
     with pytest.raises(RecorderError):
         await rec.open()
+
+
+async def test_the_progress_sequence_counts_retired_captures(store):
+    gate = threading.Event()
+    f = Factory(me=[{"read_gate": gate}], others=[{"read_gate": gate}])
+    rec, mid, events, finished = await start(store, f, speakers=("me", "others"), join_timeout_s=0.2)
+    await wait_for(f.made["others"][0].reading.is_set, 5)
+    rec._captures["others"].finals_submitted = 1  # the old capture sent one final that is still in the ASR
+    rec.on_default_changed("others")
+    await wait_for(lambda: "audio.source_changed" in events.names(), 5)
+    new = rec._captures["others"]
+    rec._result_from_thread(final("me", 0, 1000), TranscriptResult("i talk about the budget", 0.1, -0.2), None)
+    rec._post("progress", new, "others", 2000, 0)  # the new capture sent no final yet
+    await asyncio.sleep(0.1)
+    assert store.lines(mid) == []
+    rec._result_from_thread(final("others", 500, 1500), TranscriptResult("we plan the next release", 0.1, -0.2), None)
+    await wait_for(lambda: len(store.lines(mid)) == 2, 5)
+    assert [l["speaker"] for l in store.lines(mid)] == ["others", "me"]
+    gate.set()
+    assert await rec.stop("manual") == "done"
+
+
+async def test_an_error_inside_stop_still_finishes_the_meeting(store):
+    f = Factory(others=[{}])
+    rec, mid, events, finished = await start(store, f)
+
+    async def broken_close():
+        raise RuntimeError("close failed")
+
+    rec.close = broken_close
+    assert await rec.stop("manual") == "done"
+    assert store.get(mid)["stop_reason"] == "error"
+    assert finished == ["done"]
+    assert events[-1] == ("meeting.state", {"meeting_id": mid, "status": "done", "stop_reason": "error"})
+
+
+async def test_a_restart_that_ends_after_stop_writes_nothing(store):
+    gate = threading.Event()
+    f = Factory(others=[{}, {"start_gate": gate, "fail_start": True}])
+    rec, mid, events, finished = await start(store, f, retry_delays=(0,), join_timeout_s=0.3)
+    rec._post("error", rec._captures["others"], "others", "AudioSourceError")
+    await wait_for(lambda: f.calls("others") == 2, 5)  # the only retry blocks in start()
+    assert await rec.stop("manual") == "done"
+    count = len(events)
+    gate.set()
+    await wait_for(lambda: not rec._restarts, 5)
+    await asyncio.sleep(0.1)
+    assert store.markers(mid) == []
+    assert len(events) == count and events[-1][0] == "meeting.state"
+    assert store.get(mid)["stop_reason"] == "manual"
+
+
+async def test_a_failed_write_in_the_final_flush_gives_error(store, monkeypatch):
+    gate = threading.Event()
+    f = Factory(me=[{"read_gate": gate}], others=[{"read_gate": gate}])
+    rec, mid, events, finished = await start(store, f, speakers=("me", "others"))
+    rec._result_from_thread(final("me", 0, 1000), TranscriptResult("i talk about the budget", 0.1, -0.2), None)
+    await asyncio.sleep(0.1)  # the "me" line waits in the echo filter
+
+    def disk_full(*args):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(store, "add_line", disk_full)
+    gate.set()
+    assert await rec.stop("manual") == "done"
+    assert store.get(mid)["stop_reason"] == "error"
