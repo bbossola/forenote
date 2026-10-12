@@ -9,3 +9,8 @@ Changes: 60-second excerpts of the Mix-Headset recordings (start and end in
 SOURCES.json). The reference text files are built from the AMI manual word
 annotations (ami_public_manual_1.6.2): words of all speakers whose start time
 is inside the excerpt, in time order, without punctuation tokens.
+
+The files in transcripts/ are full meeting transcripts built from the AMI
+manual word annotations (ami_public_manual_1.6.2). Words of each speaker are
+joined into lines at pauses longer than 1 s or after 20 s. Speaker A is
+labelled "me", the other speakers "others". Punctuation tokens are not included.

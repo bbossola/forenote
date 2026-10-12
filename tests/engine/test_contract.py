@@ -67,10 +67,11 @@ def test_client_names_in_tests_match_the_schema():
 async def test_every_emitted_event_matches_the_schema(engine, client):
     schema = load_schema()
 
-    async def ok(token):
+    async def ok(token, report):
+        report("half way", 0.5)
         return None
 
-    async def broken(token):
+    async def broken(token, report):
         raise RuntimeError("test failure")
 
     job = await client.call("models.download", {})

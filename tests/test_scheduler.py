@@ -50,7 +50,7 @@ async def sched(jobs):
 
 
 def recording(order, name):
-    async def run(token):
+    async def run(token, report):
         order.append(name)
 
     return run
@@ -106,7 +106,7 @@ async def test_cancel_running_job(sched, jobs):
     s, rec = sched
     started = asyncio.Event()
 
-    async def forever(token):
+    async def forever(token, report):
         started.set()
         while True:
             token.check()
@@ -124,7 +124,7 @@ async def test_cancel_running_job(sched, jobs):
 async def test_failed_job_records_the_error(sched, jobs):
     s, rec = sched
 
-    async def bad(token):
+    async def bad(token, report):
         raise ValueError("bad input")
 
     jid = s.submit("bad", Priority.NOTES, bad)
@@ -139,7 +139,7 @@ async def test_scheduler_continues_after_a_failure(sched):
     s, rec = sched
     order = []
 
-    async def bad(token):
+    async def bad(token, report):
         raise RuntimeError("x")
 
     s.submit("bad", Priority.CHAT, bad)
@@ -182,7 +182,7 @@ async def test_cancelled_error_inside_a_job_does_not_stop_the_worker(sched, jobs
     s, rec = sched
     order = []
 
-    async def inner_cancel(token):
+    async def inner_cancel(token, report):
         fut = asyncio.get_running_loop().create_future()
         fut.cancel()
         await fut
@@ -211,7 +211,7 @@ async def test_stop_cancels_a_cooperative_running_job(jobs):
     task = asyncio.create_task(s.run())
     started = asyncio.Event()
 
-    async def loop_job(token):
+    async def loop_job(token, report):
         started.set()
         while True:
             token.check()
@@ -222,3 +222,68 @@ async def test_stop_cancels_a_cooperative_running_job(jobs):
     await s.stop()
     await asyncio.wait_for(task, 1)
     assert jobs.get(jid)["status"] == "cancelled"
+
+
+async def test_a_job_reports_progress(sched):
+    s, rec = sched
+
+    async def job(token, report):
+        report("step 1", 0.5)
+        report("step 2", None)
+
+    s.submit("notes", Priority.NOTES, job)
+    await rec.wait_finished(1)
+    progress = [e for e in rec.events if e["status"] == "progress"]
+    assert [(e["message"], e["fraction"]) for e in progress] == [("step 1", 0.5), ("step 2", None)]
+    assert all(e["type"] == "notes" for e in progress)
+
+
+async def test_progress_fraction_is_clamped(sched):
+    s, rec = sched
+
+    async def job(token, report):
+        report("too far", 1.7)
+        report("negative", -0.2)
+
+    s.submit("notes", Priority.NOTES, job)
+    await rec.wait_finished(1)
+    assert [e["fraction"] for e in rec.events if e["status"] == "progress"] == [1.0, 0.0]
+
+
+async def test_a_report_after_the_job_ended_is_not_sent(sched):
+    s, rec = sched
+    late = []
+
+    async def job(token, report):
+        late.append(report)
+
+    s.submit("notes", Priority.NOTES, job)
+    await rec.wait_finished(1)
+    late[0]("too late", 0.5)
+    assert [e for e in rec.events if e["status"] == "progress"] == []
+
+
+async def test_a_listener_error_during_report_does_not_fail_the_job(jobs):
+    def bad_listener(event):
+        if event["status"] == "progress":
+            raise RuntimeError("listener broke")
+
+    s = Scheduler(jobs, listener=bad_listener)
+    task = asyncio.create_task(s.run())
+    try:
+
+        async def job(token, report):
+            report("step", 0.5)
+
+        jid = s.submit("notes", Priority.NOTES, job)
+
+        async def wait_done():
+            while jobs.get(jid)["status"] != "done":
+                await asyncio.sleep(0.005)
+
+        await asyncio.wait_for(wait_done(), 2)
+    finally:
+        await s.stop()
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task

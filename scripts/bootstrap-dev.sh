@@ -25,7 +25,7 @@ while [ $# -gt 0 ]; do
         --models-from) MODELS_FROM="$2"; shift 2 ;;
         --claude-from) CLAUDE_FROM="$2"; shift 2 ;;
         --no-tests) RUN_TESTS=0; shift ;;
-        -h|--help) sed -n '2,15p' "$0"; exit 0 ;;
+        -h|--help) awk 'NR > 1 && !/^#/ { exit } NR > 1' "$0"; exit 0 ;;
         *) echo "Unknown option: $1" >&2; exit 2 ;;
     esac
 done
@@ -120,7 +120,7 @@ fi
 
 if [ "$RUN_TESTS" = 1 ]; then
     step "Run the tests"
-    uv run pytest -q
+    uv run pytest -q -W error
 fi
 
 step "Done"

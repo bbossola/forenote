@@ -5,6 +5,9 @@ the same priority run in submit order. A paused priority stays in the queue.
 
 The scheduler is not thread-safe. Call submit, cancel, pause, and resume from
 the event loop thread only. Use loop.call_soon_threadsafe from other threads.
+
+A job function gets a CancelToken and a report(message, fraction) callback.
+The fraction is from 0 to 1, or None.
 """
 
 from __future__ import annotations
@@ -16,7 +19,7 @@ import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import Any
+from typing import Any, Protocol
 
 from forenote.store.jobs import JobStore
 
@@ -35,8 +38,17 @@ class JobCancelled(Exception):
 
 
 class CancelToken:
+    """A cancel flag.
+
+    Call cancel() from the event loop thread only. The `cancelled` property is
+    a plain bool read, so worker threads can use it. The token can be created
+    outside a running loop: the asyncio.Event for wait() is created on the
+    first wait.
+    """
+
     def __init__(self) -> None:
         self._cancelled = False
+        self._event: asyncio.Event | None = None
 
     @property
     def cancelled(self) -> bool:
@@ -44,13 +56,27 @@ class CancelToken:
 
     def cancel(self) -> None:
         self._cancelled = True
+        if self._event is not None:
+            self._event.set()
+
+    async def wait(self) -> None:
+        """Return when the token is cancelled."""
+        if self._event is None:
+            self._event = asyncio.Event()
+            if self._cancelled:
+                self._event.set()
+        await self._event.wait()
 
     def check(self) -> None:
         if self._cancelled:
             raise JobCancelled()
 
 
-JobFn = Callable[[CancelToken], Awaitable[Any]]
+class Report(Protocol):
+    def __call__(self, message: str, fraction: float | None = None) -> None: ...
+
+
+JobFn = Callable[[CancelToken, Report], Awaitable[Any]]
 Listener = Callable[[dict[str, Any]], None]
 
 
@@ -147,7 +173,7 @@ class Scheduler:
             self._running = q
             self._jobs.set_status(q.job_id, "running")
             self._notify(q, "running", None)
-            await q.fn(q.token)
+            await q.fn(q.token, lambda message, fraction=None: self._progress(q, message, fraction))
         except JobCancelled:
             self._finish(q, "cancelled", None)
         except asyncio.CancelledError:
@@ -175,4 +201,17 @@ class Scheduler:
             try:
                 self._listener({"id": q.job_id, "type": q.type, "status": status, "error": error})
             except Exception:  # noqa: BLE001 - a listener error must not stop the worker
+                log.exception("job listener failed")
+
+    def _progress(self, q: _Queued, message: str, fraction: float | None) -> None:
+        if self._running is not q:
+            return  # a task that outlives its job must not report
+        if fraction is not None:
+            fraction = min(1.0, max(0.0, float(fraction)))
+        if self._listener:
+            try:
+                self._listener(
+                    {"id": q.job_id, "type": q.type, "status": "progress", "message": message, "fraction": fraction}
+                )
+            except Exception:  # noqa: BLE001 - a listener error must not stop the job
                 log.exception("job listener failed")
