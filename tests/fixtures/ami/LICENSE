@@ -1,0 +1,11 @@
+These clips are excerpts of the AMI Meeting Corpus.
+
+AMI Meeting Corpus, University of Edinburgh and the AMI Consortium.
+https://groups.inf.ed.ac.uk/ami/corpus/
+License: Creative Commons Attribution 4.0 International (CC BY 4.0),
+https://creativecommons.org/licenses/by/4.0/
+
+Changes: 60-second excerpts of the Mix-Headset recordings (start and end in
+SOURCES.json). The reference text files are built from the AMI manual word
+annotations (ami_public_manual_1.6.2): words of all speakers whose start time
+is inside the excerpt, in time order, without punctuation tokens.
