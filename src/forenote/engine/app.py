@@ -11,10 +11,11 @@ from forenote import __version__
 from forenote.engine.handlers.jobs import JobsHandlers
 from forenote.engine.handlers.meetings import MeetingsHandlers
 from forenote.engine.handlers.models import DOWNLOAD_JOB, ModelsHandlers  # noqa: F401 - DOWNLOAD_JOB is re-exported
-from forenote.engine.handlers.notes import NotesHandlers
+from forenote.engine.handlers.notes import NOTES_JOB, NotesHandlers
 from forenote.engine.handlers.settings import SettingsHandlers
 from forenote.engine.handlers.system import SystemHandlers
 from forenote.hw import HardwareReport
+from forenote.llm.base import STALL_S
 from forenote.meeting.detector import MeetingDetector
 from forenote.models.download import Fetch, ModelStore, hf_fetch
 from forenote.models.manifest import ModelEntry, load_manifest
@@ -42,6 +43,13 @@ def _whisper(model_dir, cpu_threads, beam):
     return WhisperTranscriber(model_dir, cpu_threads=cpu_threads, final_beam_size=beam)
 
 
+def _llama(model_path, model_id, context_size, threads):
+    # Import at call time: keep the engine import light.
+    from forenote.llm.llamacpp import LlamaCppGenerator
+
+    return LlamaCppGenerator(model_path, model_id, context_size, threads)
+
+
 class Engine(SystemHandlers, SettingsHandlers, JobsHandlers, ModelsHandlers, MeetingsHandlers, NotesHandlers):
     def __init__(
         self,
@@ -51,6 +59,7 @@ class Engine(SystemHandlers, SettingsHandlers, JobsHandlers, ModelsHandlers, Mee
         manifest: list[ModelEntry] | None = None,
         transcriber_factory=None,
         watcher_factory=None,
+        llm_factory=None,
         debug_sources: bool = False,
         debug_realtime: bool = True,
     ):
@@ -73,6 +82,10 @@ class Engine(SystemHandlers, SettingsHandlers, JobsHandlers, ModelsHandlers, Mee
         self._rpc_started = False
         self.transcriber_factory = transcriber_factory or _whisper
         self._watcher_factory = watcher_factory
+        self.llm_factory = llm_factory or _llama
+        self._llm = None
+        self._llm_key = None
+        self.notes_stall_s = STALL_S
         self.debug_sources = debug_sources
         self.debug_realtime = debug_realtime
         self._watcher = None
@@ -106,6 +119,9 @@ class Engine(SystemHandlers, SettingsHandlers, JobsHandlers, ModelsHandlers, Mee
             interrupted = self.meetings.mark_interrupted()
             if interrupted:
                 log.warning("%d meetings were still recording and are now interrupted", interrupted)
+            processing = self.meetings.finish_processing()
+            if processing:
+                log.warning("%d meetings were still processing and are now done", processing)
             self.scheduler = Scheduler(self.jobs, listener=self._on_job)
             for name, handler in self._handlers().items():
                 self.rpc.register(name, handler)
@@ -160,6 +176,12 @@ class Engine(SystemHandlers, SettingsHandlers, JobsHandlers, ModelsHandlers, Mee
             with contextlib.suppress(asyncio.CancelledError):
                 await self._scheduler_task
         await self._stop_recording_for_shutdown()  # nothing can start now, but be sure
+        if self._llm is not None:
+            llm, self._llm = self._llm, None
+            try:
+                await asyncio.wait_for(run_in_daemon_thread(llm.close), 10.0)
+            except TimeoutError:
+                log.warning("the language model did not close within 10 s")
         # The download task reports "cancelled" and spawns broadcast tasks.
         while self._tasks:
             if self._download_task is not None and not self._download_task.done():
@@ -201,6 +223,8 @@ class Engine(SystemHandlers, SettingsHandlers, JobsHandlers, ModelsHandlers, Mee
             self._spawn(self.rpc.broadcast("job.done", {**base, "status": status}))
         else:
             self._spawn(self.rpc.broadcast("job.failed", {**base, "error": job["error"] or ""}))
+        if job["type"] == NOTES_JOB and status in ("done", "failed", "cancelled"):
+            self._notes_job_ended(job["id"], status)
 
     def _report(self, job_id: int, type: str, status: str, error: str | None = None) -> None:
         self.jobs.set_status(job_id, status, error)
@@ -233,4 +257,5 @@ class Engine(SystemHandlers, SettingsHandlers, JobsHandlers, ModelsHandlers, Mee
             "notes.update_bullets": self._notes_update_bullets,
             "notes.get": self._notes_get,
             "notes.update_enhanced": self._notes_update_enhanced,
+            "notes.enhance": self._notes_enhance,
         }

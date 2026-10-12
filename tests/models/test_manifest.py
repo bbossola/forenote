@@ -72,3 +72,14 @@ def test_for_tier_needs_every_role():
 def test_for_tier_rejects_unknown_tier():
     with pytest.raises(ValueError):
         for_tier(load_manifest(), "huge")
+
+
+def test_llm_for_tier_and_context_size():
+    from forenote.models.manifest import CONTEXT_SIZE, llm_for_tier, load_manifest
+
+    entries = load_manifest()
+    assert llm_for_tier(entries, "default").id == "gemma-4-e4b-q4_0"
+    assert llm_for_tier(entries, "low").id == "gemma-4-e2b-q4_0"
+    assert llm_for_tier(entries, None) is None
+    assert llm_for_tier([], "default") is None
+    assert CONTEXT_SIZE == {"low": 8192, "default": 16384, "high": 32768}

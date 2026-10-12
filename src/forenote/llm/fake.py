@@ -35,6 +35,15 @@ class FakeTextGenerator:
         self.prompts: list[str] = []
         self.params: list[GenParams] = []
         self.closed = False
+        self.loads = 0
+        self.released = False
+
+    def load(self) -> None:
+        self.loads += 1
+
+    def close(self) -> None:
+        """Release the model (the engine API). The stream flag is `closed`."""
+        self.released = True
 
     def render(self, user_text: str) -> str:
         return f"<user>\n{user_text}\n<model>\n"

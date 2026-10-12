@@ -51,6 +51,7 @@ class Recorder:
         silence_timeout_s: int,
         clock: Callable[[], float] = time.monotonic,
         on_finished: Callable[[str], None] | None = None,
+        final_status: Callable[[int], str] | None = None,
         vad_factory: Callable[[], Callable] = StreamingVad,
         retry_delays: tuple[float, ...] = RETRY_DELAYS,
         join_timeout_s: float = JOIN_TIMEOUT_S,
@@ -63,6 +64,7 @@ class Recorder:
         self._emit = emit
         self._clock = clock
         self._on_finished = on_finished
+        self._final_status = final_status
         self._vad_factory = vad_factory
         self._retry_delays = retry_delays
         self._join_timeout = join_timeout_s
@@ -461,18 +463,25 @@ class Recorder:
             if self._write_failed:
                 reason = "error"
             self._finished = True
+            status = "done"
             if self.meeting_id is not None:
+                if self._final_status is not None:
+                    try:
+                        status = self._final_status(self.meeting_id)
+                    except Exception as e:  # noqa: BLE001 - the meeting must end
+                        log.error("final_status failed: %s", type(e).__name__)
+                        status = "done"
                 try:
-                    self._store.finish(self.meeting_id, "done", reason)
+                    self._store.finish(self.meeting_id, status, reason)
                 except Exception as e:  # noqa: BLE001 - keep stored data, report the type
                     log.error("cannot finish the meeting: %s", type(e).__name__)
-                self._emit("meeting.state", {"meeting_id": self.meeting_id, "status": "done", "stop_reason": reason})
+                self._emit("meeting.state", {"meeting_id": self.meeting_id, "status": status, "stop_reason": reason})
             if self._on_finished:
                 try:
-                    self._on_finished("done")
+                    self._on_finished(status)
                 except Exception as e:  # noqa: BLE001
                     log.error("on_finished failed: %s", type(e).__name__)
-        return "done"
+        return status
 
     async def _drain(self) -> bool:
         """Drain in slices, so that a second stop() can move the deadline."""

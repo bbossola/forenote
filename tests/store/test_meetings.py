@@ -104,3 +104,19 @@ def test_bad_marker_kind_is_rejected(store):
     mid = store.create("m")
     with pytest.raises(sqlite3.IntegrityError):
         store.add_marker(mid, 0, "nonsense")
+
+
+def test_end_processing_changes_only_a_processing_meeting(store):
+    a = store.create("A")
+    store.finish(a, "processing", "manual")
+    b = store.create("B")
+    store.finish(b, "done", "manual")
+    assert store.end_processing(a) is True and store.get(a)["status"] == "done"
+    assert store.end_processing(b) is False and store.end_processing(a) is False
+
+
+def test_finish_processing_at_start(store):
+    for title in ("A", "B"):
+        store.finish(store.create(title), "processing", "manual")
+    assert store.finish_processing() == 2
+    assert {m["status"] for m in store.list()} == {"done"}

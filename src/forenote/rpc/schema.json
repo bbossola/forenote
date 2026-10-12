@@ -154,7 +154,7 @@
       "params": {"type": "object", "additionalProperties": false},
       "result": {
         "type": "object",
-        "properties": {"meeting_id": {"type": "integer"}, "status": {"enum": ["recording", "done", "interrupted"]}},
+        "properties": {"meeting_id": {"type": "integer"}, "status": {"enum": ["recording", "processing", "done", "interrupted"]}},
         "required": ["meeting_id", "status"]
       }
     },
@@ -168,7 +168,7 @@
         "type": "array",
         "items": {
           "type": "object",
-          "properties": {"status": {"enum": ["recording", "done", "interrupted"]}},
+          "properties": {"status": {"enum": ["recording", "processing", "done", "interrupted"]}},
           "required": ["id", "title", "started_at", "ended_at", "status", "start_reason", "stop_reason", "line_count"]
         }
       }
@@ -182,7 +182,7 @@
       },
       "result": {
         "type": "object",
-        "properties": {"status": {"enum": ["recording", "done", "interrupted"]}},
+        "properties": {"status": {"enum": ["recording", "processing", "done", "interrupted"]}},
         "required": ["id", "title", "started_at", "ended_at", "status", "start_reason", "stop_reason", "line_count"]
       }
     },
@@ -341,6 +341,19 @@
         "required": ["bullets", "summary", "action_items", "model", "mode", "created_at", "job"]
       }
     },
+    "notes.enhance": {
+      "params": {
+        "type": "object",
+        "properties": {"meeting_id": {"type": "integer"}, "force": {"type": "boolean"}},
+        "required": ["meeting_id"],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {"job_id": {"type": "integer"}},
+        "required": ["job_id"]
+      }
+    },
     "notes.update_enhanced": {
       "params": {
         "type": "object",
@@ -392,9 +405,24 @@
       "type": "object",
       "properties": {
         "meeting_id": {"type": "integer"},
-        "status": {"enum": ["recording", "done"]},
+        "status": {"enum": ["recording", "processing", "done"]},
         "stop_reason": {"enum": ["manual", "silence", "error"]}
       },
+      "required": ["meeting_id", "status"]
+    },
+    "notes.delta": {
+      "type": "object",
+      "properties": {
+        "meeting_id": {"type": "integer"},
+        "part": {"enum": ["bullet", "summary", "action_items"]},
+        "bullet_id": {"type": "integer"},
+        "text": {"type": "string"}
+      },
+      "required": ["meeting_id", "part", "text"]
+    },
+    "notes.done": {
+      "type": "object",
+      "properties": {"meeting_id": {"type": "integer"}, "status": {"enum": ["done", "failed", "cancelled"]}},
       "required": ["meeting_id", "status"]
     },
     "meeting.detected": {

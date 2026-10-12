@@ -589,3 +589,24 @@ async def test_elapsed_ms_uses_the_meeting_clock(store):
     clock.t = 112.5
     assert rec.elapsed_ms() == 12_500
     await rec.stop("manual")
+
+
+async def test_final_status_decides_the_status_at_stop(store):
+    f = Factory(others=[{}])
+    rec, mid, events, finished = await start(store, f, final_status=lambda meeting_id: "processing")
+    assert await rec.stop("manual") == "processing"
+    assert store.get(mid)["status"] == "processing"
+    assert events[-1] == ("meeting.state", {"meeting_id": mid, "status": "processing", "stop_reason": "manual"})
+    assert finished == ["processing"]
+
+
+async def test_a_failed_final_status_gives_done(store):
+    def broken(meeting_id):
+        raise RuntimeError("no status")
+
+    f = Factory(others=[{}])
+    rec, mid, events, finished = await start(store, f, final_status=broken)
+    assert await rec.stop("manual") == "done"
+    assert store.get(mid)["status"] == "done"
+    assert events[-1][1]["status"] == "done"
+    assert finished == ["done"]

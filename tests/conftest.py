@@ -76,9 +76,21 @@ class FakeSpeech:
         return TranscriptResult("hello from the meeting" if final else "hello", 0.1, -0.2)
 
 
+def fake_llm_outputs(prompt):
+    """Scripted LLM outputs for engine tests."""
+    from forenote.notes import prompts
+
+    if prompts.ACTION_ITEMS_TASK in prompt:
+        return ['[{"owner": null, "text": "follow up"}]']
+    if prompts.SUMMARY_TASK in prompt:
+        return ["A short ", "summary."]
+    return ["An expansion."]
+
+
 @pytest.fixture
 async def engine(paths, hardware, test_manifest):
     from forenote.engine.app import Engine
+    from forenote.llm.fake import FakeTextGenerator
 
     e = Engine(
         paths,
@@ -88,6 +100,7 @@ async def engine(paths, hardware, test_manifest):
         transcriber_factory=lambda model_dir, cpu_threads, beam: FakeSpeech(),
         debug_sources=True,
         debug_realtime=False,
+        llm_factory=lambda path, model_id, context_size, threads: FakeTextGenerator(fake_llm_outputs),
     )
     await e.start()
     yield e
@@ -100,6 +113,14 @@ def speech_installed(paths):
     d = paths.models_dir / "speech-test"
     d.mkdir(parents=True, exist_ok=True)
     (d / "model.bin").write_bytes(CONTENT["model.bin"])
+
+
+@pytest.fixture
+def llm_installed(paths):
+    """Mark the test LLM as installed."""
+    d = paths.models_dir / "llm-test"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "llm.gguf").write_bytes(CONTENT["llm.gguf"])
 
 
 @pytest.fixture
