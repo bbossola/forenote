@@ -251,7 +251,12 @@
   "events": {
     "job.progress": {
       "type": "object",
-      "properties": {"id": {"type": "integer"}, "type": {"type": "string"}, "message": {"type": "string"}},
+      "properties": {
+        "id": {"type": "integer"},
+        "type": {"type": "string"},
+        "message": {"type": "string"},
+        "fraction": {"type": "number", "minimum": 0, "maximum": 1}
+      },
       "required": ["id", "type", "message"]
     },
     "job.done": {

@@ -5,6 +5,9 @@ the same priority run in submit order. A paused priority stays in the queue.
 
 The scheduler is not thread-safe. Call submit, cancel, pause, and resume from
 the event loop thread only. Use loop.call_soon_threadsafe from other threads.
+
+A job function gets a CancelToken and a report(message, fraction) callback.
+The fraction is from 0 to 1, or None.
 """
 
 from __future__ import annotations
@@ -50,7 +53,8 @@ class CancelToken:
             raise JobCancelled()
 
 
-JobFn = Callable[[CancelToken], Awaitable[Any]]
+Report = Callable[[str, float | None], None]
+JobFn = Callable[[CancelToken, Report], Awaitable[Any]]
 Listener = Callable[[dict[str, Any]], None]
 
 
@@ -147,7 +151,7 @@ class Scheduler:
             self._running = q
             self._jobs.set_status(q.job_id, "running")
             self._notify(q, "running", None)
-            await q.fn(q.token)
+            await q.fn(q.token, lambda message, fraction=None: self._progress(q, message, fraction))
         except JobCancelled:
             self._finish(q, "cancelled", None)
         except asyncio.CancelledError:
@@ -175,4 +179,15 @@ class Scheduler:
             try:
                 self._listener({"id": q.job_id, "type": q.type, "status": status, "error": error})
             except Exception:  # noqa: BLE001 - a listener error must not stop the worker
+                log.exception("job listener failed")
+
+    def _progress(self, q: _Queued, message: str, fraction: float | None) -> None:
+        if fraction is not None:
+            fraction = min(1.0, max(0.0, float(fraction)))
+        if self._listener:
+            try:
+                self._listener(
+                    {"id": q.job_id, "type": q.type, "status": "progress", "message": message, "fraction": fraction}
+                )
+            except Exception:  # noqa: BLE001 - a listener error must not stop the job
                 log.exception("job listener failed")

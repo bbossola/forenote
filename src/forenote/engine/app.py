@@ -188,6 +188,11 @@ class Engine(SystemHandlers, SettingsHandlers, JobsHandlers, ModelsHandlers, Mee
         base = {"id": job["id"], "type": job["type"]}
         if status == "running":
             self._spawn(self.rpc.broadcast("job.progress", {**base, "message": "started"}))
+        elif status == "progress":
+            params = {**base, "message": job["message"]}
+            if job.get("fraction") is not None:
+                params["fraction"] = job["fraction"]
+            self._spawn(self.rpc.broadcast("job.progress", params))
         elif status in ("done", "cancelled"):
             self._spawn(self.rpc.broadcast("job.done", {**base, "status": status}))
         else:
