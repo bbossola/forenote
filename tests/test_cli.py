@@ -27,9 +27,11 @@ class FakeClient:
         self.results = results
         self._events = list(events)
         self.calls = []
+        self.timeouts = {}
 
     async def call(self, method, params=None, timeout=30.0):
         self.calls.append((method, params))
+        self.timeouts[method] = timeout
         return self.results[method]
 
     async def events(self):
@@ -381,3 +383,54 @@ async def test_meetings_shows_local_time(monkeypatch):
         monkeypatch.undo()
         time.tzset()
     assert out.count("2026-10-12 16:43") == 2
+
+
+class CtrlCClient(FakeClient):
+    def __init__(self, results, second_interrupt=False):
+        super().__init__(results)
+        self.second_interrupt = second_interrupt
+
+    async def call(self, method, params=None, timeout=30.0):
+        if method == "meeting.stop" and self.second_interrupt:
+            raise KeyboardInterrupt
+        return await super().call(method, params, timeout)
+
+    async def events(self):
+        raise KeyboardInterrupt
+        yield
+
+
+async def test_ctrl_c_during_record_stops_the_meeting():
+    client = CtrlCClient({"meeting.start": {"meeting_id": 5, "started_at": "x"}, "meeting.stop": {"meeting_id": 5, "status": "done"}})
+    code, out = await run_cli(["record"], client)
+    assert code == 0
+    assert ("meeting.stop", None) in client.calls
+    assert client.timeouts["meeting.stop"] == 90
+    assert "Stopping the recording..." in out and "Meeting 5 stopped." in out
+
+
+async def test_second_ctrl_c_leaves_the_recording_running(capsys):
+    client = CtrlCClient({"meeting.start": {"meeting_id": 5, "started_at": "x"}}, second_interrupt=True)
+    code, _ = await run_cli(["record"], client)
+    assert code == 130
+    assert "The recording continues in the engine. Run 'forenote-cli stop' to stop it." in capsys.readouterr().err
+
+
+async def test_stop_waits_up_to_90_seconds():
+    client = FakeClient({"meeting.stop": {"meeting_id": 4, "status": "done"}})
+    await run_cli(["stop"], client)
+    assert client.timeouts["meeting.stop"] == 90
+
+
+async def test_record_prints_engine_errors_to_stderr(capsys):
+    client = FakeClient(
+        {"meeting.start": {"meeting_id": 3, "started_at": "x"}},
+        events=[
+            ("engine.error", {"message": "Disk full"}),
+            ("meeting.state", {"meeting_id": 3, "status": "error", "stop_reason": "error"}),
+        ],
+    )
+    code, out = await run_cli(["record"], client)
+    assert code == 0
+    assert "Error: Disk full" in capsys.readouterr().err
+    assert "Disk full" not in out

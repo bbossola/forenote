@@ -316,8 +316,10 @@ New: `asr_final_beam_size` (integer 1–10, default 5). Existing settings used:
 - `forenote-cli stop`
 - `forenote-cli meetings [--limit N]`
 - `forenote-cli transcript ID`
-- `forenote-cli bench asr`: decodes the AMI clips as fast as possible and
-  prints the real-time factor and the final latency for each clip.
+- `forenote-cli bench asr`: decodes the AMI clips as fast as possible. It
+  prints one line for each installed speech model. The line shows the cost in
+  seconds per second of speech and the p50, p95 and max final latency. The beam
+  size is fixed at 5. The bench does not use the `asr_final_beam_size` setting.
 
 ### 7.5 File input
 
@@ -339,7 +341,7 @@ Tests and `record --from-file` use it.
 | One source fails at start | Start with the other source, add a `source_lost` marker, send `audio.source_lost`. Both fail: `APP_ERROR`, no meeting. |
 | Unknown device name | PipeWire records from the default device. The source does not fail. The engine uses `@DEFAULT_SOURCE@` or `@DEFAULT_MONITOR@` when it knows no default device. |
 | Read error during a recording | 3 retries with backoff (0.5, 1, 2 s), then one try on the current default device. All fail: `source_lost` marker and event. The other stream continues. If both streams are lost, stop with `stop_reason = error`. |
-| A decode fails | Log the error type (never text), skip the utterance, add a `transcription_failed` marker. After 5 failures in a row: stop with `stop_reason = error`, send `engine.error`. |
+| A decode fails | Log the error type (never text), skip the utterance, add a `transcription_failed` marker. After 5 failures in a row: stop with `stop_reason = error`, send `engine.error`. A final that the hallucination filter drops is not a decode failure. It does not reset the failure count. |
 | Database error on a write (for example disk full) | Stop with `stop_reason = error`, keep stored data, send `engine.error`. |
 | Engine crash during a recording | Next start: status `interrupted` (section 4.2). |
 | `meeting.delete` or `meeting.rename` of a running meeting | Delete: `APP_ERROR` "Stop the recording first." Rename is allowed. |

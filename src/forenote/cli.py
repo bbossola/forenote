@@ -146,23 +146,36 @@ async def run(args: argparse.Namespace, client: Any, out: TextIO = sys.stdout) -
             params["debug_file"] = str(Path(args.from_file).resolve())
         mid = (await client.call("meeting.start", params))["meeting_id"]
         say(f"Recording meeting {mid}. Press Ctrl-C or run 'forenote-cli stop' to stop.")
-        async for name, p in client.events():
-            if p.get("meeting_id") != mid:
-                continue
-            if name == "transcript.final":
-                say(_line_text(p))
-            elif name in ("audio.source_changed", "audio.source_lost"):
-                say(_marker_text(name.split(".")[1], p["speaker"]))
-            elif name == "meeting.auto_stop_pending":
-                say(f"[silence: the recording stops in {p['seconds_left']} s]")
-            elif name == "meeting.state" and p["status"] != "recording":
-                say(f"Recording stopped ({p.get('stop_reason')}).")
-                return 0
+        try:
+            async for name, p in client.events():
+                if name == "engine.error":
+                    print(f"Error: {p['message']}", file=sys.stderr, flush=True)
+                    continue
+                if p.get("meeting_id") != mid:
+                    continue
+                if name == "transcript.final":
+                    say(_line_text(p))
+                elif name in ("audio.source_changed", "audio.source_lost"):
+                    say(_marker_text(name.split(".")[1], p["speaker"]))
+                elif name == "meeting.auto_stop_pending":
+                    say(f"[silence: the recording stops in {p['seconds_left']} s]")
+                elif name == "meeting.state" and p["status"] != "recording":
+                    say(f"Recording stopped ({p.get('stop_reason')}).")
+                    return 0
+        except (KeyboardInterrupt, asyncio.CancelledError):
+            say("Stopping the recording...")
+            try:
+                result = await client.call("meeting.stop", timeout=STOP_TIMEOUT)
+            except (KeyboardInterrupt, asyncio.CancelledError):
+                print(_interrupt_text(args), file=sys.stderr, flush=True)
+                return 130
+            say(f"Meeting {result['meeting_id']} stopped.")
+            return 0
         say("The connection to the engine closed.")
         return 1
 
     if args.command == "stop":
-        result = await client.call("meeting.stop")
+        result = await client.call("meeting.stop", timeout=STOP_TIMEOUT)
         say(f"Meeting {result['meeting_id']} stopped.")
         return 0
 
@@ -200,6 +213,7 @@ def _interrupt_text(args: argparse.Namespace) -> str:
 
 
 PAGE = 1000
+STOP_TIMEOUT = 90.0  # the engine can drain for 60 s
 BEAM_SIZE = 5
 NO_START = ("status", "shutdown", "stop", "meetings", "transcript")
 

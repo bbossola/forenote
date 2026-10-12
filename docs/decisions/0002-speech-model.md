@@ -36,6 +36,6 @@ Word error rate on the AMI clips (mean of five): base.en 0.34, small.en 0.31.
 ## Consequences
 
 - Live partials stay on for all tiers.
-- Quality on hard meeting audio is about 3 points of word error rate lower than
-  small.en. Users with 32 GB or more can choose the high tier.
+- On hard meeting audio, the word error rate of base.en is about 3 points
+  higher than that of small.en (0.34 against 0.31). Users with 32 GB or more can choose the high tier.
 - `forenote-cli bench asr` measures the cost on the user's machine.

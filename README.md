@@ -26,7 +26,7 @@ Run the engine and the CLI:
     uv run forenote-cli status      # in another terminal
     uv run forenote-cli models list
     uv run forenote-cli models download   # about 6 GB for the default tier
-    uv run forenote-cli record --title "Weekly sync"   # Ctrl-C leaves it running; stop with:
+    uv run forenote-cli record --title "Weekly sync"   # Ctrl-C stops it; or stop it from another terminal:
     uv run forenote-cli stop
     uv run forenote-cli meetings
     uv run forenote-cli transcript 1
