@@ -37,6 +37,8 @@ class LlamaCppGenerator:
         return self._llm is not None
 
     def load(self) -> None:
+        if self._llm is not None:
+            raise LlmError("the model is loaded already")
         import llama_cpp
         from llama_cpp.llama_chat_format import Jinja2ChatFormatter
 
@@ -50,16 +52,19 @@ class LlamaCppGenerator:
             swa_full=False,  # decision 0003: the prefix reuse still works
             verbose=False,
         )
-        template = llm.metadata.get("tokenizer.chat_template")
-        if not template:
+        try:
+            template = llm.metadata.get("tokenizer.chat_template")
+            if not template:
+                raise LlmError("the model has no chat template")
+            self._formatter = Jinja2ChatFormatter(
+                template=template,
+                eos_token=llm._model.token_get_text(llm.token_eos()),
+                bos_token=llm._model.token_get_text(llm.token_bos()),
+            )
+            self._grammar_type = llama_cpp.LlamaGrammar
+        except BaseException:
             llm.close()
-            raise LlmError("the model has no chat template")
-        self._formatter = Jinja2ChatFormatter(
-            template=template,
-            eos_token=llm._model.token_get_text(llm.token_eos()),
-            bos_token=llm._model.token_get_text(llm.token_bos()),
-        )
-        self._grammar_type = llama_cpp.LlamaGrammar
+            raise
         self._llm = llm
 
     def close(self) -> None:
@@ -73,14 +78,16 @@ class LlamaCppGenerator:
             raise LlmError("the model is not loaded")
         return self._formatter(messages=[{"role": "user", "content": user_text}]).prompt
 
-    def _tokens(self, prompt: str) -> list[int]:
+    @staticmethod
+    def _tokens(llm: Any, prompt: str) -> list[int]:
         # The rendered prompt already holds the BOS text (decision 0003).
-        return self._llm.tokenize(prompt.encode("utf-8"), add_bos=False, special=True)
+        return llm.tokenize(prompt.encode("utf-8"), add_bos=False, special=True)
 
     def count_tokens(self, prompt: str) -> int:
-        if self._llm is None:
+        llm = self._llm
+        if llm is None:
             raise LlmError("the model is not loaded")
-        return len(self._tokens(prompt))
+        return len(self._tokens(llm, prompt))
 
     async def generate(self, prompt: str, params: GenParams, cancel: CancelToken) -> AsyncIterator[str]:
         if self._llm is None:
@@ -99,7 +106,7 @@ class LlamaCppGenerator:
                     llm = self._llm
                     if llm is None:
                         raise LlmError("the model is not loaded")
-                    tokens = self._tokens(prompt)
+                    tokens = self._tokens(llm, prompt)
                     if len(tokens) + params.max_tokens > self.context_size:
                         raise PromptTooLong(
                             f"{len(tokens)} prompt tokens + {params.max_tokens} output tokens "

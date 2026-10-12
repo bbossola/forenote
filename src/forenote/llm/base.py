@@ -30,6 +30,11 @@ class GenParams:
     temperature: float = 0.2
     json_schema: dict[str, Any] | None = None
 
+    def __post_init__(self) -> None:
+        # llama-cpp-python reads max_tokens <= 0 as "no limit".
+        if self.max_tokens < 1:
+            raise ValueError(f"max_tokens must be 1 or more, not {self.max_tokens}")
+
 
 class TextGenerator(Protocol):
     model_id: str
@@ -79,8 +84,8 @@ async def collect(
         except StopAsyncIteration:
             return _END
 
-    # The project tests on Python 3.12. This code also works on 3.11, so it
-    # uses asyncio.wait and not asyncio.timeout.
+    # The code supports Python 3.11, so it uses asyncio.wait and not
+    # asyncio.timeout.
     cancel_task = asyncio.ensure_future(cancel.wait())
     piece_task: asyncio.Future[object] | None = None
     parts: list[str] = []
@@ -107,12 +112,18 @@ async def collect(
                 break
             limit = stall_s
     finally:
-        if piece_task is not None:
-            await _stop(piece_task)
-        await _stop(cancel_task)
-        aclose = getattr(stream, "aclose", None)
-        if aclose is not None:
-            await aclose()
+        # _stop() raises CancelledError when this task is cancelled. The nested
+        # finally blocks make sure that each step runs.
+        try:
+            if piece_task is not None:
+                await _stop(piece_task)
+        finally:
+            try:
+                await _stop(cancel_task)
+            finally:
+                aclose = getattr(stream, "aclose", None)
+                if aclose is not None:
+                    await aclose()
     cancel.check()
     return "".join(parts)
 

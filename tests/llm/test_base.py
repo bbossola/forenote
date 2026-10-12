@@ -114,3 +114,53 @@ async def test_cancel_token_wait_returns_after_cancel():
     token.cancel()
     await asyncio.wait_for(waiter, 1.0)
     await asyncio.wait_for(token.wait(), 1.0)
+
+
+class SilentStream:
+    """A stream that never yields. It records aclose()."""
+
+    def __init__(self):
+        self.closed = False
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        await asyncio.sleep(30)
+        return "x"  # pragma: no cover
+
+    async def aclose(self):
+        self.closed = True
+
+
+class SpyToken(CancelToken):
+    """A CancelToken that records the task of each wait()."""
+
+    def __init__(self):
+        super().__init__()
+        self.wait_tasks = []
+
+    async def wait(self):
+        self.wait_tasks.append(asyncio.current_task())
+        await super().wait()
+
+
+async def test_cancel_of_the_task_stops_the_cancel_wait_and_closes_the_stream():
+    stream = SilentStream()
+    gen = FakeTextGenerator([])
+    gen.generate = lambda prompt, params, cancel: stream
+    token = SpyToken()
+    task = asyncio.create_task(collect(gen, "p", GenParams(max_tokens=10), token, lambda t: None))
+    await asyncio.sleep(0.05)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert len(token.wait_tasks) == 1
+    assert token.wait_tasks[0].done()
+    assert stream.closed
+
+
+@pytest.mark.parametrize("max_tokens", [0, -1])
+def test_gen_params_refuses_a_max_tokens_below_one(max_tokens):
+    with pytest.raises(ValueError):
+        GenParams(max_tokens=max_tokens)

@@ -1,5 +1,6 @@
 import sys
 import threading
+import time
 import types
 
 import pytest
@@ -25,7 +26,10 @@ class FakeLlama:
         self._model = types.SimpleNamespace(token_get_text=lambda i: {1: "<bos>", 2: "<eos>"}[i])
         self.calls = []
         self.closed = False
-        self.block = None
+        self.delay_s = 0.0  # sleep before each chunk
+        self.hold = None  # an Event to wait on before each chunk after the first
+        self.produced = 0  # chunks yielded by the last create_completion
+        self.finished = threading.Event()  # set when the last create_completion ends
         FakeLlama.instances.append(self)
 
     def token_bos(self):
@@ -40,10 +44,17 @@ class FakeLlama:
 
     def create_completion(self, tokens, max_tokens, temperature, stream, grammar):
         self.calls.append({"tokens": tokens, "max_tokens": max_tokens, "grammar": grammar})
-        for word in ["one", " two", " three"]:
-            if self.block is not None:
-                self.block.wait(5)
-            yield {"choices": [{"text": word}]}
+        self.produced = 0
+        self.finished.clear()
+        try:
+            for i, word in enumerate(["one", " two", " three"]):
+                time.sleep(self.delay_s)
+                if i > 0 and self.hold is not None:
+                    self.hold.wait(5)
+                self.produced += 1
+                yield {"choices": [{"text": word}]}
+        finally:
+            self.finished.set()
 
     def close(self):
         self.closed = True
@@ -120,16 +131,21 @@ async def test_cancel_stops_the_worker_thread(fake_llama_cpp, tmp_path):
     from forenote.scheduler import JobCancelled
 
     gen = make(tmp_path)
+    llama = FakeLlama.instances[0]
+    llama.hold = threading.Event()
     token = CancelToken()
     seen = []
 
     def on_delta(t):
         seen.append(t)
         token.cancel()
+        llama.hold.set()  # the worker reads the next chunk after the cancel
 
     with pytest.raises(JobCancelled):
         await collect(gen, "a", GenParams(max_tokens=10), token, on_delta)
     assert seen == ["one"]
+    assert llama.finished.wait(5)
+    assert llama.produced == 2  # the worker stopped before the last chunk
 
 
 async def test_a_stall_releases_the_model_for_the_next_call(fake_llama_cpp, tmp_path):
@@ -137,12 +153,13 @@ async def test_a_stall_releases_the_model_for_the_next_call(fake_llama_cpp, tmp_
 
     gen = make(tmp_path)
     llama = FakeLlama.instances[0]
-    gate = threading.Event()
-    llama.block = gate
+    llama.delay_s = 0.3
     with pytest.raises(GenerationStalled):
         await collect(gen, "a", GenParams(max_tokens=10), CancelToken(), lambda t: None, stall_s=0.05)
-    llama.block = None
-    gate.set()
+    assert gen._lock.acquire(timeout=1)  # the worker stops at the next chunk
+    gen._lock.release()
+    assert llama.produced == 1
+    llama.delay_s = 0.0
     text = await collect(gen, "a", GenParams(max_tokens=10), CancelToken(), lambda t: None)
     assert text == "one two three"
 
@@ -173,3 +190,80 @@ async def test_generate_before_load_is_an_error(fake_llama_cpp, tmp_path):
     gen = LlamaCppGenerator(tmp_path / "m.gguf", "x", context_size=100, threads=1)
     with pytest.raises(LlmError):
         await collect(gen, "a", GenParams(max_tokens=1), CancelToken(), lambda t: None)
+
+
+async def test_close_during_a_generation_is_not_an_attribute_error(fake_llama_cpp, tmp_path):
+    from forenote.llm.llamacpp import LlamaCppGenerator
+
+    class RacyGenerator(LlamaCppGenerator):
+        """Run close() in another thread when the worker first reads _llm."""
+
+        closer = None
+
+        @property
+        def _llm(self):
+            value = self.__dict__.get("llm_value")
+            if value is not None and threading.current_thread().name == "forenote-llm" and self.closer is None:
+                self.closer = threading.Thread(target=self.close)
+                self.closer.start()
+                self.__dict__["cleared"].wait(5)  # close() sets _llm to None, then waits for the lock
+            return value
+
+        @_llm.setter
+        def _llm(self, value):
+            self.__dict__["llm_value"] = value
+            self.__dict__.setdefault("cleared", threading.Event())
+            if value is None:
+                self.__dict__["cleared"].set()
+            else:
+                self.__dict__["cleared"].clear()
+
+    gen = RacyGenerator(tmp_path / "m.gguf", "x", context_size=100, threads=1)
+    gen.load()
+    text = await collect(gen, "a", GenParams(max_tokens=10), CancelToken(), lambda t: None)
+    assert text == "one two three"
+    gen.closer.join(5)
+    assert FakeLlama.instances[0].closed
+
+
+def test_a_formatter_error_closes_the_model(fake_llama_cpp, tmp_path):
+    from forenote.llm.llamacpp import LlamaCppGenerator
+
+    def broken(**kw):
+        raise ValueError("bad template")
+
+    fake_llama_cpp.llama_chat_format.Jinja2ChatFormatter = broken
+    gen = LlamaCppGenerator(tmp_path / "m.gguf", "x", context_size=100, threads=1)
+    with pytest.raises(ValueError):
+        gen.load()
+    assert FakeLlama.instances[0].closed
+    assert not gen.loaded
+
+
+def test_a_second_load_is_an_error(fake_llama_cpp, tmp_path):
+    from forenote.llm.base import LlmError
+
+    gen = make(tmp_path)
+    with pytest.raises(LlmError):
+        gen.load()
+    assert len(FakeLlama.instances) == 1
+    assert not FakeLlama.instances[0].closed
+    assert gen.loaded
+
+
+def test_a_model_with_no_chat_template_is_refused_and_closed(fake_llama_cpp, tmp_path, monkeypatch):
+    from forenote.llm.base import LlmError
+    from forenote.llm.llamacpp import LlamaCppGenerator
+
+    original = FakeLlama.__init__
+
+    def no_template(self, **kw):
+        original(self, **kw)
+        self.metadata = {}
+
+    monkeypatch.setattr(FakeLlama, "__init__", no_template)
+    gen = LlamaCppGenerator(tmp_path / "m.gguf", "x", context_size=100, threads=1)
+    with pytest.raises(LlmError):
+        gen.load()
+    assert FakeLlama.instances[0].closed
+    assert not gen.loaded
