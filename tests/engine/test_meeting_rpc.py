@@ -356,12 +356,12 @@ async def test_device_events_keep_the_defaults_and_restart_only_on_change(engine
         (("", "sink"), ("@DEFAULT_SOURCE@", "sink.monitor")),
     ],
 )
-def test_pulse_devices(defaults, expected):
+def test_pulse_device(defaults, expected):
     from forenote.audio.devices import Defaults
-    from forenote.engine.handlers.meetings import pulse_devices
+    from forenote.engine.handlers.meetings import pulse_device
 
     d = Defaults(*defaults) if defaults else None
-    assert (pulse_devices(d, "me"), pulse_devices(d, "others")) == expected
+    assert (pulse_device(d, "me"), pulse_device(d, "others")) == expected
 
 
 async def test_a_closed_call_app_shortens_the_silence_with_detection_off(engine, client, speech_installed):
@@ -396,3 +396,57 @@ async def test_a_browser_stream_seen_with_detection_off_is_announced_when_detect
     # The first event sent comes from the second tick.
     name, params = await client.next_event(timeout=2)
     assert (name, params) == ("meeting.detected", {"app": "firefox"})
+
+
+async def test_start_needs_an_audio_server(engine, client, speech_installed):
+    import dataclasses
+
+    engine.hardware = dataclasses.replace(engine.hardware, audio_server=None)
+    with pytest.raises(RpcError) as e:
+        await client.call("meeting.start", {})
+    assert e.value.code == APP_ERROR
+    assert e.value.message == "Recording is not available: no audio server."
+
+
+async def test_a_failed_line_write_stops_with_error(engine, client, speech_installed, monkeypatch):
+    def broken(*args, **kwargs):
+        raise OSError("disk full")
+
+    engine.debug_realtime = True
+    mid = (await client.call("meeting.start", {"debug_file": CLIP}))["meeting_id"]
+    monkeypatch.setattr(engine.meetings, "add_line", broken)
+    seen = await events_until(client, done(mid))
+    assert "engine.error" in [n for n, _ in seen]
+    assert seen[-1][1]["stop_reason"] == "error"
+    monkeypatch.undo()
+    m = await client.call("meeting.get", {"id": mid})
+    assert m["status"] == "done" and m["stop_reason"] == "error"
+
+
+async def test_detection_pauses_while_the_watcher_has_no_server(engine, client):
+    from forenote.audio.devices import OutputAdded, WatcherState
+    from forenote.meeting.detector import MeetingDetector
+
+    now = [0.0]
+    engine._detector = MeetingDetector(["zoom", "firefox"], clock=lambda: now[0])
+    engine._on_device_event(WatcherState(connected=False))
+    engine._on_device_event(OutputAdded(7, "zoom", "zoom"))
+    engine._on_device_event(OutputAdded(8, "firefox", "firefox"))
+    now[0] = 11.0
+    engine._detector_tick()  # does nothing: the browser stream stays pending
+    assert 7 in engine._detector._streams  # streams are still tracked
+    engine._on_device_event(WatcherState(connected=True))
+    engine._detector_tick()
+    # The first event sent comes from the tick after the reconnect.
+    name, params = await client.next_event(timeout=2)
+    assert (name, params) == ("meeting.detected", {"app": "firefox"})
+
+
+async def test_device_events_after_engine_stop_are_ignored(engine):
+    from forenote.audio.devices import Defaults, DefaultsChanged, OutputAdded
+
+    await engine.stop()
+    engine._on_device_event(OutputAdded(7, "zoom", "zoom"))
+    engine._on_device_event(DefaultsChanged(Defaults("mic", "sink")))
+    assert engine._detector._streams == {}
+    assert engine._audio_defaults is None

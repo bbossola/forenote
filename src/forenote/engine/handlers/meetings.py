@@ -7,7 +7,15 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from forenote.audio.devices import Defaults, DefaultsChanged, OutputAdded, OutputRemoved, monitor_of, query_defaults
+from forenote.audio.devices import (
+    Defaults,
+    DefaultsChanged,
+    OutputAdded,
+    OutputRemoved,
+    WatcherState,
+    monitor_of,
+    query_defaults,
+)
 from forenote.audio.sources import FileAudioSource, PulseSource
 from forenote.meeting.recorder import Recorder, RecorderError
 from forenote.models.manifest import ManifestError, for_tier
@@ -19,7 +27,7 @@ log = logging.getLogger(__name__)
 ENGINE_STOP_DRAIN_S = 10.0
 
 
-def pulse_devices(defaults: Defaults | None, speaker: str) -> str:
+def pulse_device(defaults: Defaults | None, speaker: str) -> str:
     """The device that records a speaker. Use the server defaults when a name is not known."""
     if speaker == "me":
         return defaults.source if defaults and defaults.source else "@DEFAULT_SOURCE@"
@@ -67,7 +75,7 @@ class MeetingsHandlers:
         def factory(speaker: str):
             if debug_file is not None:
                 return FileAudioSource(speaker, Path(debug_file), realtime=self.debug_realtime)
-            return PulseSource(speaker, pulse_devices(self._audio_defaults, speaker))
+            return PulseSource(speaker, pulse_device(self._audio_defaults, speaker))
 
         recorder = Recorder(
             self.meetings,
@@ -209,6 +217,8 @@ class MeetingsHandlers:
     # Device events (loop thread)
 
     def _on_device_event(self, event) -> None:
+        if self._closed:
+            return  # a late event after the engine stopped
         # On WatcherState(connected=False), keep the last known defaults.
         # The watcher sends DefaultsChanged again after it reconnects.
         if isinstance(event, DefaultsChanged):
@@ -228,22 +238,29 @@ class MeetingsHandlers:
         elif isinstance(event, OutputRemoved):
             if self._detector.output_removed(event.index) and self._recorder is not None:
                 self._recorder.call_app_closed()
+        elif isinstance(event, WatcherState):
+            # Detection pauses while the watcher has no server. It resyncs the streams on reconnect.
+            self._watcher_connected = event.connected
+            self._sync_detector()
 
     def _set_detector_recording(self, recording: bool) -> None:
         self._detector_recording = recording
         self._sync_detector()
 
+    def _detection_on(self) -> bool:
+        return self._watcher_connected and self.settings.get("meeting_detection")
+
     def _sync_detector(self) -> None:
-        """Mute the detector during a recording and when detection is off.
+        """Mute the detector during a recording, when detection is off, and while the watcher has no server.
 
         A muted detector tracks streams but announces nothing and remembers no announcement.
         """
-        self._detector.set_recording(self._detector_recording or not self.settings.get("meeting_detection"))
+        self._detector.set_recording(self._detector_recording or not self._detection_on())
 
     def _detector_tick(self) -> None:
-        # With detection off, do not tick: a browser stream stays pending and is
-        # announced when detection turns on.
-        if not self.settings.get("meeting_detection"):
+        # With detection off or paused, do not tick: a browser stream stays pending
+        # and is announced when detection turns on again.
+        if not self._detection_on():
             return
         self._sync_detector()
         app = self._detector.tick()

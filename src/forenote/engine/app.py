@@ -83,6 +83,7 @@ class Engine(SystemHandlers, SettingsHandlers, JobsHandlers, ModelsHandlers, Mee
         self._audio_defaults = None
         self._detector = MeetingDetector([])
         self._detector_recording = False  # the engine records or starts a recording
+        self._watcher_connected = True  # False while the device watcher has no server
         self._detector_task: asyncio.Task | None = None
 
     # Lifecycle

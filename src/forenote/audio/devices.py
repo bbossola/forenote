@@ -51,6 +51,9 @@ class StreamSet:
     def __init__(self) -> None:
         self._known: set[int] = set()
 
+    def __contains__(self, index: int) -> bool:
+        return index in self._known
+
     def added(self, index: int) -> bool:
         """Return True if the stream is new. Return False if it is already known."""
         if index in self._known:
@@ -158,6 +161,19 @@ class DeviceWatcher:
         fac = pulsectl.PulseEventFacilityEnum
         typ = pulsectl.PulseEventTypeEnum
         pending: list = []
+        unreadable: set[int] = set()  # warn once per stream and connection
+
+        def read_app(index: int, get) -> tuple[str, str] | None:
+            """Return (name, binary) of a stream, or None if its properties cannot be read."""
+            try:
+                return parse_app(get().proplist)
+            except pulsectl.PulseDisconnected:
+                raise
+            except Exception as e:  # noqa: BLE001 - the stream closed, or broken properties
+                if index not in unreadable:
+                    unreadable.add(index)
+                    log.warning("cannot read the properties of stream %d: %s", index, type(e).__name__)
+                return None
 
         def collect(ev) -> None:
             pending.append((ev.facility, ev.t, ev.index))
@@ -177,9 +193,11 @@ class DeviceWatcher:
             for index in self._streams.resync({so.index for so in outputs}):
                 self._emit(OutputRemoved(index))
             for so in outputs:
-                if self._streams.added(so.index):
-                    app, binary = parse_app(so.proplist)
-                    self._emit(OutputAdded(so.index, app, binary))
+                if so.index in self._streams:
+                    continue
+                found = read_app(so.index, lambda so=so: so)
+                if found is not None and self._streams.added(so.index):
+                    self._emit(OutputAdded(so.index, *found))
             while not self._stopping.is_set():
                 pulse.event_listen(timeout=0.5)
                 events, pending[:] = pending[:], []
@@ -191,13 +209,11 @@ class DeviceWatcher:
                             defaults = new
                             self._emit(DefaultsChanged(new))
                     elif facility == fac.source_output and t == typ.new:
-                        try:
-                            so = pulse.source_output_info(index)
-                        except pulsectl.PulseIndexError:
-                            continue  # the stream closed again
-                        if self._streams.added(index):
-                            app, binary = parse_app(so.proplist)
-                            self._emit(OutputAdded(index, app, binary))
+                        if index in self._streams:
+                            continue
+                        found = read_app(index, lambda index=index: pulse.source_output_info(index))
+                        if found is not None and self._streams.added(index):
+                            self._emit(OutputAdded(index, *found))
                     elif facility == fac.source_output and t == typ.remove:
                         if self._streams.removed(index):
                             self._emit(OutputRemoved(index))
