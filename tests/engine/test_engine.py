@@ -126,7 +126,7 @@ async def test_shutdown_stops_the_engine(engine, client):
     await asyncio.wait_for(engine.wait_stopped(), 2)
 
 
-def gate_fetch(engine_or_models_owner, gate):
+def gate_fetch(gate):
     original = fake_fetch
 
     def gated(*args):
@@ -145,7 +145,7 @@ async def wait_for_started(client, job_id):
 
 async def test_cancel_download_ends_as_cancelled(engine, client):
     gate = threading.Event()
-    engine.models._fetch = gate_fetch(engine, gate)
+    engine.models._fetch = gate_fetch(gate)
     job = await client.call("models.download", {})
     await wait_for_started(client, job["job_id"])
     assert await client.call("models.cancel_download") == {"cancelled": True}
@@ -157,7 +157,7 @@ async def test_cancel_download_ends_as_cancelled(engine, client):
 
 async def test_jobs_cancel_works_for_the_download_job(engine, client):
     gate = threading.Event()
-    engine.models._fetch = gate_fetch(engine, gate)
+    engine.models._fetch = gate_fetch(gate)
     job = await client.call("models.download", {})
     await wait_for_started(client, job["job_id"])
     assert await client.call("jobs.cancel", {"id": job["job_id"]}) == {"cancelled": True}
@@ -169,7 +169,7 @@ async def test_jobs_cancel_works_for_the_download_job(engine, client):
 
 async def test_status_shows_the_running_download(engine, client):
     gate = threading.Event()
-    engine.models._fetch = gate_fetch(engine, gate)
+    engine.models._fetch = gate_fetch(gate)
     job = await client.call("models.download", {})
     assert (await client.call("system.status"))["running_job"] == job["job_id"]
     gate.set()
@@ -180,7 +180,7 @@ async def test_stop_during_download_marks_the_job_cancelled(paths, hardware, tes
     from lookout.rpc.client import RpcClient
 
     gate = threading.Event()
-    e = Engine(paths, hardware, fetch=gate_fetch(None, gate), manifest=test_manifest)
+    e = Engine(paths, hardware, fetch=gate_fetch(gate), manifest=test_manifest)
     await e.start()
     c = await RpcClient.connect(paths.socket_path, "pytest")
     try:
@@ -220,3 +220,27 @@ async def test_settings_get_unknown_key(client):
     with pytest.raises(RpcError) as e:
         await client.call("settings.get", {"key": "nope"})
     assert e.value.code == INVALID_PARAMS
+
+
+async def test_download_refused_while_stopping(paths, hardware, test_manifest):
+    from lookout.rpc.client import RpcClient
+
+    gate = threading.Event()
+    e = Engine(paths, hardware, fetch=gate_fetch(gate), manifest=test_manifest)
+    await e.start()
+    c = await RpcClient.connect(paths.socket_path, "pytest")
+    try:
+        job = await c.call("models.download", {})
+        await wait_for_started(c, job["job_id"])
+        stop_task = asyncio.create_task(e.stop())
+        await asyncio.sleep(0)
+        with pytest.raises((RpcError, ConnectionError)) as err:
+            await c.call("models.download", {})
+        if isinstance(err.value, RpcError):
+            assert err.value.code == APP_ERROR
+        gate.set()
+        await asyncio.wait_for(stop_task, 2)
+    finally:
+        gate.set()
+        await c.close()
+        await e.stop()

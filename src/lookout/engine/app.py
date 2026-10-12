@@ -120,10 +120,10 @@ class Engine:
             self._scheduler_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await self._scheduler_task
-        if self._download_task is not None:
-            self._download_task.cancel()
         # The download task reports "cancelled" and spawns broadcast tasks.
         while self._tasks:
+            if self._download_task is not None and not self._download_task.done():
+                self._download_task.cancel()
             await asyncio.gather(*self._tasks, return_exceptions=True)
         if self._rpc_started:
             await self.rpc.close()
@@ -237,6 +237,8 @@ class Engine:
         ]
 
     async def _models_download(self, params: dict[str, Any]) -> dict[str, int]:
+        if self._closed:
+            raise RpcError(APP_ERROR, "the engine is stopping")
         if self._download_job is not None:
             raise RpcError(APP_ERROR, "a download is already running")
         tier = params.get("tier") or self.tier()
