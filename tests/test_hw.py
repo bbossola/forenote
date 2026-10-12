@@ -154,3 +154,9 @@ def test_vulkaninfo_timeout_is_short():
 
     assert detect_gpus(run) == []
     assert seen["timeout"] <= 3
+
+
+def test_asr_threads_leave_two_cores_free():
+    assert HardwareReport(True, False, 8, 31.0, "default", "x", ()).asr_threads == 6
+    assert HardwareReport(True, False, 2, 31.0, "default", "x", ()).asr_threads == 1
+    assert HardwareReport(True, False, 8, 31.0, "default", "x", ()).to_dict()["asr_threads"] == 6

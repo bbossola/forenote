@@ -16,6 +16,7 @@ import sys  # noqa: E402
 from logging.handlers import RotatingFileHandler  # noqa: E402
 
 from forenote import __version__  # noqa: E402
+from forenote.audio.devices import DeviceWatcher  # noqa: E402
 from forenote.engine.app import Engine  # noqa: E402
 from forenote.hw import HardwareReport, detect  # noqa: E402
 from forenote.logs import UserContentFilter  # noqa: E402
@@ -46,8 +47,8 @@ def setup_logging(paths: Paths, level: str) -> None:
     root.handlers[:] = [file_handler, stderr_handler]
 
 
-async def run(paths: Paths, hardware: HardwareReport) -> int:
-    engine = Engine(paths, hardware)
+async def run(paths: Paths, hardware: HardwareReport, debug_sources: bool = False) -> int:
+    engine = Engine(paths, hardware, watcher_factory=DeviceWatcher, debug_sources=debug_sources)
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, engine.request_stop)
@@ -77,6 +78,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="forenote-engine")
     ap.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"])
     ap.add_argument("--no-hw-check", action="store_true", help=argparse.SUPPRESS)
+    ap.add_argument("--debug-sources", action="store_true", help=argparse.SUPPRESS)
     ap.add_argument("--version", action="version", version=__version__)
     args = ap.parse_args(argv)
 
@@ -94,7 +96,7 @@ def main(argv: list[str] | None = None) -> int:
         for problem in hardware.problems:
             log.error("%s", problem)
         return 2
-    return asyncio.run(run(paths, hardware))
+    return asyncio.run(run(paths, hardware, args.debug_sources))
 
 
 if __name__ == "__main__":

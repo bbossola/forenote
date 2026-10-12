@@ -67,14 +67,39 @@ def test_manifest():
     ]
 
 
+class FakeSpeech:
+    """A transcriber for engine tests: a fixed text for every final."""
+
+    def transcribe(self, audio, final, prompt=""):
+        from forenote.asr.transcriber import TranscriptResult
+
+        return TranscriptResult("hello from the meeting" if final else "hello", 0.1, -0.2)
+
+
 @pytest.fixture
 async def engine(paths, hardware, test_manifest):
     from forenote.engine.app import Engine
 
-    e = Engine(paths, hardware, fetch=fake_fetch, manifest=test_manifest)
+    e = Engine(
+        paths,
+        hardware,
+        fetch=fake_fetch,
+        manifest=test_manifest,
+        transcriber_factory=lambda model_dir, cpu_threads, beam: FakeSpeech(),
+        debug_sources=True,
+        debug_realtime=False,
+    )
     await e.start()
     yield e
     await e.stop()
+
+
+@pytest.fixture
+def speech_installed(paths):
+    """Mark the test speech model as installed."""
+    d = paths.models_dir / "speech-test"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "model.bin").write_bytes(CONTENT["model.bin"])
 
 
 @pytest.fixture

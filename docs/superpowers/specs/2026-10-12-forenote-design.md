@@ -347,7 +347,7 @@ meeting detection is available only in the AppImage and developer builds.
 | Role | Default (16 GB) | Low (8–15 GB) | High (32 GB or more, opt-in) |
 |---|---|---|---|
 | LLM | Gemma 4 E4B, QAT Q4_0 GGUF | Gemma 4 E2B, Q4_0 GGUF | Gemma 4 26B A4B, Q4 GGUF |
-| Speech | Whisper `small.en`, CTranslate2 int8 | Whisper `base.en`, int8 | Whisper `medium.en`, int8 |
+| Speech | Whisper `base.en`, CTranslate2 int8 | Whisper `base.en`, int8 | Whisper `small.en`, int8 |
 | Embeddings | EmbeddingGemma 2 (format from the spike) | Same, text only | Same |
 
 Estimated memory for the default tier: about 7–8 GB in total.
@@ -457,7 +457,7 @@ Default tier, 8 CPU cores, no GPU. `forenote-cli bench` measures these values.
 
 | Metric | Target |
 |---|---|
-| Speech real-time factor (`small.en`, two streams) | 0.5 or less |
+| Speech real-time factor (`base.en`, two streams) | 0.5 or less |
 | Final line after the end of an utterance | 3 s or less |
 | Chat, first token | 10 s or less |
 | Enhanced notes for a 30-minute meeting | 3 min or less |

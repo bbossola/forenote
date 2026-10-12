@@ -162,10 +162,16 @@ class HardwareReport:
     def fatal(self) -> bool:
         return bool(self.problems)
 
+    @property
+    def asr_threads(self) -> int:
+        """CPU threads for speech recognition: two cores stay free for capture and the event loop."""
+        return max(1, self.physical_cores - 2)
+
     def to_dict(self) -> dict[str, Any]:
         d = dataclasses.asdict(self)
         d["gpus"] = list(self.gpus)
         d["threads"] = self.threads
+        d["asr_threads"] = self.asr_threads
         d["problems"] = self.problems
         d["warnings"] = self.warnings
         return d

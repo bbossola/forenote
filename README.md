@@ -8,7 +8,7 @@ Inspiration: [Google AI Edge Foresight](https://developers.google.com/edge/fores
 an on-device meeting notetaker for macOS. Forenote is an independent project for
 Linux. It is not affiliated with Google and does not use Foresight code or models.
 
-Status: early development. Only the engine skeleton exists.
+Status: early development. The engine records meetings and transcribes them (CLI only).
 
 ## Requirements
 
@@ -26,6 +26,11 @@ Run the engine and the CLI:
     uv run forenote-cli status      # in another terminal
     uv run forenote-cli models list
     uv run forenote-cli models download   # about 6 GB for the default tier
+    uv run forenote-cli record --title "Weekly sync"   # Ctrl-C stops it; or stop it from another terminal:
+    uv run forenote-cli stop
+    uv run forenote-cli meetings
+    uv run forenote-cli transcript 1
+    uv run forenote-cli bench asr
     uv run forenote-cli shutdown
 
 `forenote-cli models download` starts the engine if it does not run.

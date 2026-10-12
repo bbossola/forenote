@@ -25,9 +25,15 @@ def test_real_manifest_has_one_model_per_role_for_each_tier():
         assert sorted(e.role for e in chosen) == sorted(ROLES)
 
 
-def test_default_tier_uses_gemma_4_e4b_and_whisper_small():
+def test_default_tier_uses_gemma_4_e4b_and_whisper_base():
     ids = {e.id for e in for_tier(load_manifest(), "default")}
-    assert ids == {"gemma-4-e4b-q4_0", "whisper-small-en"}
+    assert ids == {"gemma-4-e4b-q4_0", "whisper-base-en"}
+
+
+def test_high_tier_uses_whisper_small():
+    ids = {e.id for e in for_tier(load_manifest(), "high")}
+    assert "whisper-small-en" in ids
+    assert "whisper-medium-en" not in {e.id for e in load_manifest()}
 
 
 def test_entry_total_size():

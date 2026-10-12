@@ -22,4 +22,5 @@ class SettingsHandlers:
             self.settings.set(params["key"], params["value"])
         except (KeyError, ValueError) as e:
             raise RpcError(INVALID_PARAMS, e.args[0]) from None
+        self._on_setting_changed(params["key"], params["value"])
         return None

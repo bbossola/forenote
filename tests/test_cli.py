@@ -27,9 +27,11 @@ class FakeClient:
         self.results = results
         self._events = list(events)
         self.calls = []
+        self.timeouts = {}
 
     async def call(self, method, params=None, timeout=30.0):
         self.calls.append((method, params))
+        self.timeouts[method] = timeout
         return self.results[method]
 
     async def events(self):
@@ -188,3 +190,247 @@ async def test_timeout_is_reported(monkeypatch, capsys):
     code = await cli._main(build_parser().parse_args(["status"]))
     assert code == 1
     assert "the engine did not answer in time" in capsys.readouterr().err
+
+
+async def test_record_prints_final_lines_and_ends_with_the_meeting():
+    client = FakeClient(
+        {"meeting.start": {"meeting_id": 3, "started_at": "2026-10-12T10:00:00+00:00"}},
+        events=[
+            ("transcript.partial", {"meeting_id": 3, "speaker": "others", "t_start_ms": 0, "text": "hel"}),
+            ("transcript.final", {"meeting_id": 3, "id": 1, "speaker": "others", "t_start_ms": 65000, "t_end_ms": 66000, "text": "Hello all."}),
+            ("transcript.final", {"meeting_id": 9, "id": 2, "speaker": "me", "t_start_ms": 0, "t_end_ms": 1, "text": "other meeting"}),
+            ("audio.source_changed", {"meeting_id": 3, "speaker": "me", "device": "usb-mic"}),
+            ("meeting.state", {"meeting_id": 3, "status": "done", "stop_reason": "silence"}),
+        ],
+    )
+    code, out = await run_cli(["record", "--title", "Sync"], client)
+    assert code == 0
+    assert client.calls[0] == ("meeting.start", {"title": "Sync"})
+    assert "[01:05] Others: Hello all." in out
+    assert "other meeting" not in out
+    assert "[audio source changed: Me]" in out
+    assert "stopped (silence)" in out
+
+
+async def test_record_from_file_sends_an_absolute_path(tmp_path):
+    wav = tmp_path / "a.wav"
+    wav.write_bytes(b"")
+    client = FakeClient(
+        {"meeting.start": {"meeting_id": 1, "started_at": "x"}},
+        events=[("meeting.state", {"meeting_id": 1, "status": "done", "stop_reason": "manual"})],
+    )
+    code, _ = await run_cli(["record", "--from-file", str(wav)], client)
+    assert code == 0
+    assert client.calls[0] == ("meeting.start", {"debug_file": str(wav.resolve())})
+
+
+async def test_meetings_list():
+    client = FakeClient({"meeting.list": [
+        {"id": 2, "title": "Sync", "started_at": "2026-10-12T10:00:00+00:00", "status": "done", "line_count": 12},
+    ]})
+    code, out = await run_cli(["meetings"], client)
+    assert code == 0
+    assert "Sync" in out and "12 lines" in out
+
+
+async def test_transcript_sorts_lines_and_shows_markers():
+    client = FakeClient({"transcript.get": {
+        "lines": [
+            {"id": 2, "speaker": "me", "t_start_ms": 5000, "t_end_ms": 6000, "text": "Second."},
+            {"id": 1, "speaker": "others", "t_start_ms": 1000, "t_end_ms": 2000, "text": "First."},
+        ],
+        "markers": [{"id": 1, "t_ms": 3000, "kind": "source_changed", "speaker": "me"}],
+    }})
+    code, out = await run_cli(["transcript", "7"], client)
+    assert code == 0
+    assert out.index("First.") < out.index("[audio source changed: Me]") < out.index("Second.")
+
+
+async def test_stop_calls_meeting_stop():
+    client = FakeClient({"meeting.stop": {"meeting_id": 4, "status": "done"}})
+    code, out = await run_cli(["stop"], client)
+    assert code == 0
+    assert "Meeting 4 stopped." in out
+
+
+def test_bench_parser():
+    args = build_parser().parse_args(["bench", "asr", "--clips", "/tmp/x"])
+    assert (args.command, args.bench_command, args.clips) == ("bench", "asr", "/tmp/x")
+
+
+async def test_transcript_pages_through_all_lines():
+    def line(i):
+        return {"id": i, "speaker": "me", "t_start_ms": i, "t_end_ms": i + 1, "text": f"L{i}"}
+
+    pages = [
+        {"lines": [line(i) for i in range(1, 1001)], "markers": [{"id": 1, "t_ms": 0, "kind": "source_lost", "speaker": None}]},
+        {"lines": [line(1001)], "markers": [{"id": 2, "t_ms": 0, "kind": "source_changed", "speaker": "me"}]},
+    ]
+
+    class Paged(FakeClient):
+        async def call(self, method, params=None, timeout=30.0):
+            self.calls.append((method, params))
+            return pages[len(self.calls) - 1]
+
+    client = Paged({})
+    code, out = await run_cli(["transcript", "7"], client)
+    assert code == 0
+    assert client.calls[0][1] == {"meeting_id": 7, "limit": 1000}
+    assert client.calls[1][1] == {"meeting_id": 7, "limit": 1000, "after_id": 1000}
+    assert "L1001" in out and out.count("[audio source") == 1
+
+
+async def test_transcript_keeps_id_order_for_equal_times():
+    same = {"speaker": "me", "t_start_ms": 5, "t_end_ms": 6}
+    client = FakeClient({"transcript.get": {
+        "lines": [{"id": 2, "text": "B", **same}, {"id": 1, "text": "A", **same}],
+        "markers": [],
+    }})
+    _, out = await run_cli(["transcript", "7"], client)
+    assert out.index("A") < out.index("B")
+
+
+async def test_meetings_empty_list():
+    code, out = await run_cli(["meetings"], FakeClient({"meeting.list": []}))
+    assert code == 0 and "No meetings." in out
+
+
+def test_meetings_limit_must_be_positive():
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["meetings", "--limit", "0"])
+
+
+def test_record_from_missing_file_exits_before_connecting(capsys):
+    assert cli.main(["record", "--from-file", "/nonexistent/x.wav"]) == 1
+    assert "No such file: /nonexistent/x.wav" in capsys.readouterr().err
+
+
+def test_record_debug_sources_error_has_a_hint(tmp_path, capsys, monkeypatch):
+    from forenote.rpc.protocol import RpcError
+
+    wav = tmp_path / "a.wav"
+    wav.write_bytes(b"")
+
+    class Failing(FakeClient):
+        async def call(self, method, params=None, timeout=30.0):
+            raise RpcError(-32000, "Debug sources are off. Start the engine with --debug-sources.")
+
+        async def close(self):
+            pass
+
+    async def fake_connect(*a, **k):
+        return Failing({})
+
+    monkeypatch.setattr(cli, "connect_or_start", fake_connect)
+    assert cli.main(["record", "--from-file", str(wav)]) == 1
+    assert "Run 'forenote-cli shutdown', then try again." in capsys.readouterr().err
+
+
+def test_bench_asr_errors_and_empty_clips(tmp_path, capsys):
+    assert cli.main(["bench", "asr", "--clips", str(tmp_path)]) == 1
+    err = capsys.readouterr().err
+    assert "No speech found in the clips." in err or "No speech model" in err
+
+
+def test_bench_asr_interrupt_and_runtime_error(tmp_path, capsys, monkeypatch):
+    import forenote.hw
+
+    def boom(exc):
+        def f():
+            raise exc
+        return f
+
+    monkeypatch.setattr(forenote.hw, "detect", boom(RuntimeError("bad model")))
+    assert cli.main(["bench", "asr", "--clips", str(tmp_path)]) == 1
+    assert "Error: bad model" in capsys.readouterr().err
+    monkeypatch.setattr(forenote.hw, "detect", boom(KeyboardInterrupt()))
+    assert cli.main(["bench", "asr", "--clips", str(tmp_path)]) == 130
+    assert "Interrupted." in capsys.readouterr().err
+
+
+async def test_record_flushes_after_every_line():
+    class Counting(io.StringIO):
+        flushes = 0
+
+        def flush(self):
+            self.flushes += 1
+            super().flush()
+
+    out = Counting()
+    client = FakeClient(
+        {"meeting.start": {"meeting_id": 3, "started_at": "x"}},
+        events=[
+            ("transcript.final", {"meeting_id": 3, "id": 1, "speaker": "me", "t_start_ms": 0, "t_end_ms": 1, "text": "Hi."}),
+            ("meeting.state", {"meeting_id": 3, "status": "done", "stop_reason": "manual"}),
+        ],
+    )
+    await run(build_parser().parse_args(["record"]), client, out)
+    assert out.flushes >= len(out.getvalue().splitlines()) == 3
+
+
+async def test_meetings_shows_local_time(monkeypatch):
+    import time
+
+    monkeypatch.setenv("TZ", "Europe/Rome")
+    time.tzset()
+    try:
+        client = FakeClient({"meeting.list": [
+            {"id": 2, "title": "Sync", "started_at": "2026-10-12T14:43:00+00:00", "status": "done", "line_count": 1},
+            {"id": 1, "title": "Old", "started_at": "2026-10-12T14:43:00", "status": "done", "line_count": 1},
+        ]})
+        _, out = await run_cli(["meetings"], client)
+    finally:
+        monkeypatch.undo()
+        time.tzset()
+    assert out.count("2026-10-12 16:43") == 2
+
+
+class CtrlCClient(FakeClient):
+    def __init__(self, results, second_interrupt=False):
+        super().__init__(results)
+        self.second_interrupt = second_interrupt
+
+    async def call(self, method, params=None, timeout=30.0):
+        if method == "meeting.stop" and self.second_interrupt:
+            raise KeyboardInterrupt
+        return await super().call(method, params, timeout)
+
+    async def events(self):
+        raise KeyboardInterrupt
+        yield
+
+
+async def test_ctrl_c_during_record_stops_the_meeting():
+    client = CtrlCClient({"meeting.start": {"meeting_id": 5, "started_at": "x"}, "meeting.stop": {"meeting_id": 5, "status": "done"}})
+    code, out = await run_cli(["record"], client)
+    assert code == 0
+    assert ("meeting.stop", None) in client.calls
+    assert client.timeouts["meeting.stop"] == 90
+    assert "Stopping the recording..." in out and "Meeting 5 stopped." in out
+
+
+async def test_second_ctrl_c_leaves_the_recording_running(capsys):
+    client = CtrlCClient({"meeting.start": {"meeting_id": 5, "started_at": "x"}}, second_interrupt=True)
+    code, _ = await run_cli(["record"], client)
+    assert code == 130
+    assert "The recording continues in the engine. Run 'forenote-cli stop' to stop it." in capsys.readouterr().err
+
+
+async def test_stop_waits_up_to_90_seconds():
+    client = FakeClient({"meeting.stop": {"meeting_id": 4, "status": "done"}})
+    await run_cli(["stop"], client)
+    assert client.timeouts["meeting.stop"] == 90
+
+
+async def test_record_prints_engine_errors_to_stderr(capsys):
+    client = FakeClient(
+        {"meeting.start": {"meeting_id": 3, "started_at": "x"}},
+        events=[
+            ("engine.error", {"message": "Disk full"}),
+            ("meeting.state", {"meeting_id": 3, "status": "error", "stop_reason": "error"}),
+        ],
+    )
+    code, out = await run_cli(["record"], client)
+    assert code == 0
+    assert "Error: Disk full" in capsys.readouterr().err
+    assert "Disk full" not in out
