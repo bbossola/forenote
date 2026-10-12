@@ -349,7 +349,8 @@ class Recorder:
     # Restarts
 
     def on_default_changed(self, speaker: str) -> None:
-        if speaker in self._captures:
+        """The default device changed. Restart the stream, also a lost one: the new device can work."""
+        if speaker in self._captures or speaker in self._lost:
             self._request_restart(speaker, changed=True)
 
     def _request_restart(self, speaker: str, changed: bool) -> None:
@@ -371,7 +372,9 @@ class Recorder:
             self._retired[speaker].append(old)
             old.stop()
             await self._join([old])
-        for delay in (0.0,) if changed else self._retry_delays:
+        # A changed device opens at once. A device that just connected can fail its
+        # first open, so the retries follow.
+        for delay in (0.0, *self._retry_delays) if changed else self._retry_delays:
             await asyncio.sleep(delay)
             if self._stopping:
                 return
@@ -382,13 +385,15 @@ class Recorder:
                 await self._close_source(source)
                 return
             self._start_capture(speaker, source)
+            self._lost.discard(speaker)
             if changed:
                 self._marker(self._now_ms(), "source_changed", speaker)
                 self._send(
                     "audio.source_changed", {"meeting_id": self.meeting_id, "speaker": speaker, "device": source.device}
                 )
             return
-        if not self._stopping:  # a restart that ends after the stop changes nothing
+        # A restart that ends after the stop changes nothing. A lost source is reported once.
+        if not self._stopping and speaker not in self._lost:
             self._mark_lost(speaker, "the device failed and did not come back")
 
     # Silence and ticks

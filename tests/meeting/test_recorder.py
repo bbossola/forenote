@@ -292,6 +292,53 @@ async def test_a_default_change_restarts_the_stream(store):
     assert await rec.stop("manual") == "done"
 
 
+async def test_a_default_change_retries_when_the_new_device_fails(store):
+    f = Factory(others=[{}, {"fail_start": True}, {}])
+    rec, mid, events, finished = await start(store, f)
+    rec.on_default_changed("others")
+    await wait_for(lambda: "audio.source_changed" in events.names(), 5)
+    assert f.calls("others") == 3
+    assert "audio.source_lost" not in events.names()
+    assert [m["kind"] for m in store.markers(mid)] == ["source_changed"]
+    assert await rec.stop("manual") == "done"
+
+
+async def test_a_default_change_restores_a_lost_source(store):
+    f = Factory(me=[{"fail_read_after": 3}, {"fail_start": True}], others=[{}])
+    rec, mid, events, finished = await start(store, f, speakers=("me", "others"))
+    await wait_for(lambda: "audio.source_lost" in events.names(), 5)
+    assert "me" in rec._lost
+    f.plans["me"] = [{}]
+    rec.on_default_changed("me")
+    await wait_for(lambda: "audio.source_changed" in events.names(), 5)
+    assert "me" not in rec._lost and rec._captures["me"]._thread.is_alive()
+    assert [m["kind"] for m in store.markers(mid)] == ["source_lost", "source_changed"]
+    assert await rec.stop("manual") == "done"
+    assert store.get(mid)["stop_reason"] == "manual"
+
+
+async def test_a_default_change_opens_a_source_that_failed_at_start(store):
+    f = Factory(me=[{"fail_start": True}], others=[{}])
+    rec, mid, events, finished = await start(store, f, speakers=("me", "others"))
+    assert "me" in rec._lost
+    f.plans["me"] = [{}]
+    rec.on_default_changed("me")
+    await wait_for(lambda: "audio.source_changed" in events.names(), 5)
+    assert "me" not in rec._lost
+    assert await rec.stop("manual") == "done"
+
+
+async def test_a_failed_change_of_a_lost_source_is_not_reported_again(store):
+    f = Factory(me=[{"fail_start": True}], others=[{}])
+    rec, mid, events, finished = await start(store, f, speakers=("me", "others"))
+    rec.on_default_changed("me")
+    await wait_for(lambda: f.calls("me") == 1 + 5 and not rec._restarts, 5)
+    assert events.names().count("audio.source_lost") == 1
+    assert [m["kind"] for m in store.markers(mid)] == ["source_lost"]
+    assert not finished
+    assert await rec.stop("manual") == "done"
+
+
 async def test_one_read_error_is_retried(store):
     f = Factory(others=[{"fail_read_after": 3}, {}])
     rec, mid, events, finished = await start(store, f)
