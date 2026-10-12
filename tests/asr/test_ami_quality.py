@@ -16,6 +16,7 @@ from forenote.asr.wer import word_error_rate
 AMI = Path(__file__).parent.parent / "fixtures" / "ami"
 LIMITS = AMI / "limits.json"
 CLIPS = [s["id"] for s in json.loads((AMI / "SOURCES.json").read_text())]
+# The limits come from a 12-core machine with 10 threads.
 TOLERANCE = 1.10  # later runs may be at most 10 % worse than the limit
 
 

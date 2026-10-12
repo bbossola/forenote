@@ -81,6 +81,8 @@ class AsrWorker:
         deadline = time.monotonic() + timeout
         with self._cond:
             while self._finals or self._partials or self._busy:
+                if self._stopping or not self._thread.is_alive():
+                    return False
                 left = deadline - time.monotonic()
                 if left <= 0:
                     return False
@@ -132,8 +134,9 @@ class AsrWorker:
             return
         try:
             self._on_delay(*event)
-        except Exception:  # noqa: BLE001 - a callback error must not stop the worker
-            log.exception("delay callback failed")
+        except Exception as e:  # noqa: BLE001 - a callback error must not stop the worker
+            log.error("delay callback failed: %s", type(e).__name__)
+            log.debug("traceback", exc_info=True)
 
     def _next(self) -> tuple[Utterance, str] | None:
         """Call with the lock held."""
@@ -170,8 +173,9 @@ class AsrWorker:
                 return
             try:
                 self._on_result(utterance, result, error)
-            except Exception:  # noqa: BLE001 - a callback error must not stop the worker
-                log.exception("result callback failed")
+            except Exception as e:  # noqa: BLE001 - a callback error must not stop the worker
+                log.error("result callback failed: %s", type(e).__name__)
+                log.debug("traceback", exc_info=True)
             with self._cond:
                 self._busy = False
                 event = self._check_delay()

@@ -171,3 +171,29 @@ def test_drain_after_stop_returns_at_once():
     start = time.monotonic()
     assert w.drain(0.5)
     assert time.monotonic() - start < 0.3
+
+
+def test_drain_returns_false_at_once_when_the_worker_never_ran():
+    t, c = FakeTranscriber(), Collector()
+    w = AsrWorker(t, c.on_result, c.on_delay)  # not started
+    w.submit(utt(tag=1))
+    start = time.monotonic()
+    assert not w.drain(5)
+    assert time.monotonic() - start < 0.3
+
+
+def test_callback_errors_log_the_type_only(caplog):
+    t = FakeTranscriber()
+
+    def bad_result(u, result, error):
+        raise ValueError("secret transcript words")
+
+    w = AsrWorker(t, bad_result, lambda d, q: None)
+    w.start()
+    with caplog.at_level("INFO"):
+        w.submit(utt(tag=1))
+        assert w.drain(2)
+    w.stop()
+    text = caplog.text
+    assert "ValueError" in text
+    assert "secret transcript words" not in text

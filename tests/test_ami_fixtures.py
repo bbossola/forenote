@@ -1,3 +1,4 @@
+import hashlib
 import json
 import wave
 from pathlib import Path
@@ -13,6 +14,7 @@ def test_five_clips_with_references_and_license():
         with wave.open(str(wav)) as w:
             assert (w.getframerate(), w.getnchannels(), w.getsampwidth()) == (16000, 1, 2)
             assert abs(w.getnframes() / 16000 - 60) < 0.1
+        assert hashlib.sha256(wav.read_bytes()).hexdigest() == src["sha256"], src["id"]
         words = (AMI / f"{src['id']}.txt").read_text().split()
         assert len(words) >= 50, src["id"]
     license_text = (AMI / "LICENSE").read_text()

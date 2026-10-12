@@ -49,3 +49,15 @@ def test_wrong_frame_size_is_rejected():
 def test_other_dtypes_are_rejected():
     with pytest.raises(ValueError):
         StreamingVad()(np.zeros(FRAME, dtype=np.int32))
+
+
+def test_default_model_path_does_not_import_faster_whisper():
+    import subprocess
+    import sys
+
+    code = (
+        "import sys, os; from forenote.asr.vad import default_model_path; "
+        "p = default_model_path(); assert os.path.exists(p), p; "
+        "assert 'faster_whisper' not in sys.modules"
+    )
+    subprocess.run([sys.executable, "-c", code], check=True)

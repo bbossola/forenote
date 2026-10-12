@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import os
 
 import numpy as np
@@ -13,9 +14,13 @@ SAMPLE_RATE = 16000
 
 def default_model_path() -> str:
     """The Silero VAD model file that faster-whisper includes."""
-    from faster_whisper.utils import get_assets_path
-
-    return os.path.join(get_assets_path(), "silero_vad_v6.onnx")
+    spec = importlib.util.find_spec("faster_whisper")
+    if spec is None or not spec.submodule_search_locations:
+        raise FileNotFoundError("The faster_whisper package is not installed. It includes the VAD model.")
+    path = os.path.join(spec.submodule_search_locations[0], "assets", "silero_vad_v6.onnx")
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"The VAD model file is missing: {path}")
+    return path
 
 
 class StreamingVad:
