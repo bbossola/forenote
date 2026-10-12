@@ -132,7 +132,6 @@ class Engine(SystemHandlers, SettingsHandlers, JobsHandlers, ModelsHandlers):
         self.jobs.set_status(job_id, status, error)
         self._on_job({"id": job_id, "type": type, "status": status, "error": error})
 
-    # Helpers
     # RPC handlers
 
     def _handlers(self):

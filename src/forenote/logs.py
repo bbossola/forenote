@@ -10,6 +10,7 @@ class UserContentFilter(logging.Filter):
 
     Code must not log user content at all. This filter is a guard: a record
     created with extra={"user_content": True} never reaches a handler.
+    The filter only drops records that code marks. It cannot detect unmarked user content.
     """
 
     def filter(self, record: logging.LogRecord) -> bool:

@@ -134,8 +134,10 @@ async def test_recording_meetings_become_interrupted_on_restart(paths, hardware,
     await e.start()
     try:
         assert e.meetings.get(mid)["status"] == "interrupted"
+        assert e.meetings.get(mid)["ended_at"] == e.meetings.get(mid)["started_at"]
     finally:
         await e.stop()
+
 
 async def test_shutdown_stops_the_engine(engine, client):
     assert await client.call("system.shutdown") is None

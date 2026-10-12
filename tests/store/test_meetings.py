@@ -36,6 +36,14 @@ def test_lines_and_markers(store):
     assert store.get(mid)["line_count"] == 2
 
 
+def test_line_paging_does_not_skip_lines(store):
+    mid = store.create("m")
+    ids = [store.add_line(mid, "me", t, t + 500, "x") for t in (5000, 1000, 3000)]
+    page1 = store.lines(mid, limit=2)
+    page2 = store.lines(mid, after_id=page1[-1]["id"], limit=2)
+    assert sorted(l["id"] for l in page1 + page2) == ids
+
+
 def test_finish_sets_status_and_end_time(store):
     mid = store.create("m", start_reason="detected")
     assert store.finish(mid, "done", "silence") is True

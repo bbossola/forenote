@@ -101,9 +101,10 @@ class MeetingStore:
         return cur.rowcount == 1
 
     def lines(self, meeting_id: int, after_id: int | None = None, limit: int = 1000) -> list[dict[str, Any]]:
+        """Return lines after after_id. Lines are in storage order. The client sorts them by t_start_ms."""
         rows = self._conn.execute(
             "SELECT id, speaker, t_start_ms, t_end_ms, text FROM transcript_lines "
-            "WHERE meeting_id = ? AND id > ? ORDER BY t_start_ms, id LIMIT ?",
+            "WHERE meeting_id = ? AND id > ? ORDER BY id LIMIT ?",
             (meeting_id, after_id or 0, limit),
         )
         return [dict(r) for r in rows]

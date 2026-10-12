@@ -38,6 +38,7 @@ def setup_logging(paths: Paths, level: str) -> None:
     file_handler.setFormatter(fmt)
     stderr_handler = logging.StreamHandler(sys.stderr)
     stderr_handler.setFormatter(fmt)
+    logging.captureWarnings(True)
     root = logging.getLogger()
     root.setLevel(level)
     for handler in (file_handler, stderr_handler):
