@@ -63,3 +63,23 @@ def test_normalize_rejects_non_finite_rows():
 
     with pytest.raises(ValueError):
         normalize([[0.0, 0.0], [1.0, 0.0]])
+
+
+def test_compare_rows_include_agreement(tmp_path, monkeypatch):
+    import json
+
+    import compare
+
+    ref = _unit([[1, 0], [0, 1]])
+    other = _unit([[1, 0], [1, 1]])
+    np.save(tmp_path / "reference.npy", ref)
+    np.save(tmp_path / "x.npy", other)
+    (tmp_path / "reference.json").write_text(json.dumps({"backend": "st", "variant": "f32", "recall_at_3": 1.0}))
+    (tmp_path / "x.json").write_text(json.dumps({"backend": "x", "variant": "q8", "recall_at_3": 0.5}))
+    (tmp_path / "broken.json").write_text(json.dumps({"backend": "y", "variant": "z", "error": "boom"}))
+
+    rows = compare.rows(tmp_path)
+    by_name = {r["name"]: r for r in rows}
+    assert by_name["reference"]["agree_mean"] == pytest.approx(1.0)
+    assert by_name["x"]["agree_min"] == pytest.approx(np.sqrt(0.5), rel=1e-5)
+    assert by_name["broken"]["error"] == "boom"
