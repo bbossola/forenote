@@ -18,7 +18,8 @@ from lookout.rpc import protocol as p
 
 log = logging.getLogger(__name__)
 
-OUTBOUND_LIMIT = 1000  # frames kept for one client
+# A client that is more than this many frames behind is disconnected.
+OUTBOUND_LIMIT = 1000
 
 Handler = Callable[[dict[str, Any]], Awaitable[Any]]
 
@@ -30,15 +31,22 @@ class EngineAlreadyRunning(RuntimeError):
 class _Conn:
     def __init__(self, writer: asyncio.StreamWriter):
         self.writer = writer
-        self.queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue(maxsize=OUTBOUND_LIMIT)
+        self.queue: asyncio.Queue[bytes | None] = asyncio.Queue(maxsize=OUTBOUND_LIMIT)
         self.writer_task: asyncio.Task | None = None
         self.ready = False
         self.client = "?"
+        self.dropped = False
 
     def send(self, msg: dict[str, Any]) -> None:
+        self.send_bytes(p.encode(msg))
+
+    def send_bytes(self, data: bytes) -> None:
+        if self.dropped:
+            return
         try:
-            self.queue.put_nowait(msg)
+            self.queue.put_nowait(data)
         except asyncio.QueueFull:
+            self.dropped = True
             log.warning("client %s is too slow; connection dropped", self.client)
             self.abort()
 
@@ -48,12 +56,16 @@ class _Conn:
     async def write_loop(self) -> None:
         try:
             while True:
-                msg = await self.queue.get()
-                if msg is None:
+                data = await self.queue.get()
+                if data is None:
                     return  # the connection ends, all earlier frames are sent
-                self.writer.write(p.encode(msg))
+                self.writer.write(data)
                 await self.writer.drain()
-        except (ConnectionError, RuntimeError):
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:  # noqa: BLE001 - safety net
+            if not isinstance(e, (ConnectionError, RuntimeError)):
+                log.exception("RPC writer failed for client %s", self.client)
             self.abort()
 
 
@@ -146,10 +158,9 @@ class RpcServer:
     async def broadcast(self, event: str, params: dict[str, Any]) -> None:
         if event not in self._schema["events"]:
             raise ValueError(f"event is not in the schema: {event}")
-        msg = p.notification(event, params)
-        for conn in [c for c in self._conns if c.ready]:
-            conn.send(msg)
-        await asyncio.sleep(0)  # let the writer tasks run
+        data = p.encode(p.notification(event, params))  # an encode error is an engine bug
+        for conn in [c for c in self._conns if c.ready and not c.dropped]:
+            conn.send_bytes(data)
 
     async def _serve(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         conn = _Conn(writer)
@@ -182,7 +193,7 @@ class RpcServer:
             self._conns.discard(conn)
             with contextlib.suppress(asyncio.QueueFull):
                 conn.queue.put_nowait(None)
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(Exception, asyncio.CancelledError):
                 await asyncio.wait_for(conn.writer_task, 1)
             conn.writer_task.cancel()
             writer.close()
@@ -221,17 +232,22 @@ class RpcServer:
             if bad_id:
                 raise p.RpcError(p.INVALID_REQUEST, "id must be a string, an integer or null")
             result = await self._call(msg)
+            if mid is None:
+                return  # a notification from the client gets no reply
+            data = p.encode(p.response(mid, result))
         except p.RpcError as e:
             reply = p.error_response(mid, e)
         except Exception:  # noqa: BLE001 - never leak internals to a client
             log.exception("RPC handler failed: %s", msg.get("method"))
             reply = p.error_response(mid, p.RpcError(p.INTERNAL_ERROR, "internal error, see the engine log"))
         else:
-            reply = p.response(mid, result)
+            reply = None
+        if reply is None:
+            conn.send_bytes(data)
+            return
         if mid is None and not bad_id:
             return  # a notification from the client gets no reply
-        with contextlib.suppress(ConnectionError, RuntimeError):
-            conn.send(reply)
+        conn.send(reply)
 
     async def _call(self, msg: dict[str, Any]) -> Any:
         if msg.get("jsonrpc") != "2.0" or not isinstance(msg.get("method"), str):

@@ -23,6 +23,8 @@ SCHEMA = {
             "result": {"type": "integer"},
         },
         "boom.now": {"params": {"type": "object"}, "result": {}},
+        "bad.nan": {"params": {"type": "object"}, "result": {}},
+        "bad.object": {"params": {"type": "object"}, "result": {}},
         "slow.wait": {"params": {"type": "object"}, "result": {}},
     },
     "events": {"tick": {"type": "object"}},
@@ -50,6 +52,15 @@ async def server(short_tmp):
         await asyncio.sleep(30)
 
     s.register("slow.wait", slow)
+
+    async def bad_nan(params):
+        return {"x": float("nan")}
+
+    async def bad_object(params):
+        return object()
+
+    s.register("bad.nan", bad_nan)
+    s.register("bad.object", bad_object)
     await s.start()
     yield s
     await s.close()
@@ -200,14 +211,15 @@ async def _stuck_client(path):
 
 
 async def test_slow_client_does_not_block_broadcast(server, monkeypatch):
-    monkeypatch.setattr(server_module, "OUTBOUND_LIMIT", 5)
+    monkeypatch.setattr(server_module, "OUTBOUND_LIMIT", 100)
     stuck = await _stuck_client(server.socket_path)
     good = await RpcClient.connect(server.socket_path, "pytest")
     try:
-        for i in range(50):
+        for i in range(150):
             await asyncio.wait_for(server.broadcast("tick", {"pad": "x" * 100_000, "n": i}), 2)
+            await asyncio.sleep(0)  # the healthy client reads
         seen = None
-        while seen is None or seen[1]["n"] != 49:
+        while seen is None or seen[1]["n"] != 149:
             seen = await good.next_event("tick", timeout=5)
     finally:
         stuck.close()
@@ -262,3 +274,11 @@ async def test_client_survives_malformed_server_output(short_tmp):
     finally:
         srv.close()
         await srv.wait_closed()
+
+
+@pytest.mark.parametrize("method", ["bad.nan", "bad.object"])
+async def test_unencodable_result_gives_internal_error(client, method):
+    with pytest.raises(p.RpcError) as e:
+        await client.call(method, timeout=2)
+    assert e.value.code == p.INTERNAL_ERROR
+    assert await client.call("math.add", {"a": 2, "b": 2}, timeout=2) == 4
