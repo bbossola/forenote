@@ -1,0 +1,16 @@
+{
+  "backend": "litert-lm",
+  "variant": "text-270m",
+  "load_s": 0.32,
+  "long_chunks_per_s": 3.7,
+  "recall_at_1": 1.0,
+  "recall_at_3": 1.0,
+  "mrr": 1.0,
+  "image": {
+    "supported": false,
+    "correct": 0,
+    "total": 4,
+    "error": "text-only variant"
+  },
+  "peak_rss_mb": 433
+}
