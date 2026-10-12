@@ -188,3 +188,64 @@ async def test_timeout_is_reported(monkeypatch, capsys):
     code = await cli._main(build_parser().parse_args(["status"]))
     assert code == 1
     assert "the engine did not answer in time" in capsys.readouterr().err
+
+
+async def test_record_prints_final_lines_and_ends_with_the_meeting():
+    client = FakeClient(
+        {"meeting.start": {"meeting_id": 3, "started_at": "2026-10-12T10:00:00+00:00"}},
+        events=[
+            ("transcript.partial", {"meeting_id": 3, "speaker": "others", "t_start_ms": 0, "text": "hel"}),
+            ("transcript.final", {"meeting_id": 3, "id": 1, "speaker": "others", "t_start_ms": 65000, "t_end_ms": 66000, "text": "Hello all."}),
+            ("transcript.final", {"meeting_id": 9, "id": 2, "speaker": "me", "t_start_ms": 0, "t_end_ms": 1, "text": "other meeting"}),
+            ("audio.source_changed", {"meeting_id": 3, "speaker": "me", "device": "usb-mic"}),
+            ("meeting.state", {"meeting_id": 3, "status": "done", "stop_reason": "silence"}),
+        ],
+    )
+    code, out = await run_cli(["record", "--title", "Sync"], client)
+    assert code == 0
+    assert client.calls[0] == ("meeting.start", {"title": "Sync"})
+    assert "[01:05] Others: Hello all." in out
+    assert "other meeting" not in out
+    assert "[audio source changed: Me]" in out
+    assert "stopped (silence)" in out
+
+
+async def test_record_from_file_sends_an_absolute_path(tmp_path):
+    wav = tmp_path / "a.wav"
+    wav.write_bytes(b"")
+    client = FakeClient(
+        {"meeting.start": {"meeting_id": 1, "started_at": "x"}},
+        events=[("meeting.state", {"meeting_id": 1, "status": "done", "stop_reason": "manual"})],
+    )
+    code, _ = await run_cli(["record", "--from-file", str(wav)], client)
+    assert code == 0
+    assert client.calls[0] == ("meeting.start", {"debug_file": str(wav.resolve())})
+
+
+async def test_meetings_list():
+    client = FakeClient({"meeting.list": [
+        {"id": 2, "title": "Sync", "started_at": "2026-10-12T10:00:00+00:00", "status": "done", "line_count": 12},
+    ]})
+    code, out = await run_cli(["meetings"], client)
+    assert code == 0
+    assert "Sync" in out and "12 lines" in out
+
+
+async def test_transcript_sorts_lines_and_shows_markers():
+    client = FakeClient({"transcript.get": {
+        "lines": [
+            {"id": 2, "speaker": "me", "t_start_ms": 5000, "t_end_ms": 6000, "text": "Second."},
+            {"id": 1, "speaker": "others", "t_start_ms": 1000, "t_end_ms": 2000, "text": "First."},
+        ],
+        "markers": [{"id": 1, "t_ms": 3000, "kind": "source_changed", "speaker": "me"}],
+    }})
+    code, out = await run_cli(["transcript", "7"], client)
+    assert code == 0
+    assert out.index("First.") < out.index("[audio source changed: Me]") < out.index("Second.")
+
+
+async def test_stop_calls_meeting_stop():
+    client = FakeClient({"meeting.stop": {"meeting_id": 4, "status": "done"}})
+    code, out = await run_cli(["stop"], client)
+    assert code == 0
+    assert "Meeting 4 stopped." in out
