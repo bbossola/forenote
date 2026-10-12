@@ -424,11 +424,13 @@ Create `spikes/embedding/run_reference.py`:
 # dependencies = [
 #   "sentence-transformers==6.1.0",
 #   "torch==2.14.1",
+#   "torchvision==0.29.1",
 #   "numpy",
 #   "pillow==11.3.0",
 # ]
 # [tool.uv.sources]
 # torch = { index = "pytorch-cpu" }
+# torchvision = { index = "pytorch-cpu" }
 # [[tool.uv.index]]
 # name = "pytorch-cpu"
 # url = "https://download.pytorch.org/whl/cpu"
@@ -504,6 +506,7 @@ if __name__ == "__main__":
 Create `spikes/embedding/.gitignore`:
 
 ```
+__pycache__/
 results/*.npy
 models/
 ```
