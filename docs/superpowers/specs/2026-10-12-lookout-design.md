@@ -213,6 +213,7 @@ One SQLite database: `$XDG_DATA_HOME/lookout/lookout.db`, WAL mode.
 | `chat_sessions` | `id`, `title`, `created_at` |
 | `chat_messages` | `id`, `session_id`, `role`, `text`, `citations` (JSON) |
 | `jobs` | `id`, `type`, `priority`, `status`, `payload` (JSON), `error`, timestamps |
+| `settings` | `key`, `value` (JSON) |
 | `schema_version` | `version` |
 
 ## 8. Data flows
