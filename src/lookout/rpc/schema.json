@@ -1,0 +1,169 @@
+{
+  "protocol": "1.0",
+  "methods": {
+    "system.hello": {
+      "params": {
+        "type": "object",
+        "properties": {
+          "protocol": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+$"},
+          "client": {"type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Za-z0-9._-]+$"}
+        },
+        "required": ["protocol", "client"],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "protocol": {"type": "string"},
+          "engine_version": {"type": "string"}
+        },
+        "required": ["protocol", "engine_version"]
+      }
+    },
+    "system.status": {
+      "params": {"type": "object", "additionalProperties": false},
+      "result": {
+        "type": "object",
+        "properties": {
+          "engine_version": {"type": "string"},
+          "protocol": {"type": "string"},
+          "hardware": {
+            "type": "object",
+            "required": ["avx2", "physical_cores", "threads", "ram_gib", "tier", "audio_server", "gpus", "problems", "warnings"]
+          },
+          "tier": {"type": ["string", "null"]},
+          "models": {"type": "array"},
+          "running_job": {"type": ["integer", "null"]}
+        },
+        "required": ["engine_version", "protocol", "hardware", "tier", "models", "running_job"]
+      }
+    },
+    "system.shutdown": {
+      "params": {"type": "object", "additionalProperties": false},
+      "result": {"type": "null"}
+    },
+    "settings.get": {
+      "params": {
+        "type": "object",
+        "properties": {"key": {"type": "string"}},
+        "additionalProperties": false
+      },
+      "result": {}
+    },
+    "settings.set": {
+      "params": {
+        "type": "object",
+        "properties": {"key": {"type": "string"}, "value": {}},
+        "required": ["key", "value"],
+        "additionalProperties": false
+      },
+      "result": {"type": "null"}
+    },
+    "jobs.list": {
+      "params": {
+        "type": "object",
+        "properties": {"limit": {"type": "integer", "minimum": 1, "maximum": 500}},
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "array",
+        "items": {"type": "object", "required": ["id", "type", "status"]}
+      }
+    },
+    "jobs.cancel": {
+      "params": {
+        "type": "object",
+        "properties": {"id": {"type": "integer"}},
+        "required": ["id"],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {"cancelled": {"type": "boolean"}},
+        "required": ["cancelled"]
+      }
+    },
+    "models.list": {
+      "params": {"type": "object", "additionalProperties": false},
+      "result": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {"type": "string"},
+            "role": {"type": "string"},
+            "tiers": {"type": "array", "items": {"type": "string"}},
+            "size": {"type": "integer"},
+            "installed": {"type": "boolean"}
+          },
+          "required": ["id", "role", "tiers", "size", "installed"]
+        }
+      }
+    },
+    "models.download": {
+      "params": {
+        "type": "object",
+        "properties": {"tier": {"enum": ["low", "default", "high"]}},
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {"job_id": {"type": "integer"}},
+        "required": ["job_id"]
+      }
+    },
+    "models.cancel_download": {
+      "params": {"type": "object", "additionalProperties": false},
+      "result": {
+        "type": "object",
+        "properties": {"cancelled": {"type": "boolean"}},
+        "required": ["cancelled"]
+      }
+    },
+    "models.set_tier": {
+      "params": {
+        "type": "object",
+        "properties": {"tier": {"enum": ["low", "default", "high"]}},
+        "required": ["tier"],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {"tier": {"type": "string"}, "installed": {"type": "boolean"}},
+        "required": ["tier", "installed"]
+      }
+    }
+  },
+  "events": {
+    "job.progress": {
+      "type": "object",
+      "properties": {"id": {"type": "integer"}, "type": {"type": "string"}, "message": {"type": "string"}},
+      "required": ["id", "type", "message"]
+    },
+    "job.done": {
+      "type": "object",
+      "properties": {"id": {"type": "integer"}, "type": {"type": "string"}, "status": {"enum": ["done", "cancelled"]}},
+      "required": ["id", "type", "status"]
+    },
+    "job.failed": {
+      "type": "object",
+      "properties": {"id": {"type": "integer"}, "type": {"type": "string"}, "error": {"type": "string"}},
+      "required": ["id", "type", "error"]
+    },
+    "models.progress": {
+      "type": "object",
+      "properties": {
+        "model": {"type": "string"},
+        "file": {"type": "string"},
+        "index": {"type": "integer"},
+        "count": {"type": "integer"}
+      },
+      "required": ["model", "file", "index", "count"]
+    },
+    "engine.error": {
+      "type": "object",
+      "properties": {"message": {"type": "string"}},
+      "required": ["message"]
+    }
+  }
+}

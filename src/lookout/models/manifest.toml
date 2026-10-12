@@ -1,0 +1,126 @@
+# Pinned model files (spec section 9.2).
+# Each tier needs exactly one model for each role.
+# The embedding role comes after the embedding spike.
+
+[[model]]
+id = "gemma-4-e2b-q4_0"
+role = "llm"
+tiers = ["low"]
+repo = "google/gemma-4-E2B-it-qat-q4_0-gguf"
+revision = "675cff42a74c774d6cb76f76d8eacb49b48c9b93"
+license = "apache-2.0"
+
+[[model.files]]
+name = "gemma-4-E2B_q4_0-it.gguf"
+size = 3349516256
+sha256 = "fa401b55b07ee70a54c6dae3903c783a6e65064312529ea57175cb5f8dec6634"
+
+[[model]]
+id = "gemma-4-e4b-q4_0"
+role = "llm"
+tiers = ["default"]
+repo = "google/gemma-4-E4B-it-qat-q4_0-gguf"
+revision = "4b4a2c1d584be7264f87aac328a1bc739ce81b6c"
+license = "apache-2.0"
+
+[[model.files]]
+name = "gemma-4-E4B_q4_0-it.gguf"
+size = 5154941280
+sha256 = "676c35070db6dbe52f93e9c864ee0fba4eddea94b9c875d9cb10daff453fbaee"
+
+[[model]]
+id = "gemma-4-26b-a4b-q4_0"
+role = "llm"
+tiers = ["high"]
+repo = "google/gemma-4-26B-A4B-it-qat-q4_0-gguf"
+revision = "d1c082be9cf3c8a514acf63b8761f4b41935842e"
+license = "apache-2.0"
+
+[[model.files]]
+name = "gemma-4-26B_q4_0-it.gguf"
+size = 14439363584
+sha256 = "3eca3b8f6d7baf218a7dd6bba5fb59a56ee25fe2d567b6f5f589b4f697eca51d"
+
+[[model]]
+id = "whisper-base-en"
+role = "speech"
+tiers = ["low"]
+repo = "Systran/faster-whisper-base.en"
+revision = "3d3d5dee26484f91867d81cb899cfcf72b96be6c"
+license = "mit"
+
+[[model.files]]
+name = "model.bin"
+size = 145216508
+sha256 = "2a166925539a16005f14ff328359f9b9adb9dc4fb631bb3b227526862e93e2ef"
+
+[[model.files]]
+name = "config.json"
+size = 2227
+sha256 = "f3bc3821e9fc76a27bae538e11ae5b677dcdd352b4600429ce7951d398569aeb"
+
+[[model.files]]
+name = "tokenizer.json"
+size = 2128466
+sha256 = "929c5252409436dce1b38a75d1abbcb5e132d170d8e324e4e04ed915fa2d22df"
+
+[[model.files]]
+name = "vocabulary.txt"
+size = 422309
+sha256 = "ff77588746d3a2595d32ab5b69ffd7b95ce2441ac57533cb66fc3eb575a115cf"
+
+[[model]]
+id = "whisper-small-en"
+role = "speech"
+tiers = ["default"]
+repo = "Systran/faster-whisper-small.en"
+revision = "d1d751a5f8271d482d14ca55d9e2deeebbae577f"
+license = "mit"
+
+[[model.files]]
+name = "model.bin"
+size = 483545366
+sha256 = "62b2a45b05ee59acb4a5341b33ee35e041395d378d418a18acfe4c9e768ee37a"
+
+[[model.files]]
+name = "config.json"
+size = 2657
+sha256 = "666a9605530ac1f61fa8177f3702b4dacec9966749e42610839fcc32661d5fae"
+
+[[model.files]]
+name = "tokenizer.json"
+size = 2128466
+sha256 = "929c5252409436dce1b38a75d1abbcb5e132d170d8e324e4e04ed915fa2d22df"
+
+[[model.files]]
+name = "vocabulary.txt"
+size = 422309
+sha256 = "ff77588746d3a2595d32ab5b69ffd7b95ce2441ac57533cb66fc3eb575a115cf"
+
+[[model]]
+id = "whisper-medium-en"
+role = "speech"
+tiers = ["high"]
+repo = "Systran/faster-whisper-medium.en"
+revision = "a29b04bd15381511a9af671baec01072039215e3"
+license = "mit"
+
+[[model.files]]
+name = "model.bin"
+size = 1527904330
+sha256 = "11b220779aea4c6f3ce9d2549c8a95ea869ed84066864b999531ef53e594fe5b"
+
+[[model.files]]
+name = "config.json"
+size = 2643
+sha256 = "4a1848ebabe7938d9797c15a2e8e4ce1d36e6fd4a43d096ae5955257c67c7962"
+
+[[model.files]]
+name = "tokenizer.json"
+size = 2128466
+sha256 = "929c5252409436dce1b38a75d1abbcb5e132d170d8e324e4e04ed915fa2d22df"
+
+[[model.files]]
+name = "vocabulary.txt"
+size = 422309
+sha256 = "ff77588746d3a2595d32ab5b69ffd7b95ce2441ac57533cb66fc3eb575a115cf"
