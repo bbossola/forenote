@@ -711,6 +711,8 @@ def main(variant: str):
     corpus = load_corpus()
     path = hf_hub_download(repo, filename, revision=revision, local_dir=HERE / "models")
 
+    # LiteRT-LM needs an existing cache directory.
+    (HERE / "models" / "litert-cache").mkdir(parents=True, exist_ok=True)
     cpu = litert_lm.Backend.CPU(thread_count=THREADS)
     with Timer() as load:
         engine = litert_lm.EmbeddingEngine(
@@ -826,6 +828,21 @@ If the help output shows `--mmproj` and `--image`, run:
   --embd-output-format json > models/red_square.json; echo "exit $?"
 ```
 
+- [ ] **Step 3b: Try a text embedding with the newest llama.cpp**
+
+`llama-cpp-python` 0.3.36 does not know the `gemma-embedding2` architecture. Check if the newest llama.cpp release knows it:
+
+```bash
+cd spikes/embedding
+./models/llama.cpp/build/bin/llama-embedding -m models/embeddinggemma-2-Q8_0.gguf \
+  -p "title: none | text: The budget review moved to Thursday." \
+  --embd-output-format json > models/text.json 2> models/text.err; echo "exit $?"
+grep -m1 -iE "unknown model architecture|error" models/text.err
+python3 -c "import json; d=json.load(open('models/text.json')); print(len(d['data'][0]['embedding']))"
+```
+
+Expected: either exit 0 and `768`, or an "unknown model architecture" error.
+
 - [ ] **Step 4: Record the result**
 
 Create `spikes/embedding/results/gguf-image-cli.md` with this content. Fill each line with what you saw:
@@ -837,6 +854,7 @@ Create `spikes/embedding/results/gguf-image-cli.md` with this content. Fill each
 - `llama-embedding` has image options: yes | no
 - Image embedding command exit code: <code, or "not run">
 - Output: 768 numbers: yes | no
+- Text embedding loads in `llama-embedding`: yes | no (error: <line>)
 - Notes: <one or two sentences>
 ```
 
