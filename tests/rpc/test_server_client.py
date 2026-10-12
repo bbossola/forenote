@@ -169,3 +169,14 @@ async def test_client_fails_pending_calls_when_server_closes(server, client):
     await server.close()
     with pytest.raises((ConnectionError, p.RpcError)):
         await client.call("math.add", {"a": 1, "b": 1}, timeout=2)
+
+
+async def test_bad_id_type_is_rejected(server):
+    hello, bad = await raw_exchange(
+        server.socket_path,
+        HELLO,
+        b'{"jsonrpc":"2.0","id":[1],"method":"math.add","params":{"a":1,"b":1}}\n',
+    )
+    assert hello["result"]["protocol"] == "1.0"
+    assert bad["error"]["code"] == p.INVALID_REQUEST
+    assert bad["id"] is None

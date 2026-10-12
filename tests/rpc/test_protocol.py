@@ -8,7 +8,7 @@ def test_encode_is_one_line_of_utf8_json():
     data = p.encode(p.request(1, "x.y", {"t": "café\nnext"}))
     assert data.endswith(b"\n")
     assert data.count(b"\n") == 1
-    assert "café".encode() in data
+    assert p.decode(data)["params"]["t"] == "café\nnext"
 
 
 def test_decode_round_trip():
@@ -48,3 +48,21 @@ def test_schema_is_valid_and_complete():
     for name, spec in schema["events"].items():
         jsonschema.Draft202012Validator.check_schema(spec)
     assert "system.hello" in schema["methods"]
+
+
+def test_decode_deep_nesting_is_a_parse_error():
+    with pytest.raises(p.RpcError) as e:
+        p.decode(b"[" * 100000)
+    assert e.value.code == p.PARSE_ERROR
+
+
+def test_decode_rejects_nan():
+    with pytest.raises(p.RpcError) as e:
+        p.decode(b'{"x": NaN}\n')
+    assert e.value.code == p.PARSE_ERROR
+
+
+def test_encode_escapes_line_separators_and_surrogates():
+    data = p.encode({"t": "a\u2028b\ud800"})
+    assert data.count(b"\n") == 1
+    assert b"\\u2028" in data

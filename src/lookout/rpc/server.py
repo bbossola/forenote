@@ -160,7 +160,12 @@ class RpcServer:
 
     async def _dispatch(self, conn: _Conn, msg: dict[str, Any]) -> None:
         mid = msg.get("id")
+        bad_id = mid is not None and (isinstance(mid, bool) or not isinstance(mid, (str, int)))
+        if bad_id:
+            mid = None
         try:
+            if bad_id:
+                raise p.RpcError(p.INVALID_REQUEST, "id must be a string, an integer or null")
             result = await self._call(msg)
         except p.RpcError as e:
             reply = p.error_response(mid, e)
@@ -169,7 +174,7 @@ class RpcServer:
             reply = p.error_response(mid, p.RpcError(p.INTERNAL_ERROR, "internal error, see the engine log"))
         else:
             reply = p.response(mid, result)
-        if mid is None:
+        if mid is None and not bad_id:
             return  # a notification from the client gets no reply
         with contextlib.suppress(ConnectionError, RuntimeError):
             await conn.send(reply)

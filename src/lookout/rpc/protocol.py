@@ -35,14 +35,20 @@ class RpcError(Exception):
         return d
 
 
+def _reject_constant(name: str) -> Any:
+    raise ValueError(f"invalid JSON constant: {name}")
+
+
 def encode(msg: dict[str, Any]) -> bytes:
-    return json.dumps(msg, separators=(",", ":"), ensure_ascii=False).encode("utf-8") + b"\n"
+    # ASCII escapes keep U+2028 and lone surrogates out of the raw line.
+    text = json.dumps(msg, separators=(",", ":"), ensure_ascii=True, allow_nan=False)
+    return text.encode("utf-8") + b"\n"
 
 
 def decode(line: bytes) -> dict[str, Any]:
     try:
-        msg = json.loads(line)
-    except (UnicodeDecodeError, json.JSONDecodeError) as e:
+        msg = json.loads(line, parse_constant=_reject_constant)
+    except (ValueError, RecursionError) as e:
         raise RpcError(PARSE_ERROR, f"parse error: {e}") from None
     if not isinstance(msg, dict):
         raise RpcError(INVALID_REQUEST, "a message must be a JSON object")
