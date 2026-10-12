@@ -118,3 +118,13 @@ Source: the final review of plan B1 (branch `feature/notes-b1`). The first task 
 - **Scheduler log.** `scheduler.py` calls `log.exception("job %d (%s) failed")`. This writes `str(e)` and the traceback. Add the log rule or a log filter before the first notes job (see "Log content" above).
 - **Thread rule.** The rule `physical_cores - 1` comes from one 12-core machine. Measure it again on other machines.
 - **Spike options.** The spike script has no `--flash-attn` or `--swa-full` flags, so `bench llm` must measure these options again. Decision 0003 does not explain why the first-token time goes from 0.94 s to 1.61 s with `flash_attn`. The value "76 MiB per 1,000 tokens" is per 1,024 tokens (74 MiB per 1,000 tokens).
+
+## Plan B2: decisions from the PR #3 review
+
+Source: the code review of PR #3 (plan B1). Plan B2 must decide each item.
+
+- **Total memory.** Decision 0003 compares the LLM memory alone (7.4 to 7.7 GB for E4B at 16k) with the 7–8 GB of spec 9.1. That budget is for the LLM, Whisper and the embeddings together. With the live reading, Whisper and the LLM run at the same time. Separate the file-backed pages from the anonymous memory, or measure the total on a 16 GB machine with ASR and the live reading on.
+- **Failed re-run.** `NotesStore.start_output` (`store/notes.py`) clears the old summary and action items when a job starts. If the re-run fails or the user cancels it, the old result is lost. Decide: keep the old result until the new summary is stored, or call `start_output` only when the first new step is ready.
+- **Watchdog tests.** Spec 10.1 asks for a fake clock. The tests in `tests/llm/test_base.py` and `tests/llm/test_llamacpp.py` use real timers (`stall_s=0.05` against delays of 0.2 to 1.0 s). Use larger margins, or a fake clock, or record the difference.
+- **render() after close().** `LlamaCppGenerator.close()` does not clear `_formatter`, so `render()` still works on a closed generator. Clear it in the lifecycle task.
+- **Progress rate.** Each `report()` call becomes one RPC broadcast. When B2 reports progress in a token loop, limit the rate.
