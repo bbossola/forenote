@@ -88,3 +88,46 @@ def test_pulse_source_turns_read_errors_into_audio_errors(monkeypatch):
     src.start()
     with pytest.raises(AudioSourceError):
         src.read_frame()
+
+
+def test_file_source_turns_an_empty_file_into_an_audio_error(tmp_path):
+    path = tmp_path / "empty.wav"
+    path.write_bytes(b"")
+    with pytest.raises(AudioSourceError):
+        FileAudioSource("me", path).start()
+
+
+def test_file_source_start_twice_closes_the_old_file():
+    src = FileAudioSource("me", AMI / "ES2002a.wav", realtime=False)
+    src.start()
+    old = src._wav
+    src.start()
+    assert src._wav is not old
+    src.close()
+
+
+def test_file_source_forgets_the_file_after_a_format_error(tmp_path):
+    path = tmp_path / "stereo.wav"
+    with wave.open(str(path), "wb") as w:
+        w.setnchannels(2)
+        w.setsampwidth(2)
+        w.setframerate(16000)
+        w.writeframes(b"\x00" * 4096)
+    src = FileAudioSource("me", path)
+    with pytest.raises(AudioSourceError):
+        src.start()
+    assert src._wav is None
+
+
+def test_pulse_source_uses_the_default_device_for_an_empty_name(monkeypatch):
+    import pasimple
+
+    seen = {}
+
+    class Fake:
+        def __init__(self, *args, **kwargs):
+            seen.update(kwargs)
+
+    monkeypatch.setattr(pasimple, "PaSimple", Fake)
+    PulseSource("me", "").start()
+    assert seen["device_name"] is None

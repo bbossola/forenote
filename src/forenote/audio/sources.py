@@ -20,10 +20,19 @@ class AudioSourceError(RuntimeError):
 
 
 class EndOfAudio(AudioSourceError):
-    """A file source has no more frames."""
+    """A file source has no more frames.
+
+    The last frame shorter than 512 samples is dropped.
+    EndOfAudio is a subclass of AudioSourceError, so catch it first.
+    """
 
 
 class AudioSource(Protocol):
+    """read_frame() and close() are called from one thread only (the thread that reads).
+
+    Never call close() while another thread is inside read_frame(): libpulse frees the stream.
+    """
+
     label: str
     device: str
 
@@ -49,21 +58,24 @@ class FileAudioSource:
         self._count = 0
 
     def start(self) -> None:
+        self.close()
         try:
             self._wav = wave.open(str(self._path))
-        except (OSError, wave.Error) as e:
+        except (OSError, EOFError, wave.Error) as e:
             raise AudioSourceError(f"cannot open the audio file: {type(e).__name__}") from e
         params = (self._wav.getnchannels(), self._wav.getsampwidth(), self._wav.getframerate())
         if params != (1, 2, SAMPLE_RATE):
             self._wav.close()
+            self._wav = None
             raise AudioSourceError("the audio file must be 16 kHz, mono, 16-bit")
         self._t0 = time.monotonic()
         self._count = 0
 
     def read_frame(self) -> np.ndarray:
-        if self._wav is None:
+        wav = self._wav
+        if wav is None:
             raise AudioSourceError("the source is not started")
-        data = self._wav.readframes(FRAME)
+        data = wav.readframes(FRAME)
         if len(data) < FRAME * 2:
             raise EndOfAudio("end of the audio file")
         self._count += 1
@@ -103,7 +115,7 @@ class PulseSource:
                 SAMPLE_RATE,
                 app_name=APP_NAME,
                 stream_name=f"forenote-{self.label}",
-                device_name=self.device,
+                device_name=self.device or None,
                 fragsize=FRAME * 2,
             )
         except Exception as e:  # noqa: BLE001 - PaSimpleError and ctypes errors
