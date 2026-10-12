@@ -101,3 +101,19 @@ def test_trailing_silence_is_trimmed_in_the_audio():
     u = [u for u in run(seg, probs) if u.final][0]
     frames = len(u.audio) // 512
     assert frames == (u.end_frame - u.start_frame) + 3  # 3 frames of silence kept
+
+
+def test_cut_during_trailing_silence_gives_no_empty_final():
+    seg = Segmenter("me")
+    finals = [u for u in run(seg, [SPEECH] * 620 + [SILENT] * 26 + [SILENT] * 40) if u.final]
+    assert len(finals) == 1
+    u = finals[0]
+    assert len(u.audio) // 512 <= (u.end_frame - u.start_frame) + 3
+    assert all(f.end_frame != f.start_frame for f in finals)
+    assert seg.flush() == []
+
+
+def test_flush_right_after_a_final_gives_nothing():
+    seg = Segmenter("me")
+    run(seg, [SPEECH] * 20 + [SILENT] * (END_FRAMES + 1))
+    assert seg.flush() == []

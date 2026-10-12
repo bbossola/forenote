@@ -74,12 +74,12 @@ class Segmenter:
         self._silence = self._silence + 1 if prob < END_PROB else 0
         self._since_partial += 1
 
-        if self._silence >= END_FRAMES:
-            out = [self._final(trim=True)]
+        if self._silence >= END_FRAMES or (len(self._frames) >= MAX_FRAMES and self._silence > 0):
+            out = self._final(trim=True)
             self._reset()
             return out
         if len(self._frames) >= MAX_FRAMES:
-            out = [self._final(trim=False)]
+            out = self._final(trim=False)
             self._frames = []
             self._start = index + 1
             self._silence = 0
@@ -95,14 +95,16 @@ class Segmenter:
         if not self._in_speech or not self._frames:
             self._reset()
             return []
-        out = [self._final(trim=True)]
+        out = self._final(trim=True)
         self._reset()
         return out
 
-    def _final(self, trim: bool) -> Utterance:
+    def _final(self, trim: bool) -> list[Utterance]:
         speech = len(self._frames) - (self._silence if trim else 0)
+        if speech <= 0:
+            return []
         keep = min(len(self._frames), speech + (min(self._silence, TAIL_FRAMES) if trim else 0))
-        return self._make(keep, self._start + speech, final=True)
+        return [self._make(keep, self._start + speech, final=True)]
 
     def _make(self, keep: int, end_frame: int, final: bool) -> Utterance:
         audio = np.concatenate(self._frames[:keep]) if keep else np.zeros(0, dtype=np.int16)
