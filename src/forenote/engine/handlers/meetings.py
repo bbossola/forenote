@@ -91,12 +91,13 @@ class MeetingsHandlers:
         meeting_id = None
         try:
             meeting_id = self.meetings.create(title, start_reason)
-            self._detector.set_recording(True)
+            self._set_detector_recording(True)
             await recorder.begin(meeting_id, lost)
         except Exception as e:  # noqa: BLE001 - report the type, keep no half recording
             log.error("the recording cannot start: %s", type(e).__name__)
             await self._undo_start(recorder, meeting_id)
             raise RpcError(APP_ERROR, f"The recording cannot start: {type(e).__name__}.") from None
+        # begin() has no await on success today. This guard stays for a future await in begin().
         if self._closed:  # the engine stops: do not leave a recording behind
             await self._undo_start(recorder, meeting_id)
             self._check_not_closed()
@@ -116,7 +117,7 @@ class MeetingsHandlers:
             except Exception as e:  # noqa: BLE001 - keep the first error for the caller
                 log.error("cannot delete the meeting: %s", type(e).__name__)
         self._recorder = None
-        self._detector.set_recording(False)
+        self._set_detector_recording(False)
         if not recorder.worker_stopped:
             log.warning("the ASR thread did not stop; the speech model loads again next time")
             self._transcriber = None
@@ -140,7 +141,7 @@ class MeetingsHandlers:
     def _recording_finished(self, status: str) -> None:
         recorder, self._recorder = self._recorder, None
         self._recording_debug = False
-        self._detector.set_recording(False)
+        self._set_detector_recording(False)
         if recorder is not None and not recorder.worker_stopped:
             log.warning("the ASR thread did not stop; the speech model loads again next time")
             self._transcriber = None
@@ -218,15 +219,36 @@ class MeetingsHandlers:
                 if old.sink != event.defaults.sink:
                     self._recorder.on_default_changed("others")
         elif isinstance(event, OutputAdded):
-            # With detection off, the detector records nothing. A stream that opens
-            # now is not announced later.
-            if self.settings.get("meeting_detection"):
-                app = self._detector.output_added(event.index, event.app, event.binary)
-                if app:
-                    self._spawn(self.rpc.broadcast("meeting.detected", {"app": app}))
+            # The detector always tracks the streams: a closed call app shortens the
+            # silence time also with detection off (parent spec 8.6).
+            self._sync_detector()
+            app = self._detector.output_added(event.index, event.app, event.binary)
+            if app:
+                self._spawn(self.rpc.broadcast("meeting.detected", {"app": app}))
         elif isinstance(event, OutputRemoved):
             if self._detector.output_removed(event.index) and self._recorder is not None:
                 self._recorder.call_app_closed()
+
+    def _set_detector_recording(self, recording: bool) -> None:
+        self._detector_recording = recording
+        self._sync_detector()
+
+    def _sync_detector(self) -> None:
+        """Mute the detector during a recording and when detection is off.
+
+        A muted detector tracks streams but announces nothing and remembers no announcement.
+        """
+        self._detector.set_recording(self._detector_recording or not self.settings.get("meeting_detection"))
+
+    def _detector_tick(self) -> None:
+        # With detection off, do not tick: a browser stream stays pending and is
+        # announced when detection turns on.
+        if not self.settings.get("meeting_detection"):
+            return
+        self._sync_detector()
+        app = self._detector.tick()
+        if app:
+            self._spawn(self.rpc.broadcast("meeting.detected", {"app": app}))
 
     def _on_setting_changed(self, key: str, value: Any) -> None:
         if key == "call_apps":

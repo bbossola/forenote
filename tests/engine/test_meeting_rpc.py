@@ -362,3 +362,37 @@ def test_pulse_devices(defaults, expected):
 
     d = Defaults(*defaults) if defaults else None
     assert (pulse_devices(d, "me"), pulse_devices(d, "others")) == expected
+
+
+async def test_a_closed_call_app_shortens_the_silence_with_detection_off(engine, client, speech_installed):
+    from forenote.asr.transcriber import TranscriptResult
+    from forenote.audio.devices import OutputAdded, OutputRemoved
+
+    await client.call("settings.set", {"key": "meeting_detection", "value": False})
+    engine.debug_realtime = True
+    mid = (await client.call("meeting.start", {"debug_file": CLIP}))["meeting_id"]
+    # No speech: a final would reset the silence warning.
+    engine._recorder._transcriber.transcribe = lambda audio, final, prompt="": TranscriptResult("", 0.9, -2.0)
+    engine._on_device_event(OutputAdded(7, "zoom", "zoom"))
+    engine._on_device_event(OutputRemoved(7))
+    seen = await events_until(client, lambda n, p: n == "meeting.auto_stop_pending", timeout=5)
+    assert "meeting.detected" not in [n for n, _ in seen]
+    await client.call("meeting.stop", {})
+    await events_until(client, done(mid))
+
+
+async def test_a_browser_stream_seen_with_detection_off_is_announced_when_detection_turns_on(engine, client):
+    from forenote.audio.devices import OutputAdded
+    from forenote.meeting.detector import MeetingDetector
+
+    now = [0.0]
+    engine._detector = MeetingDetector(["firefox"], clock=lambda: now[0])
+    await client.call("settings.set", {"key": "meeting_detection", "value": False})
+    engine._on_device_event(OutputAdded(7, "firefox", "firefox"))
+    now[0] = 11.0
+    engine._detector_tick()
+    await client.call("settings.set", {"key": "meeting_detection", "value": True})
+    engine._detector_tick()
+    # The first event sent comes from the second tick.
+    name, params = await client.next_event(timeout=2)
+    assert (name, params) == ("meeting.detected", {"app": "firefox"})

@@ -82,6 +82,7 @@ class Engine(SystemHandlers, SettingsHandlers, JobsHandlers, ModelsHandlers, Mee
         self._transcriber_key = None
         self._audio_defaults = None
         self._detector = MeetingDetector([])
+        self._detector_recording = False  # the engine records or starts a recording
         self._detector_task: asyncio.Task | None = None
 
     # Lifecycle
@@ -179,11 +180,7 @@ class Engine(SystemHandlers, SettingsHandlers, JobsHandlers, ModelsHandlers, Mee
     async def _detector_ticks(self) -> None:
         while True:
             await asyncio.sleep(1.0)
-            if not self.settings.get("meeting_detection"):
-                continue
-            app = self._detector.tick()
-            if app:
-                self._spawn(self.rpc.broadcast("meeting.detected", {"app": app}))
+            self._detector_tick()
 
     def _on_job(self, job: dict[str, Any]) -> None:
         status = job["status"]

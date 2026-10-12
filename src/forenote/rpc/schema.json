@@ -280,6 +280,7 @@
       "required": ["message"]
     },
     "meeting.state": {
+      "description": "Clients ignore events for a meeting id they do not know (a failed start can emit them).",
       "type": "object",
       "properties": {
         "meeting_id": {"type": "integer"},
