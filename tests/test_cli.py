@@ -2,6 +2,7 @@ import io
 
 import pytest
 
+from lookout import cli
 from lookout.cli import build_parser, run
 
 STATUS = {
@@ -93,3 +94,44 @@ async def test_models_list_shows_all_models():
 def test_parser_needs_a_command():
     with pytest.raises(SystemExit):
         build_parser().parse_args([])
+
+
+async def test_status_with_no_tier():
+    status = {**STATUS, "tier": None}
+    code, out = await run_cli(["status"], FakeClient({"system.status": status}))
+    assert code == 0
+    assert "Model tier: none (this computer is below the minimum)" in out
+
+
+async def test_download_cancelled_returns_1():
+    client = FakeClient(
+        {"models.download": {"job_id": 4}},
+        events=[("job.done", {"id": 4, "type": "models.download", "status": "cancelled"})],
+    )
+    code, out = await run_cli(["models", "download"], client)
+    assert code == 1
+    assert "download cancelled" in out
+
+
+async def test_download_without_terminal_event_returns_1(capsys):
+    client = FakeClient({"models.download": {"job_id": 4}}, events=[])
+    code, _ = await run_cli(["models", "download"], client)
+    assert code == 1
+    assert "connection to the engine closed" in capsys.readouterr().err
+
+
+async def test_connection_error_is_reported(monkeypatch, capsys):
+    class BrokenClient(FakeClient):
+        async def call(self, method, params=None, timeout=30.0):
+            raise ConnectionError("lost")
+
+        async def close(self):
+            pass
+
+    async def connect(path, name):
+        return BrokenClient({})
+
+    monkeypatch.setattr(cli.RpcClient, "connect", connect)
+    code = await cli._main(build_parser().parse_args(["status"]))
+    assert code == 1
+    assert "lost" in capsys.readouterr().err

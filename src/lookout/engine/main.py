@@ -36,6 +36,9 @@ def setup_logging(paths: Paths, level: str) -> None:
 
 async def run(paths: Paths, hardware: HardwareReport) -> int:
     engine = Engine(paths, hardware)
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, engine.request_stop)
     try:
         await engine.start()
     except EngineAlreadyRunning:
@@ -45,12 +48,10 @@ async def run(paths: Paths, hardware: HardwareReport) -> int:
         log.error("%s", e)
         return 1
     except (ValueError, RuntimeError) as e:  # bad socket path or unsafe runtime dir
-        log.error("%s", e)
+        log.error("%s", e, exc_info=log.isEnabledFor(logging.DEBUG))
         return 1
-    loop = asyncio.get_running_loop()
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, engine.request_stop)
     try:
+        # If a signal came during start, wait_stopped returns at once.
         await engine.wait_stopped()
     finally:
         await engine.stop()

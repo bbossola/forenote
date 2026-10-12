@@ -4,7 +4,7 @@ import sys
 import pytest
 
 from lookout.paths import Paths
-from lookout.rpc.launcher import EngineStartTimeout, connect_or_start
+from lookout.rpc.launcher import EngineStartError, EngineStartTimeout, connect_or_start
 
 
 @pytest.fixture
@@ -36,5 +36,40 @@ async def test_connect_or_start_launches_the_engine(env_paths):
 async def test_connect_or_start_times_out(short_tmp):
     with pytest.raises(EngineStartTimeout):
         await connect_or_start(
-            short_tmp / "none.sock", "pytest", engine_cmd=[sys.executable, "-c", "pass"], timeout=0.5
+            short_tmp / "none.sock", "pytest", engine_cmd=[sys.executable, "-c", "import time; time.sleep(2)"], timeout=0.5
         )
+
+
+async def test_early_exit_is_reported(short_tmp):
+    with pytest.raises(EngineStartError) as info:
+        await asyncio.wait_for(
+            connect_or_start(
+                short_tmp / "x.sock",
+                "pytest",
+                engine_cmd=[sys.executable, "-c", "raise SystemExit(2)"],
+                timeout=10,
+            ),
+            3,
+        )
+    assert "hardware" in str(info.value)
+
+
+async def test_two_launchers_share_one_engine(env_paths):
+    cmd = [sys.executable, "-m", "lookout.engine.main", "--no-hw-check", "--log-level", "WARNING"]
+    a, b = await asyncio.gather(
+        connect_or_start(env_paths.socket_path, "pytest-a", engine_cmd=cmd),
+        connect_or_start(env_paths.socket_path, "pytest-b", engine_cmd=cmd),
+    )
+    try:
+        assert (await a.call("system.status"))["protocol"] == "1.0"
+        assert (await b.call("system.status"))["protocol"] == "1.0"
+        await a.call("system.shutdown")
+    finally:
+        await a.close()
+        await b.close()
+
+    for _ in range(50):
+        if not env_paths.socket_path.exists():
+            break
+        await asyncio.sleep(0.1)
+    assert not env_paths.socket_path.exists()

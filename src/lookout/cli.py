@@ -10,13 +10,13 @@ from typing import Any, TextIO
 
 from lookout.paths import Paths
 from lookout.rpc.client import RpcClient
-from lookout.rpc.launcher import EngineStartTimeout, connect_or_start
+from lookout.rpc.launcher import EngineStartError, EngineStartTimeout, connect_or_start
 from lookout.rpc.protocol import RpcError
 
 
 def build_parser() -> argparse.ArgumentParser:
-    ap = argparse.ArgumentParser(prog="lookout-cli")
-    ap.add_argument("--json", action="store_true", help="print raw JSON")
+    ap = argparse.ArgumentParser(prog="lookout-cli", description="Control the Lookout engine.")
+    ap.add_argument("--json", action="store_true", help="print raw JSON (status and models list only)")
     sub = ap.add_subparsers(dest="command", required=True)
     sub.add_parser("status", help="show the engine status")
     sub.add_parser("shutdown", help="stop the engine")
@@ -52,7 +52,7 @@ async def run(args: argparse.Namespace, client: Any, out: TextIO = sys.stdout) -
         say(f"GPU: {', '.join(hw['gpus']) or 'none'}. Audio: {hw['audio_server'] or 'not available'}.")
         for warning in hw["warnings"]:
             say(f"Warning: {warning}")
-        say(f"Model tier: {s['tier']}")
+        say(f"Model tier: {s['tier'] or 'none (this computer is below the minimum)'}")
         for m in s["models"]:
             if s["tier"] in m["tiers"]:
                 say(_model_line(m))
@@ -85,7 +85,7 @@ async def run(args: argparse.Namespace, client: Any, out: TextIO = sys.stdout) -
             elif name == "job.failed" and p["id"] == job_id:
                 say(f"download failed: {p['error']}")
                 return 1
-        say("The connection to the engine closed.")
+        print("The connection to the engine closed.", file=sys.stderr)
         return 1
 
     return 2
@@ -93,28 +93,42 @@ async def run(args: argparse.Namespace, client: Any, out: TextIO = sys.stdout) -
 
 async def _main(args: argparse.Namespace) -> int:
     paths = Paths.from_env()
+    client = None
     try:
         if args.command in ("status", "shutdown"):
             client = await RpcClient.connect(paths.socket_path, "lookout-cli")
         else:
             client = await connect_or_start(paths.socket_path, "lookout-cli")
-    except (FileNotFoundError, ConnectionRefusedError):
-        print("The engine is not running.", file=sys.stderr)
-        return 1
-    except EngineStartTimeout as e:
-        print(e, file=sys.stderr)
-        return 1
-    try:
         return await run(args, client)
+    except (FileNotFoundError, ConnectionRefusedError):
+        if client is None and args.command in ("status", "shutdown"):
+            print("The engine is not running.", file=sys.stderr)
+        else:
+            print("Error: the connection to the engine failed.", file=sys.stderr)
+        return 1
     except RpcError as e:
         print(f"Error: {e.message}", file=sys.stderr)
         return 1
+    except (EngineStartTimeout, EngineStartError) as e:
+        print(e, file=sys.stderr)
+        return 1
+    except (ConnectionError, TimeoutError, OSError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        print("The download continues in the engine.", file=sys.stderr)
+        return 130
     finally:
-        await client.close()
+        if client is not None:
+            await client.close()
 
 
 def main(argv: list[str] | None = None) -> int:
-    return asyncio.run(_main(build_parser().parse_args(argv)))
+    try:
+        return asyncio.run(_main(build_parser().parse_args(argv)))
+    except KeyboardInterrupt:
+        print("The download continues in the engine.", file=sys.stderr)
+        return 130
 
 
 if __name__ == "__main__":
