@@ -163,6 +163,9 @@ class AsrWorker:
                 error = e
             with self._cond:
                 stopping = self._stopping
+                if stopping:
+                    self._busy = False
+                    self._cond.notify_all()
             if stopping:
                 return
             try:

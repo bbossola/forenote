@@ -156,3 +156,18 @@ def test_stop_returns_true_and_drops_results_after_stop():
     assert not w.is_alive()
     assert c.results == []
     assert w.stop() is True
+
+
+def test_drain_after_stop_returns_at_once():
+    t, c = FakeTranscriber(), Collector()
+    t.gate.clear()
+    w = make(t, c)
+    w.submit(utt(tag=1))
+    assert t.entered.wait(2)
+    w.stop(timeout=0.1)
+    t.gate.set()
+    w._thread.join(2)
+    assert not w.is_alive()
+    start = time.monotonic()
+    assert w.drain(0.5)
+    assert time.monotonic() - start < 0.3
