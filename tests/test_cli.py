@@ -135,3 +135,39 @@ async def test_connection_error_is_reported(monkeypatch, capsys):
     code = await cli._main(build_parser().parse_args(["status"]))
     assert code == 1
     assert "lost" in capsys.readouterr().err
+
+
+async def _interrupted(monkeypatch, capsys, argv, client):
+    async def connect(path, name):
+        return client
+
+    monkeypatch.setattr(cli.RpcClient, "connect", connect)
+    monkeypatch.setattr(cli, "connect_or_start", lambda path, name: connect(path, name))
+    code = await cli._main(build_parser().parse_args(argv))
+    return code, capsys.readouterr().err
+
+
+class InterruptedClient(FakeClient):
+    async def call(self, method, params=None, timeout=30.0):
+        if method == "models.download":
+            return {"job_id": 1}
+        raise KeyboardInterrupt
+
+    async def events(self):
+        raise KeyboardInterrupt
+        yield
+
+    async def close(self):
+        pass
+
+
+async def test_ctrl_c_during_download(monkeypatch, capsys):
+    code, err = await _interrupted(monkeypatch, capsys, ["models", "download"], InterruptedClient({}))
+    assert code == 130
+    assert "The download continues in the engine." in err
+
+
+async def test_ctrl_c_during_status(monkeypatch, capsys):
+    code, err = await _interrupted(monkeypatch, capsys, ["status"], InterruptedClient({}))
+    assert code == 130
+    assert err.strip() == "Interrupted."

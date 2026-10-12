@@ -1,4 +1,5 @@
 import asyncio
+import subprocess
 import sys
 
 import pytest
@@ -73,3 +74,17 @@ async def test_two_launchers_share_one_engine(env_paths):
             break
         await asyncio.sleep(0.1)
     assert not env_paths.socket_path.exists()
+
+
+async def test_loser_exit_waits_for_the_winner(env_paths):
+    procs = []
+    real = [sys.executable, "-m", "lookout.engine.main", "--no-hw-check", "--log-level", "WARNING"]
+    asyncio.get_running_loop().call_later(0.5, lambda: procs.append(subprocess.Popen(real)))
+    client = await connect_or_start(
+        env_paths.socket_path, "pytest", engine_cmd=[sys.executable, "-c", "raise SystemExit(1)"]
+    )
+    try:
+        await client.call("system.shutdown")
+    finally:
+        await client.close()
+    procs[0].wait(timeout=10)

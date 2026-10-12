@@ -11,6 +11,7 @@ from lookout.paths import Paths
 from lookout.rpc.client import RpcClient
 
 START_TIMEOUT = 10.0
+START_GRACE = 2.0  # time to wait for the winning engine after a lock loser exits
 
 
 class EngineStartTimeout(RuntimeError):
@@ -44,24 +45,25 @@ async def connect_or_start(
     log = Paths.from_env().log_dir / "engine.log"
     loop = asyncio.get_running_loop()
     deadline = loop.time() + timeout
+    exit_time: float | None = None
     while True:
         try:
             return await RpcClient.connect(socket_path, client_name)
         except (FileNotFoundError, ConnectionRefusedError):
             pass
+        now = loop.time()
         # poll() also reaps the child, so it does not stay a zombie.
         rc = proc.poll()
         if rc is not None:
-            # A second engine exits with 1 while the first one is up. Try once more.
-            try:
-                return await RpcClient.connect(socket_path, client_name)
-            except (FileNotFoundError, ConnectionRefusedError):
-                pass
+            if exit_time is None:
+                exit_time = now
             if rc == 2:
                 raise EngineStartError(
                     f"The engine stopped: this computer does not meet the minimum hardware. See {log}."
                 ) from None
-            raise EngineStartError(f"The engine exited with code {rc}. See {log}.") from None
-        if loop.time() >= deadline:
+            # A lock loser exits with 1 while the winner still starts. Wait a short time for it.
+            if now >= min(deadline, exit_time + START_GRACE):
+                raise EngineStartError(f"The engine exited with code {rc}. See {log}.") from None
+        elif now >= deadline:
             raise EngineStartTimeout(f"The engine did not start within {timeout:.0f} s. See {log}.") from None
         await asyncio.sleep(0.2)

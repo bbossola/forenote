@@ -91,6 +91,12 @@ async def run(args: argparse.Namespace, client: Any, out: TextIO = sys.stdout) -
     return 2
 
 
+def _interrupt_text(args: argparse.Namespace) -> str:
+    if args.command == "models" and args.models_command == "download":
+        return "The download continues in the engine."
+    return "Interrupted."
+
+
 async def _main(args: argparse.Namespace) -> int:
     paths = Paths.from_env()
     client = None
@@ -116,7 +122,7 @@ async def _main(args: argparse.Namespace) -> int:
         print(f"Error: {e}", file=sys.stderr)
         return 1
     except (KeyboardInterrupt, asyncio.CancelledError):
-        print("The download continues in the engine.", file=sys.stderr)
+        print(_interrupt_text(args), file=sys.stderr)
         return 130
     finally:
         if client is not None:
@@ -124,10 +130,11 @@ async def _main(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
     try:
-        return asyncio.run(_main(build_parser().parse_args(argv)))
+        return asyncio.run(_main(args))
     except KeyboardInterrupt:
-        print("The download continues in the engine.", file=sys.stderr)
+        print(_interrupt_text(args), file=sys.stderr)
         return 130
 
 
