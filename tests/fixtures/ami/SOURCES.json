@@ -1,0 +1,37 @@
+[
+  {
+    "id": "ES2002a",
+    "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2002a/audio/ES2002a.Mix-Headset.wav",
+    "start_s": 300.0,
+    "end_s": 360.0,
+    "sha256": "28589f2101d14ff14dbc76d5b24926fe441380a4d033c6102e430fec0d046998"
+  },
+  {
+    "id": "ES2004a",
+    "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2004a/audio/ES2004a.Mix-Headset.wav",
+    "start_s": 300.0,
+    "end_s": 360.0,
+    "sha256": "af68e7a0540ecbd195aeb62c16c906bd5e728423f080f001a5a1ce32bd06dd06"
+  },
+  {
+    "id": "IS1009a",
+    "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/IS1009a/audio/IS1009a.Mix-Headset.wav",
+    "start_s": 300.0,
+    "end_s": 360.0,
+    "sha256": "a66cae7708df300a0584d0febc4357b699767938b1cc23f8f0b1c352a1fe2a07"
+  },
+  {
+    "id": "TS3003a",
+    "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/TS3003a/audio/TS3003a.Mix-Headset.wav",
+    "start_s": 300.0,
+    "end_s": 360.0,
+    "sha256": "79e74b39200c0787cc9c0ead31e56c4ec9ace9ec621a8a87b15a8b56b9fcf4b8"
+  },
+  {
+    "id": "ES2008a",
+    "url": "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2008a/audio/ES2008a.Mix-Headset.wav",
+    "start_s": 300.0,
+    "end_s": 360.0,
+    "sha256": "031276b9c2289e56d1691b0030b2ea1c7af2b723050374b95b544c3aa64d13fb"
+  }
+]

@@ -18,6 +18,7 @@ from logging.handlers import RotatingFileHandler  # noqa: E402
 from forenote import __version__  # noqa: E402
 from forenote.engine.app import Engine  # noqa: E402
 from forenote.hw import HardwareReport, detect  # noqa: E402
+from forenote.logs import UserContentFilter  # noqa: E402
 from forenote.paths import Paths  # noqa: E402
 from forenote.rpc.server import EngineAlreadyRunning  # noqa: E402
 from forenote.store.migrations import SchemaTooNew  # noqa: E402
@@ -37,8 +38,11 @@ def setup_logging(paths: Paths, level: str) -> None:
     file_handler.setFormatter(fmt)
     stderr_handler = logging.StreamHandler(sys.stderr)
     stderr_handler.setFormatter(fmt)
+    logging.captureWarnings(True)
     root = logging.getLogger()
     root.setLevel(level)
+    for handler in (file_handler, stderr_handler):
+        handler.addFilter(UserContentFilter())
     root.handlers[:] = [file_handler, stderr_handler]
 
 

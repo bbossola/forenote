@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import logging
 import os
 import re
 import subprocess
@@ -10,6 +11,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+log = logging.getLogger(__name__)
 
 # A 16 GB machine reports about 15.5 GiB, so the limit is 15.
 DEFAULT_TIER_MIN_GIB = 15.0
@@ -79,21 +82,31 @@ def _run(run: Run, cmd: list[str], timeout: float) -> str | None:
     return out.stdout if out.returncode == 0 else None
 
 
-def detect_audio(run: Run = subprocess.run) -> str | None:
-    """Return the name of the PulseAudio-compatible server, or None.
+def _pulse_server_name() -> str | None:
+    """Ask the PulseAudio-compatible server for its name through libpulse."""
+    import pulsectl
 
-    The audio plan replaces this check with libpulse.
-    """
-    out = _run(run, ["pactl", "info"], timeout=3)
-    if out is None:
+    pulse = pulsectl.Pulse("forenote-probe", connect=False)
+    try:
+        pulse.connect(autospawn=False, timeout=2)
+        return pulse.server_info().server_name
+    finally:
+        pulse.close()
+
+
+def detect_audio(probe: Callable[[], str | None] = _pulse_server_name) -> str | None:
+    """Return the name of the PulseAudio-compatible server, or None."""
+    try:
+        name = probe()
+    except Exception:  # noqa: BLE001 - no server, no libpulse, or a broken setup
+        log.debug("audio server probe failed", exc_info=True)
         return None
-    m = re.search(r"^Server Name:\s*(.+)$", out, re.M)
-    return m.group(1).strip() if m else None
+    return name or None
 
 
 def detect_gpus(run: Run = subprocess.run) -> list[str]:
     """Return the names of Vulkan devices that are not CPU devices."""
-    out = _run(run, ["vulkaninfo", "--summary"], timeout=10)
+    out = _run(run, ["vulkaninfo", "--summary"], timeout=3)
     if out is None:
         return []
     gpus: list[str] = []
@@ -162,6 +175,7 @@ def detect(
     cpuinfo: Path = Path("/proc/cpuinfo"),
     meminfo: Path = Path("/proc/meminfo"),
     run: Run = subprocess.run,
+    audio_probe: Callable[[], str | None] = _pulse_server_name,
 ) -> HardwareReport:
     cpu = parse_cpuinfo(cpuinfo.read_text())
     ram = parse_meminfo(meminfo.read_text())
@@ -171,6 +185,6 @@ def detect(
         physical_cores=cpu.physical_cores,
         ram_gib=round(ram, 1),
         tier=select_tier(ram),
-        audio_server=detect_audio(run),
+        audio_server=detect_audio(audio_probe),
         gpus=tuple(detect_gpus(run)),
     )

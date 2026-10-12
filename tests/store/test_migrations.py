@@ -7,10 +7,10 @@ from forenote.store import migrations
 from forenote.store.db import connect
 from forenote.store.migrations import SchemaTooNew, current_version, migrate
 
-V1_TABLES = {
+TABLES = {
     "settings", "meetings", "transcript_lines", "bullets", "meeting_outputs",
     "folders", "documents", "chunks", "chunks_fts", "chunks_vec",
-    "chat_sessions", "chat_messages", "jobs", "schema_version",
+    "chat_sessions", "chat_messages", "jobs", "schema_version", "meeting_markers",
 }
 
 
@@ -18,35 +18,39 @@ def tables(conn):
     return {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
 
 
-def test_fresh_database_gets_v1(tmp_path):
+def test_fresh_database_gets_the_latest_schema(tmp_path):
     db = tmp_path / "t.db"
     conn = connect(db)
-    assert migrate(conn, db) == 1
-    assert V1_TABLES <= tables(conn)
-    assert current_version(conn) == 1
+    assert migrate(conn, db) == migrations.latest_version()
+    assert TABLES <= tables(conn)
+    assert current_version(conn) == migrations.latest_version()
 
 
 def test_migrate_twice_does_nothing(tmp_path):
     db = tmp_path / "t.db"
     conn = connect(db)
     migrate(conn, db)
-    assert migrate(conn, db) == 1
-    assert conn.execute("SELECT COUNT(*) FROM schema_version").fetchone()[0] == 1
+    assert migrate(conn, db) == migrations.latest_version()
+    assert conn.execute("SELECT COUNT(*) FROM schema_version").fetchone()[0] == migrations.latest_version()
 
 
-def _add_v2(monkeypatch, sql):
-    original = migrations._read
-    monkeypatch.setattr(migrations, "MIGRATIONS", [(1, "schema_v1.sql"), (2, "v2.sql")])
-    monkeypatch.setattr(migrations, "_read", lambda f: sql if f == "v2.sql" else original(f))
+def _add_next(monkeypatch, sql):
+    """Add one more migration after the real ones. Return its version."""
+    original_read = migrations._read
+    nxt = migrations.latest_version() + 1
+    monkeypatch.setattr(migrations, "MIGRATIONS", migrations.MIGRATIONS + [(nxt, "next.sql")])
+    monkeypatch.setattr(migrations, "_read", lambda f: sql if f == "next.sql" else original_read(f))
+    return nxt
 
 
 def test_upgrade_makes_a_backup_first(tmp_path, monkeypatch):
     db = tmp_path / "t.db"
     conn = connect(db)
     migrate(conn, db)
-    _add_v2(monkeypatch, "CREATE TABLE extra (x INTEGER);")
-    assert migrate(conn, db) == 2
-    assert (tmp_path / "t.db.v1.bak").exists()
+    before = migrations.latest_version()
+    nxt = _add_next(monkeypatch, "CREATE TABLE extra (x INTEGER);")
+    assert migrate(conn, db) == nxt
+    assert (tmp_path / f"t.db.v{before}.bak").exists()
     assert "extra" in tables(conn)
 
 
@@ -54,10 +58,11 @@ def test_failed_migration_rolls_back(tmp_path, monkeypatch):
     db = tmp_path / "t.db"
     conn = connect(db)
     migrate(conn, db)
-    _add_v2(monkeypatch, "CREATE TABLE extra (x INTEGER); THIS IS NOT SQL;")
+    before = migrations.latest_version()
+    _add_next(monkeypatch, "CREATE TABLE extra (x INTEGER); THIS IS NOT SQL;")
     with pytest.raises(sqlite3.Error):
         migrate(conn, db)
-    assert current_version(conn) == 1
+    assert current_version(conn) == before
     assert "extra" not in tables(conn)
 
 

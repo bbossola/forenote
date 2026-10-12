@@ -73,10 +73,17 @@ def test_select_tier(ram, tier):
     assert select_tier(ram) == tier
 
 
-def test_detect_audio():
-    assert detect_audio(fake_run({"pactl": PACTL})) == "PulseAudio (on PipeWire 1.0.5)"
-    assert detect_audio(fake_run({"pactl": FileNotFoundError()})) is None
-    assert detect_audio(fake_run({})) is None
+def test_detect_audio_uses_the_probe():
+    assert detect_audio(lambda: "PulseAudio (on PipeWire 1.0.5)") == "PulseAudio (on PipeWire 1.0.5)"
+    assert detect_audio(lambda: None) is None
+    assert detect_audio(lambda: "") is None
+
+
+def test_detect_audio_treats_probe_errors_as_no_server():
+    def broken():
+        raise OSError("libpulse.so.0: cannot open shared object file")
+
+    assert detect_audio(broken) is None
 
 
 def test_detect_gpus_skips_cpu_devices():
@@ -110,8 +117,9 @@ def test_detect_reads_proc_files(tmp_path):
     mem = tmp_path / "meminfo"
     cpu.write_text(CPUINFO)
     mem.write_text("MemTotal:       32000000 kB\n")
-    r = detect(cpu, mem, fake_run({"pactl": PACTL, "vulkaninfo": VULKAN}))
+    r = detect(cpu, mem, fake_run({"vulkaninfo": VULKAN}), audio_probe=lambda: "PulseAudio (on PipeWire 1.0.5)")
     assert r.tier == "default"
+    assert r.audio_server == "PulseAudio (on PipeWire 1.0.5)"
     assert r.physical_cores == 2
     assert r.gpus == ("NVIDIA GeForce GTX 1650 SUPER",)
 
@@ -123,13 +131,9 @@ def test_child_processes_use_c_locale():
         seen.update(kwargs)
         return subprocess.CompletedProcess(cmd, 0, stdout=PACTL, stderr="")
 
-    detect_audio(run)
+    detect_gpus(run)
     assert seen["env"]["LC_ALL"] == "C"
     assert seen["env"]["LANGUAGE"] == "C"
-
-
-def test_permission_error_means_not_available():
-    assert detect_audio(fake_run({"pactl": PermissionError()})) is None
 
 
 def test_detect_gpus_removes_duplicates():
@@ -139,3 +143,14 @@ def test_detect_gpus_removes_duplicates():
         "\tdeviceName         = NVIDIA GeForce GTX 1650 SUPER\n"
     )
     assert detect_gpus(fake_run({"vulkaninfo": text})) == ["NVIDIA GeForce GTX 1650 SUPER"]
+
+
+def test_vulkaninfo_timeout_is_short():
+    seen = {}
+
+    def run(cmd, **kwargs):
+        seen["timeout"] = kwargs["timeout"]
+        raise subprocess.TimeoutExpired(cmd, kwargs["timeout"])
+
+    assert detect_gpus(run) == []
+    assert seen["timeout"] <= 3
