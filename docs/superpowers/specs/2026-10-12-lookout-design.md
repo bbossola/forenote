@@ -324,7 +324,11 @@ meeting detection is available only in the AppImage and developer builds.
 
 ### 8.7 Scheduling
 
-- Job priority: live ASR > chat > notes > indexing.
+- Live ASR does not go through the scheduler. It runs in its own task and
+  worker thread, so that a long job cannot delay the transcript. The
+  scheduler has one worker and does not stop a running job.
+- Scheduler job priority: ASR work that is not live (for example
+  `meeting.reprocess`) > chat > notes > indexing.
 - During a recording, indexing pauses, and LLM jobs wait until the recording
   stops. Exception: chat runs if the user asks a question, with a warning that
   the transcript can fall behind.
