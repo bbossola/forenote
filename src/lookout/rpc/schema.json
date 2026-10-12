@@ -6,7 +6,7 @@
         "type": "object",
         "properties": {
           "protocol": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+$"},
-          "client": {"type": "string", "minLength": 1}
+          "client": {"type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Za-z0-9._-]+$"}
         },
         "required": ["protocol", "client"],
         "additionalProperties": false
