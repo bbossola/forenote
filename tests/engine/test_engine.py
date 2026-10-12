@@ -61,7 +61,7 @@ async def test_models_download_installs_files(client):
 async def test_download_checksum_failure_reports_job_failed(paths, hardware, test_manifest):
     from forenote.rpc.client import RpcClient
 
-    e = Engine(paths, hardware, fetch=bad_fetch, manifest=test_manifest, watcher_factory=None)
+    e = Engine(paths, hardware, fetch=bad_fetch, manifest=test_manifest)
     await e.start()
     c = await RpcClient.connect(paths.socket_path, "pytest")
     try:
@@ -99,7 +99,7 @@ async def test_set_tier_unknown_in_manifest_is_an_app_error(client):
 
 
 async def test_second_engine_does_not_start(engine, hardware, test_manifest):
-    other = Engine(engine.paths, hardware, fetch=fake_fetch, manifest=test_manifest, watcher_factory=None)
+    other = Engine(engine.paths, hardware, fetch=fake_fetch, manifest=test_manifest)
     with pytest.raises(EngineAlreadyRunning):
         await other.start()
 
@@ -111,7 +111,7 @@ async def test_unfinished_jobs_fail_on_restart(paths, hardware, test_manifest):
     JobStore(conn).create("index", 3)
     conn.close()
 
-    e = Engine(paths, hardware, fetch=fake_fetch, manifest=test_manifest, watcher_factory=None)
+    e = Engine(paths, hardware, fetch=fake_fetch, manifest=test_manifest)
     await e.start()
     try:
         job = e.jobs.list()[0]
@@ -130,7 +130,7 @@ async def test_recording_meetings_become_interrupted_on_restart(paths, hardware,
     mid = MeetingStore(conn).create("left open")
     conn.close()
 
-    e = Engine(paths, hardware, fetch=fake_fetch, manifest=test_manifest, watcher_factory=None)
+    e = Engine(paths, hardware, fetch=fake_fetch, manifest=test_manifest)
     await e.start()
     try:
         assert e.meetings.get(mid)["status"] == "interrupted"
@@ -198,7 +198,7 @@ async def test_stop_during_download_marks_the_job_cancelled(paths, hardware, tes
     from forenote.rpc.client import RpcClient
 
     gate = threading.Event()
-    e = Engine(paths, hardware, fetch=gate_fetch(gate), manifest=test_manifest, watcher_factory=None)
+    e = Engine(paths, hardware, fetch=gate_fetch(gate), manifest=test_manifest)
     await e.start()
     c = await RpcClient.connect(paths.socket_path, "pytest")
     try:
@@ -216,9 +216,9 @@ async def test_stop_during_download_marks_the_job_cancelled(paths, hardware, tes
 
 
 async def test_stop_after_failed_start_and_twice(paths, hardware, test_manifest):
-    first = Engine(paths, hardware, fetch=fake_fetch, manifest=test_manifest, watcher_factory=None)
+    first = Engine(paths, hardware, fetch=fake_fetch, manifest=test_manifest)
     await first.start()
-    second = Engine(paths, hardware, fetch=fake_fetch, manifest=test_manifest, watcher_factory=None)
+    second = Engine(paths, hardware, fetch=fake_fetch, manifest=test_manifest)
     with pytest.raises(EngineAlreadyRunning):
         await second.start()
     await second.stop()
@@ -244,7 +244,7 @@ async def test_download_refused_while_stopping(paths, hardware, test_manifest):
     from forenote.rpc.client import RpcClient
 
     gate = threading.Event()
-    e = Engine(paths, hardware, fetch=gate_fetch(gate), manifest=test_manifest, watcher_factory=None)
+    e = Engine(paths, hardware, fetch=gate_fetch(gate), manifest=test_manifest)
     await e.start()
     c = await RpcClient.connect(paths.socket_path, "pytest")
     try:

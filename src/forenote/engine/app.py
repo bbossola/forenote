@@ -8,7 +8,6 @@ import logging
 from typing import Any
 
 from forenote import __version__
-from forenote.audio.devices import DeviceWatcher
 from forenote.engine.handlers.jobs import JobsHandlers
 from forenote.engine.handlers.meetings import MeetingsHandlers
 from forenote.engine.handlers.models import DOWNLOAD_JOB, ModelsHandlers  # noqa: F401 - DOWNLOAD_JOB is re-exported
@@ -31,6 +30,8 @@ from forenote.workers import run_in_daemon_thread
 
 log = logging.getLogger(__name__)
 
+START_WAIT_S = 30.0  # Engine.stop() waits this long for a meeting.start that runs
+
 
 def _whisper(model_dir, cpu_threads, beam):
     # Import at call time: keep the engine import light.
@@ -47,7 +48,7 @@ class Engine(SystemHandlers, SettingsHandlers, JobsHandlers, ModelsHandlers, Mee
         fetch: Fetch = hf_fetch,
         manifest: list[ModelEntry] | None = None,
         transcriber_factory=None,
-        watcher_factory=DeviceWatcher,
+        watcher_factory=None,
         debug_sources: bool = False,
         debug_realtime: bool = True,
     ):
@@ -74,6 +75,9 @@ class Engine(SystemHandlers, SettingsHandlers, JobsHandlers, ModelsHandlers, Mee
         self._watcher = None
         self._recorder = None
         self._starting = False
+        self._start_idle = asyncio.Event()  # set when no meeting.start runs
+        self._start_idle.set()
+        self._recording_debug = False
         self._transcriber = None
         self._transcriber_key = None
         self._audio_defaults = None
@@ -131,6 +135,11 @@ class Engine(SystemHandlers, SettingsHandlers, JobsHandlers, ModelsHandlers, Mee
             return
         self._closed = True
         self._download_cancel = True
+        # A meeting.start that runs sees _closed after its next await and gives up.
+        try:
+            await asyncio.wait_for(self._start_idle.wait(), START_WAIT_S)
+        except TimeoutError:
+            log.warning("a meeting start did not end within %s s", START_WAIT_S)
         await self._stop_recording_for_shutdown()
         if self._detector_task is not None:
             self._detector_task.cancel()
@@ -144,6 +153,7 @@ class Engine(SystemHandlers, SettingsHandlers, JobsHandlers, ModelsHandlers, Mee
             self._scheduler_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await self._scheduler_task
+        await self._stop_recording_for_shutdown()  # nothing can start now, but be sure
         # The download task reports "cancelled" and spawns broadcast tasks.
         while self._tasks:
             if self._download_task is not None and not self._download_task.done():
@@ -169,8 +179,10 @@ class Engine(SystemHandlers, SettingsHandlers, JobsHandlers, ModelsHandlers, Mee
     async def _detector_ticks(self) -> None:
         while True:
             await asyncio.sleep(1.0)
+            if not self.settings.get("meeting_detection"):
+                continue
             app = self._detector.tick()
-            if app and self.settings.get("meeting_detection"):
+            if app:
                 self._spawn(self.rpc.broadcast("meeting.detected", {"app": app}))
 
     def _on_job(self, job: dict[str, Any]) -> None:

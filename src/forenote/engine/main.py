@@ -16,6 +16,7 @@ import sys  # noqa: E402
 from logging.handlers import RotatingFileHandler  # noqa: E402
 
 from forenote import __version__  # noqa: E402
+from forenote.audio.devices import DeviceWatcher  # noqa: E402
 from forenote.engine.app import Engine  # noqa: E402
 from forenote.hw import HardwareReport, detect  # noqa: E402
 from forenote.logs import UserContentFilter  # noqa: E402
@@ -47,7 +48,7 @@ def setup_logging(paths: Paths, level: str) -> None:
 
 
 async def run(paths: Paths, hardware: HardwareReport, debug_sources: bool = False) -> int:
-    engine = Engine(paths, hardware, debug_sources=debug_sources)
+    engine = Engine(paths, hardware, watcher_factory=DeviceWatcher, debug_sources=debug_sources)
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, engine.request_stop)

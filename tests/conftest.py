@@ -86,7 +86,6 @@ async def engine(paths, hardware, test_manifest):
         fetch=fake_fetch,
         manifest=test_manifest,
         transcriber_factory=lambda model_dir, cpu_threads, beam: FakeSpeech(),
-        watcher_factory=None,
         debug_sources=True,
         debug_realtime=False,
     )

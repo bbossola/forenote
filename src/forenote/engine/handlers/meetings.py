@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from forenote.audio.devices import DefaultsChanged, OutputAdded, OutputRemoved, monitor_of, query_defaults
+from forenote.audio.devices import Defaults, DefaultsChanged, OutputAdded, OutputRemoved, monitor_of, query_defaults
 from forenote.audio.sources import FileAudioSource, PulseSource
 from forenote.meeting.recorder import Recorder, RecorderError
 from forenote.models.manifest import ManifestError, for_tier
@@ -19,11 +19,19 @@ log = logging.getLogger(__name__)
 ENGINE_STOP_DRAIN_S = 10.0
 
 
+def pulse_devices(defaults: Defaults | None, speaker: str) -> str:
+    """The device that records a speaker. Use the server defaults when a name is not known."""
+    if speaker == "me":
+        return defaults.source if defaults and defaults.source else "@DEFAULT_SOURCE@"
+    return monitor_of(defaults.sink) if defaults and defaults.sink else "@DEFAULT_MONITOR@"
+
+
 class MeetingsHandlers:
     # Recording
 
     async def _meeting_start(self, params: dict[str, Any]) -> dict[str, Any]:
-        if self._recorder is not None:
+        self._check_not_closed()
+        if self._recorder is not None or self._starting:
             raise RpcError(APP_ERROR, "A recording already runs.")
         debug_file = params.get("debug_file")
         if debug_file is not None:
@@ -31,43 +39,41 @@ class MeetingsHandlers:
                 raise RpcError(APP_ERROR, "Debug sources are off. Start the engine with --debug-sources.")
             if not Path(debug_file).is_absolute() or not Path(debug_file).is_file():
                 raise RpcError(APP_ERROR, "The debug file must be an absolute path to a WAV file.")
-            speakers = ("others",)
-        else:
-            if self.hardware.audio_server is None:
-                raise RpcError(APP_ERROR, "Recording is not available: no audio server.")
-            speakers = ("me", "others")
+        elif self.hardware.audio_server is None:
+            raise RpcError(APP_ERROR, "Recording is not available: no audio server.")
+        # From here to the end, a second start gets an error, and Engine.stop() waits.
+        self._starting = True
+        self._start_idle.clear()
+        try:
+            return await self._start_recording(params, debug_file)
+        finally:
+            self._starting = False
+            self._start_idle.set()
+
+    def _check_not_closed(self) -> None:
+        if self._closed:
+            raise RpcError(APP_ERROR, "The engine is stopping.")
+
+    async def _start_recording(self, params: dict[str, Any], debug_file: str | None) -> dict[str, Any]:
         transcriber = await self._speech_transcriber()
-
-        def factory(speaker: str):
-            if debug_file is not None:
-                return FileAudioSource(speaker, Path(debug_file), realtime=self.debug_realtime)
-            defaults = self._audio_defaults
-            if defaults is None:
-                return PulseSource(speaker, "")  # "" opens the server default
-            device = defaults.source if speaker == "me" else monitor_of(defaults.sink)
-            return PulseSource(speaker, device)
-
+        self._check_not_closed()
         if debug_file is None and self._audio_defaults is None:
             try:
                 self._audio_defaults = await run_in_daemon_thread(query_defaults)
             except Exception as e:  # noqa: BLE001 - no server, or libpulse missing
                 raise RpcError(APP_ERROR, f"Recording is not available: {type(e).__name__}.") from None
+            self._check_not_closed()
 
-        # A second start can come while this one waits. Check again.
-        if self._recorder is not None or self._starting:
-            raise RpcError(APP_ERROR, "A recording already runs.")
-        self._starting = True
-        try:
-            return await self._open_and_begin(transcriber, factory, speakers, params)
-        finally:
-            self._starting = False
+        def factory(speaker: str):
+            if debug_file is not None:
+                return FileAudioSource(speaker, Path(debug_file), realtime=self.debug_realtime)
+            return PulseSource(speaker, pulse_devices(self._audio_defaults, speaker))
 
-    async def _open_and_begin(self, transcriber, factory, speakers, params: dict[str, Any]) -> dict[str, Any]:
         recorder = Recorder(
             self.meetings,
             transcriber,
             factory,
-            speakers,
+            ("others",) if debug_file is not None else ("me", "others"),
             self._emit_event,
             self.settings.get("silence_timeout_min") * 60,
             on_finished=self._recording_finished,
@@ -76,38 +82,50 @@ class MeetingsHandlers:
             lost = await recorder.open()
         except RecorderError:
             raise RpcError(APP_ERROR, "No audio source could be opened.") from None
+        if self._closed:
+            await recorder.close()
+            self._check_not_closed()
         start_reason = params.get("start_reason", "manual")
-        title = params.get("title") or self._default_title(start_reason)
+        app = params.get("app") if start_reason == "detected" else None
+        title = params.get("title") or self._default_title(start_reason, app)
         meeting_id = None
-        begun = False
         try:
             meeting_id = self.meetings.create(title, start_reason)
             self._detector.set_recording(True)
-            begun = True  # begin() cleans up after its own failure
             await recorder.begin(meeting_id, lost)
         except Exception as e:  # noqa: BLE001 - report the type, keep no half recording
             log.error("the recording cannot start: %s", type(e).__name__)
-            if begun:
-                # stop() works after a failed begin(): it finishes the row,
-                # sends meeting.state "done" and calls on_finished.
-                await recorder.stop("error")
-            else:
-                await recorder.close()
-            if meeting_id is not None:
-                # A no-op if stop() finished the row. begin() can fail before it sets meeting_id.
-                try:
-                    self.meetings.finish(meeting_id, "done", "error")
-                except Exception as e2:  # noqa: BLE001 - keep the first error for the caller
-                    log.error("cannot finish the meeting: %s", type(e2).__name__)
-            self._recorder = None
-            self._detector.set_recording(False)
+            await self._undo_start(recorder, meeting_id)
             raise RpcError(APP_ERROR, f"The recording cannot start: {type(e).__name__}.") from None
+        if self._closed:  # the engine stops: do not leave a recording behind
+            await self._undo_start(recorder, meeting_id)
+            self._check_not_closed()
         self._recorder = recorder
+        self._recording_debug = debug_file is not None
         return {"meeting_id": meeting_id, "started_at": self.meetings.get(meeting_id)["started_at"]}
+
+    async def _undo_start(self, recorder: Recorder, meeting_id: int | None) -> None:
+        """Clean up a start that failed after open(). Spec 8.1: no meeting record stays."""
+        if meeting_id is None:
+            await recorder.close()  # begin() did not run
+        else:
+            # stop() works after a failed begin(): it stops what begin() started.
+            await recorder.stop("error", drain_s=ENGINE_STOP_DRAIN_S)
+            try:
+                self.meetings.delete(meeting_id)
+            except Exception as e:  # noqa: BLE001 - keep the first error for the caller
+                log.error("cannot delete the meeting: %s", type(e).__name__)
+        self._recorder = None
+        self._detector.set_recording(False)
+        if not recorder.worker_stopped:
+            log.warning("the ASR thread did not stop; the speech model loads again next time")
+            self._transcriber = None
 
     async def _meeting_stop(self, params: dict[str, Any]) -> dict[str, Any]:
         recorder = self._recorder
         if recorder is None:
+            if self._starting:
+                raise RpcError(APP_ERROR, "A recording is starting. Try again in a moment.")
             raise RpcError(APP_ERROR, "No recording runs.")
         status = await recorder.stop("manual")
         return {"meeting_id": recorder.meeting_id, "status": status}
@@ -121,6 +139,7 @@ class MeetingsHandlers:
 
     def _recording_finished(self, status: str) -> None:
         recorder, self._recorder = self._recorder, None
+        self._recording_debug = False
         self._detector.set_recording(False)
         if recorder is not None and not recorder.worker_stopped:
             log.warning("the ASR thread did not stop; the speech model loads again next time")
@@ -193,16 +212,22 @@ class MeetingsHandlers:
         # The watcher sends DefaultsChanged again after it reconnects.
         if isinstance(event, DefaultsChanged):
             old, self._audio_defaults = self._audio_defaults, event.defaults
-            if self._recorder is not None and old is not None:
+            if self._recorder is not None and old is not None and not self._recording_debug:
                 if old.source != event.defaults.source:
                     self._recorder.on_default_changed("me")
                 if old.sink != event.defaults.sink:
                     self._recorder.on_default_changed("others")
         elif isinstance(event, OutputAdded):
-            self._detector.set_call_apps(self.settings.get("call_apps"))
-            app = self._detector.output_added(event.index, event.app, event.binary)
-            if app and self.settings.get("meeting_detection"):
-                self._spawn(self.rpc.broadcast("meeting.detected", {"app": app}))
+            # With detection off, the detector records nothing. A stream that opens
+            # now is not announced later.
+            if self.settings.get("meeting_detection"):
+                app = self._detector.output_added(event.index, event.app, event.binary)
+                if app:
+                    self._spawn(self.rpc.broadcast("meeting.detected", {"app": app}))
         elif isinstance(event, OutputRemoved):
             if self._detector.output_removed(event.index) and self._recorder is not None:
                 self._recorder.call_app_closed()
+
+    def _on_setting_changed(self, key: str, value: Any) -> None:
+        if key == "call_apps":
+            self._detector.set_call_apps(value)
