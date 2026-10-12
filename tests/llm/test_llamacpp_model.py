@@ -65,8 +65,13 @@ async def test_a_cancel_aborts_the_prompt_read(e2b):
     with pytest.raises(JobCancelled):
         await collect(e2b, prompt, GenParams(max_tokens=20), token, lambda t: None)
     assert time.monotonic() - started < 3.0
-    answer = await collect(e2b, e2b.render("Say the word yes."), GenParams(max_tokens=5), CancelToken(), lambda t: None)
+    # The second call must get the model at once. A prompt read that goes on would stall it.
+    answer = await collect(
+        e2b, e2b.render("Say the word yes."), GenParams(max_tokens=5), CancelToken(), lambda t: None,
+        first_token_s=3.0,
+    )
     assert answer.strip()
+    assert time.monotonic() - started < 5.0
 
 
 async def test_json_schema_output_parses(e2b):

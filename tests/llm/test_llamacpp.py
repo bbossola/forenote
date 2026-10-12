@@ -233,11 +233,8 @@ async def test_close_during_a_generation_is_not_an_attribute_error(fake_llama_cp
 
     gen = RacyGenerator(tmp_path / "m.gguf", "x", context_size=100, threads=1)
     gen.load()
-    try:
-        text = await collect(gen, "a", GenParams(max_tokens=10), CancelToken(), lambda t: None)
-        assert text == "one two three"
-    except LlmError:
-        pass  # a clean error is fine; an AttributeError is not
+    with pytest.raises(LlmError):  # a clean error, not an AttributeError
+        await collect(gen, "a", GenParams(max_tokens=10), CancelToken(), lambda t: None)
     gen.closer.join(5)
     assert FakeLlama.instances[0].closed
 
