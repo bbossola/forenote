@@ -11,6 +11,7 @@ TABLES = {
     "settings", "meetings", "transcript_lines", "bullets", "meeting_outputs",
     "folders", "documents", "chunks", "chunks_fts", "chunks_vec",
     "chat_sessions", "chat_messages", "jobs", "schema_version", "meeting_markers",
+    "transcript_fts",
 }
 
 
@@ -137,3 +138,45 @@ def test_chunk_kind_must_match_owner(tmp_path):
     with pytest.raises(sqlite3.IntegrityError):
         with conn:
             conn.execute("INSERT INTO chunks(meeting_id, kind, text, locator) VALUES (1, 'file', 'x', '{}')")
+
+
+def _columns(conn, table):
+    return {r[1]: r for r in conn.execute(f"PRAGMA table_info({table})")}
+
+
+def test_v3_relaxes_the_notes_tables(tmp_path):
+    conn = connect(tmp_path / "t.db")
+    migrate(conn)
+    bullets = _columns(conn, "bullets")
+    assert bullets["t_written_ms"][3] == 0  # notnull flag
+    assert "enhanced_edited" in bullets
+    outputs = _columns(conn, "meeting_outputs")
+    assert outputs["summary"][3] == 0 and outputs["action_items"][3] == 0
+    assert "mode" in outputs
+
+
+def test_v3_keeps_rows_and_fills_the_transcript_index(tmp_path, monkeypatch):
+    db = tmp_path / "t.db"
+    conn = connect(db)
+    monkeypatch.setattr(migrations, "MIGRATIONS", migrations.MIGRATIONS[:2])
+    migrate(conn, db)
+    conn.execute("INSERT INTO meetings(id, title, started_at, status) VALUES (1, 'm', '2026-10-12T10:00:00+00:00', 'done')")
+    conn.execute("INSERT INTO transcript_lines(meeting_id, speaker, t_start_ms, t_end_ms, text) VALUES (1, 'others', 0, 900, 'the budget is twelve euros')")
+    conn.execute("INSERT INTO bullets(meeting_id, position, text, t_written_ms, enhanced_text) VALUES (1, 1, 'budget', 500, 'old')")
+    conn.execute("INSERT INTO meeting_outputs(meeting_id, summary, action_items, model, created_at) VALUES (1, 's', '[]', 'x', '2026-10-12T10:00:00+00:00')")
+    conn.commit()
+    monkeypatch.undo()
+    migrate(conn, db)
+    assert tuple(conn.execute("SELECT id, text, t_written_ms, enhanced_text, enhanced_edited FROM bullets").fetchone()) == (1, "budget", 500, "old", 0)
+    assert tuple(conn.execute("SELECT summary, mode FROM meeting_outputs").fetchone()) == ("s", "map_reduce")
+    assert [tuple(r) for r in conn.execute("SELECT rowid FROM transcript_fts WHERE transcript_fts MATCH 'twelve'").fetchall()] == [(1,)]
+
+
+def test_the_transcript_index_follows_inserts_and_deletes(tmp_path):
+    conn = connect(tmp_path / "t.db")
+    migrate(conn)
+    conn.execute("INSERT INTO meetings(id, title, started_at, status) VALUES (1, 'm', '2026-10-12T10:00:00+00:00', 'done')")
+    conn.execute("INSERT INTO transcript_lines(meeting_id, speaker, t_start_ms, t_end_ms, text) VALUES (1, 'me', 0, 900, 'remote control buttons')")
+    assert len(conn.execute("SELECT rowid FROM transcript_fts WHERE transcript_fts MATCH 'buttons'").fetchall()) == 1
+    conn.execute("DELETE FROM meetings WHERE id = 1")  # the cascade deletes the line
+    assert [tuple(r) for r in conn.execute("SELECT rowid FROM transcript_fts WHERE transcript_fts MATCH 'buttons'").fetchall()] == []
