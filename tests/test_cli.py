@@ -254,3 +254,93 @@ async def test_stop_calls_meeting_stop():
 def test_bench_parser():
     args = build_parser().parse_args(["bench", "asr", "--clips", "/tmp/x"])
     assert (args.command, args.bench_command, args.clips) == ("bench", "asr", "/tmp/x")
+
+
+async def test_transcript_pages_through_all_lines():
+    def line(i):
+        return {"id": i, "speaker": "me", "t_start_ms": i, "t_end_ms": i + 1, "text": f"L{i}"}
+
+    pages = [
+        {"lines": [line(i) for i in range(1, 1001)], "markers": [{"id": 1, "t_ms": 0, "kind": "source_lost", "speaker": None}]},
+        {"lines": [line(1001)], "markers": [{"id": 2, "t_ms": 0, "kind": "source_changed", "speaker": "me"}]},
+    ]
+
+    class Paged(FakeClient):
+        async def call(self, method, params=None, timeout=30.0):
+            self.calls.append((method, params))
+            return pages[len(self.calls) - 1]
+
+    client = Paged({})
+    code, out = await run_cli(["transcript", "7"], client)
+    assert code == 0
+    assert client.calls[0][1] == {"meeting_id": 7, "limit": 1000}
+    assert client.calls[1][1] == {"meeting_id": 7, "limit": 1000, "after_id": 1000}
+    assert "L1001" in out and out.count("[audio source") == 1
+
+
+async def test_transcript_keeps_id_order_for_equal_times():
+    same = {"speaker": "me", "t_start_ms": 5, "t_end_ms": 6}
+    client = FakeClient({"transcript.get": {
+        "lines": [{"id": 2, "text": "B", **same}, {"id": 1, "text": "A", **same}],
+        "markers": [],
+    }})
+    _, out = await run_cli(["transcript", "7"], client)
+    assert out.index("A") < out.index("B")
+
+
+async def test_meetings_empty_list():
+    code, out = await run_cli(["meetings"], FakeClient({"meeting.list": []}))
+    assert code == 0 and "No meetings." in out
+
+
+def test_meetings_limit_must_be_positive():
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["meetings", "--limit", "0"])
+
+
+def test_record_from_missing_file_exits_before_connecting(capsys):
+    assert cli.main(["record", "--from-file", "/nonexistent/x.wav"]) == 1
+    assert "No such file: /nonexistent/x.wav" in capsys.readouterr().err
+
+
+def test_record_debug_sources_error_has_a_hint(tmp_path, capsys, monkeypatch):
+    from forenote.rpc.protocol import RpcError
+
+    wav = tmp_path / "a.wav"
+    wav.write_bytes(b"")
+
+    class Failing(FakeClient):
+        async def call(self, method, params=None, timeout=30.0):
+            raise RpcError(-32000, "Debug sources are off. Start the engine with --debug-sources.")
+
+        async def close(self):
+            pass
+
+    async def fake_connect(*a, **k):
+        return Failing({})
+
+    monkeypatch.setattr(cli, "connect_or_start", fake_connect)
+    assert cli.main(["record", "--from-file", str(wav)]) == 1
+    assert "Run 'forenote-cli shutdown', then try again." in capsys.readouterr().err
+
+
+def test_bench_asr_errors_and_empty_clips(tmp_path, capsys):
+    assert cli.main(["bench", "asr", "--clips", str(tmp_path)]) == 1
+    err = capsys.readouterr().err
+    assert "No speech found in the clips." in err or "No speech model" in err
+
+
+def test_bench_asr_interrupt_and_runtime_error(tmp_path, capsys, monkeypatch):
+    import forenote.hw
+
+    def boom(exc):
+        def f():
+            raise exc
+        return f
+
+    monkeypatch.setattr(forenote.hw, "detect", boom(RuntimeError("bad model")))
+    assert cli.main(["bench", "asr", "--clips", str(tmp_path)]) == 1
+    assert "Error: bad model" in capsys.readouterr().err
+    monkeypatch.setattr(forenote.hw, "detect", boom(KeyboardInterrupt()))
+    assert cli.main(["bench", "asr", "--clips", str(tmp_path)]) == 130
+    assert "Interrupted." in capsys.readouterr().err

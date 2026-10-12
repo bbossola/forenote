@@ -24,12 +24,23 @@ class BenchResult:
     max_s: float
 
 
-def load_utterances(clips_dir: Path) -> list[Utterance]:
-    """Segment every 16 kHz mono WAV file in a directory into final utterances."""
+def load_utterances(clips_dir: Path, skipped: list[str] | None = None) -> list[Utterance]:
+    """Segment every 16 kHz mono 16-bit WAV file in a directory into final utterances.
+
+    A file with another format is skipped. Its name goes into the skipped list.
+    """
     utterances: list[Utterance] = []
     for path in sorted(clips_dir.glob("*.wav")):
-        with wave.open(str(path)) as w:
-            audio = np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16)
+        try:
+            with wave.open(str(path)) as w:
+                ok = (w.getframerate(), w.getnchannels(), w.getsampwidth()) == (16000, 1, 2)
+                audio = np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16) if ok else None
+        except (wave.Error, EOFError):
+            ok = False
+        if not ok:
+            if skipped is not None:
+                skipped.append(path.name)
+            continue
         vad, seg = StreamingVad(), Segmenter("others")
         for i in range(len(audio) // FRAME):
             frame = audio[i * FRAME : (i + 1) * FRAME]

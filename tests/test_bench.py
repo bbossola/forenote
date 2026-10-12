@@ -24,3 +24,16 @@ def test_bench_reports_cost_and_latency():
     assert r.speech_s > 0
     assert r.cost_per_speech_s >= 0
     assert r.p50_s <= r.p95_s <= r.max_s
+
+
+def test_load_utterances_skips_wrong_format(tmp_path):
+    import wave
+
+    with wave.open(str(tmp_path / "stereo.wav"), "wb") as w:
+        w.setnchannels(2)
+        w.setsampwidth(2)
+        w.setframerate(16000)
+        w.writeframes(b"\0\0" * 2 * 16000)
+    skipped: list[str] = []
+    assert load_utterances(tmp_path, skipped) == []
+    assert skipped == ["stereo.wav"]

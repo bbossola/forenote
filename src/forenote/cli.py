@@ -15,6 +15,13 @@ from forenote.rpc.launcher import EngineStartError, EngineStartTimeout, connect_
 from forenote.rpc.protocol import RpcError
 
 
+def _positive_int(text: str) -> int:
+    value = int(text)
+    if value < 1:
+        raise argparse.ArgumentTypeError("must be at least 1")
+    return value
+
+
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="forenote-cli", description="Control the Forenote engine.")
     ap.add_argument("--json", action="store_true", help="print raw JSON (status and models list only)")
@@ -31,7 +38,7 @@ def build_parser() -> argparse.ArgumentParser:
     record.add_argument("--from-file", help="use a 16 kHz mono WAV file (the engine needs --debug-sources)")
     sub.add_parser("stop", help="stop the running recording")
     meetings = sub.add_parser("meetings", help="list meetings")
-    meetings.add_argument("--limit", type=int, default=20)
+    meetings.add_argument("--limit", type=_positive_int, default=20)
     transcript = sub.add_parser("transcript", help="print the transcript of a meeting")
     transcript.add_argument("meeting_id", type=int)
     bench = sub.add_parser("bench", help="measure performance on this computer")
@@ -152,15 +159,24 @@ async def run(args: argparse.Namespace, client: Any, out: TextIO = sys.stdout) -
         return 0
 
     if args.command == "meetings":
-        for m in await client.call("meeting.list", {"limit": args.limit}):
+        found = await client.call("meeting.list", {"limit": args.limit})
+        if not found:
+            say("No meetings.")
+        for m in found:
             say(f"{m['id']:>5}  {m['started_at'][:16].replace('T', ' ')}  {m['status']:<11}  {m['line_count']:>4} lines  {m['title']}")
         return 0
 
     if args.command == "transcript":
-        t = await client.call("transcript.get", {"meeting_id": args.meeting_id})
-        items = [(l["t_start_ms"], 1, _line_text(l)) for l in t["lines"]]
-        items += [(m["t_ms"], 0, _marker_text(m["kind"], m["speaker"])) for m in t["markers"]]
-        for _, _, text in sorted(items):
+        params = {"meeting_id": args.meeting_id, "limit": PAGE}
+        t = await client.call("transcript.get", params)
+        lines = list(t["lines"])
+        page = t["lines"]
+        while len(page) >= PAGE:
+            page = (await client.call("transcript.get", {**params, "after_id": page[-1]["id"]}))["lines"]
+            lines += page
+        items = [(l["t_start_ms"], 1, l["id"], _line_text(l)) for l in lines]
+        items += [(m["t_ms"], 0, m["id"], _marker_text(m["kind"], m["speaker"])) for m in t["markers"]]
+        for *_, text in sorted(items):
             say(text)
         return 0
 
@@ -175,6 +191,8 @@ def _interrupt_text(args: argparse.Namespace) -> str:
     return "Interrupted."
 
 
+PAGE = 1000
+BEAM_SIZE = 5
 NO_START = ("status", "shutdown", "stop", "meetings", "transcript")
 
 
@@ -182,6 +200,9 @@ async def _main(args: argparse.Namespace) -> int:
     paths = Paths.from_env()
     client = None
     try:
+        if args.command == "record" and args.from_file and not Path(args.from_file).is_file():
+            print(f"No such file: {args.from_file}", file=sys.stderr)
+            return 1
         if args.command in NO_START:
             client = await RpcClient.connect(paths.socket_path, "forenote-cli")
         elif args.command == "record" and args.from_file:
@@ -201,6 +222,8 @@ async def _main(args: argparse.Namespace) -> int:
         return 1
     except RpcError as e:
         print(f"Error: {e.message}", file=sys.stderr)
+        if "--debug-sources" in e.message:
+            print("Run 'forenote-cli shutdown', then try again.", file=sys.stderr)
         return 1
     except (EngineStartTimeout, EngineStartError) as e:
         print(e, file=sys.stderr)
@@ -220,6 +243,17 @@ async def _main(args: argparse.Namespace) -> int:
 
 
 def _bench_asr(clips: Path) -> int:
+    try:
+        return _bench_asr_run(clips)
+    except KeyboardInterrupt:
+        print("Interrupted.", file=sys.stderr)
+        return 130
+    except (OSError, RuntimeError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+
+def _bench_asr_run(clips: Path) -> int:
     from forenote.asr.transcriber import WhisperTranscriber
     from forenote.bench import bench_transcriber, load_utterances
     from forenote.hw import detect
@@ -235,10 +269,17 @@ def _bench_asr(clips: Path) -> int:
     if not speech:
         print("No speech model is installed. Run: forenote-cli models download.", file=sys.stderr)
         return 1
-    utterances = load_utterances(clips)
-    print(f"{len(utterances)} utterances; {hw.asr_threads} threads")
+    skipped: list[str] = []
+    utterances = load_utterances(clips, skipped)
+    for name in skipped:
+        print(f"Warning: skipped {name}. It is not 16 kHz mono 16-bit.", file=sys.stderr)
+    if not utterances:
+        print("No speech found in the clips.", file=sys.stderr)
+        return 1
+    print(f"{len(utterances)} utterances; {hw.asr_threads} threads; beam {BEAM_SIZE}")
     for entry in speech:
-        r = bench_transcriber(WhisperTranscriber(store.path(entry), cpu_threads=hw.asr_threads), utterances)
+        transcriber = WhisperTranscriber(store.path(entry), cpu_threads=hw.asr_threads, final_beam_size=BEAM_SIZE)
+        r = bench_transcriber(transcriber, utterances)
         print(f"{entry.id}: {r.cost_per_speech_s:.2f} s per s of speech; latency p50 {r.p50_s} s, p95 {r.p95_s} s, max {r.max_s} s")
     print("Target: about 0.2 or less per s of speech keeps up with two streams and live partials.")
     return 0
