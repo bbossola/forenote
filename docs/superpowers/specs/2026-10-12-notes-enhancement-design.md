@@ -83,13 +83,15 @@ class GenParams:
 class TextGenerator(Protocol):
     model_id: str
     context_size: int
+    def render(self, user_text: str) -> str: ...
     def generate(self, prompt: str, params: GenParams,
                  cancel: CancelToken) -> AsyncIterator[str]: ...
     def count_tokens(self, text: str) -> int: ...
 ```
 
 - `prompt` is the full text that goes to the model, with the chat template
-  of the model already applied. `chat.py` applies the Gemma template, so the
+  of the model already applied. `render()` applies the template. The
+  generator reads the template from the GGUF metadata (decision 0003). The
   prefix bytes stay the same for all tasks of one meeting.
 - `LlamaCppGenerator` loads the GGUF file in a daemon thread. It uses
   `n_threads` from `hw` and the context size of the tier (section 6.1). It

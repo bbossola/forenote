@@ -104,3 +104,17 @@ These items stay open after the A2 reviews. None of them blocks the merge.
   again from the beginning. This affects only `--debug-sources`.
 - **Audio server status.** `forenote-cli status` does not show whether the
   engine found an audio server. Only the engine log shows it.
+
+## Plan B2: LLM instance lifecycle (required first task of B2)
+
+Source: the final review of plan B1 (branch `feature/notes-b1`). The first task of B2 must handle these items.
+
+- **Lock wait after a cancel or a stall.** A cancel or a stall during the prompt read keeps the model lock until the read ends. The next call's first-token timer counts the wait for the lock, so it can raise a false `GenerationStalled`. Register `llama_cpp.llama_set_abort_callback` (it exists in 0.3.36) and let it check the stop event. Or start the first-token timer only after the worker holds the lock, or do both.
+- **close() during a generation.** `close()` does not signal a running worker. An engine shutdown can block for minutes. Use the same abort callback.
+- **count_tokens() and close().** `count_tokens()` runs without the lock. A `close()` in another thread can free the model while `tokenize` runs. Make this safe when B2 releases failed instances (spec 8.1).
+- **Prefill only.** The live reading needs a method that reads the prompt and writes no output. Do not use `max_tokens=0`: llama-cpp-python reads it as "no limit", and `GenParams` refuses it.
+- **Prefix reuse test.** The model test checks only the template marks. Assert the prefix reuse too, with the first-token time ratio or the evaluated token count.
+- **Fixture name.** Rename the `speech_model_dir` fixture. It also serves LLM models.
+- **Scheduler log.** `scheduler.py` calls `log.exception("job %d (%s) failed")`. This writes `str(e)` and the traceback. Add the log rule or a log filter before the first notes job (see "Log content" above).
+- **Thread rule.** The rule `physical_cores - 1` comes from one 12-core machine. Measure it again on other machines.
+- **Spike options.** The spike script has no `--flash-attn` or `--swa-full` flags, so `bench llm` must measure these options again. Decision 0003 does not explain why the first-token time goes from 0.94 s to 1.61 s with `flash_attn`. The value "76 MiB per 1,000 tokens" is per 1,024 tokens (74 MiB per 1,000 tokens).
