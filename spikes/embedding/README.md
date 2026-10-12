@@ -8,7 +8,6 @@ The decision is in `docs/decisions/0001-embedding-backend.md`.
     uv run --script make_images.py
     uv run --script run_reference.py
     uv run --script run_gguf.py Q8_0
-    uv run --script run_gguf.py UD-Q4_K_XL
     uv run --script run_litert.py text-270m
     uv run --script run_litert.py 740m
     uv run --with numpy python compare.py

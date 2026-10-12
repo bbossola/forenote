@@ -51,25 +51,44 @@ binary, but `llama-server --embeddings --mmproj` returned 768 numbers for all
 
 ## Reasons
 
-- Rule 1: GGUF with llama-cpp-python 0.3.36 is rejected. It does not know the
-  `gemma-embedding2` architecture. The architecture appeared after release 0.3.36.
+- Rule 1: GGUF with llama-cpp-python 0.3.36 is rejected. The llama.cpp bundled
+  in llama-cpp-python 0.3.36 does not support the `gemma-embedding2`
+  architecture. The `UD-Q4_K_XL` file was not run, because the `Q8_0` file
+  failed on the architecture.
 - Rule 2: LiteRT-LM passes. The cosine agreement with the reference is 0.987
   (mean) and 0.978 (minimum). The limit is 0.97. Retrieval is the same as the
-  reference (R@1, R@3 and MRR are all 1.0). The 12 corpus documents differ a
-  lot, so every working backend gets 1.0. MRR and cosine agreement are
-  therefore the main quality signals.
-- Rule 3: The plan set the limit at 5 chunks/s. This value was a mistake. No
-  backend reached it, not even the reference (3.75). The spec target is 100 PDF
-  pages per minute. One page has about 500 tokens. This gives about 120 chunks
-  of 400 tokens per minute, or 2 chunks/s. The owner corrected rule 3 to the
-  spec target. LiteRT-LM 740M reaches 3.96 chunks/s on 12 threads. On the
-  8-core baseline we expect about 2.6 chunks/s, which meets the target. This is
-  an estimate. The engine benchmark (`lookout-cli bench`) must confirm it.
-- Rule 4: LiteRT-LM 740M embeds 4 of 4 images. Images are in v1.
+  reference (R@1, R@3 and MRR are all 1.0). With this corpus, MRR is 1.0 for
+  every backend. Cosine agreement is therefore the only signal that separates
+  the backends. The corpus is easy: the smallest query margin in the 740M
+  vectors is 0.10.
+- The 740M and text-270M runs give bit-identical text vectors. The maximum
+  absolute difference is 0.0. Their text encoder caches have the same SHA-256.
+  The 740M model uses the same 270M text backbone and adds vision and audio
+  encoders. The two text rows are therefore one measurement. The small speed
+  difference (3.96 against 3.70 chunks/s) is noise.
+- Rule 3: The plan set the limit at 5 chunks/s. The plan text also estimated
+  3-4 chunks/s for the same target. No backend reached 5 chunks/s, not even
+  the reference (3.75). With the original limit of 5 chunks/s, no backend
+  passes. The original rule 6 would then have selected sentence-transformers.
+  The owner changed the rule after he saw the results. The spec target is 100
+  PDF pages per minute. One page has about 500 tokens. The spec chunks have
+  about 512 tokens with 64 tokens of overlap. This gives about 120 chunks per
+  minute, or about 2 chunks/s. The new rule 3 uses this spec target.
+  LiteRT-LM 740M reaches 3.96 chunks/s on 12 threads. On the 8-core baseline we
+  expect about 2.6 chunks/s, which meets the target. This is an estimate. The
+  engine benchmark (`lookout-cli bench`) must confirm it.
+- Throughput note: each value is one timed pass over 12 texts, with no
+  repeats. A difference under about 10 % is noise.
+- Rule 4: LiteRT-LM 740M embeds 4 of 4 images. This check is a smoke test. It
+  uses 4 synthetic shapes and 4 candidates, so chance is 25 %. We did not
+  compare the image vectors with the reference. Images in v1 stays "yes". The
+  risk is that the image quality is not proven.
 - Compared with sentence-transformers, LiteRT-LM uses 3 times less RAM (1.06 GB
-  against 3.17 GB). Its package is 126 MB against 1.1 GB (torch CPU). It loads
-  faster (1.2 s against 5.9 s). It uses the same runtime family (LiteRT-LM) as
-  Google AI Edge Foresight.
+  against 3.17 GB). The RAM value is the peak RSS, the high-water mark of the
+  process. For the reference it includes the PyTorch import. For 740M it
+  includes the vision and audio caches. The LiteRT-LM package is 126 MB
+  against 1.1 GB (torch CPU). It loads faster (1.2 s against 5.9 s). It uses
+  the same runtime family (LiteRT-LM) as Google AI Edge Foresight.
 
 ## Consequences
 
@@ -77,10 +96,9 @@ binary, but `llama-server --embeddings --mmproj` returned 768 numbers for all
   The cache directory must exist before the engine starts.
 - The model manifest gets an `embedding` role. The 740M file is the model for
   the default tier and the high tier.
-- For the low tier, the text-270m file is a candidate. A check must come first:
-  an agreement test must show that its vectors are in the same space as the
-  740M vectors. A tier change must not force a full re-index. Until the test
-  passes, the low tier also uses the 740M file.
+- The low tier can use the text-270m file for text. A tier change needs no
+  re-index, because its text vectors are identical to the 740M text vectors.
+  This holds for text only. The low tier has no image embeddings.
 - Known risk: LiteRT-LM on Linux x86_64 GPU is not tested. The spike used CPU only.
 - Alternative kept open: `llama-server --embeddings` from llama.cpp b11565
   loads the GGUF for text and images (see `spikes/embedding/results/gguf-image-cli.md`).
