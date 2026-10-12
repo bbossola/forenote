@@ -249,3 +249,8 @@ async def test_stop_calls_meeting_stop():
     code, out = await run_cli(["stop"], client)
     assert code == 0
     assert "Meeting 4 stopped." in out
+
+
+def test_bench_parser():
+    args = build_parser().parse_args(["bench", "asr", "--clips", "/tmp/x"])
+    assert (args.command, args.bench_command, args.clips) == ("bench", "asr", "/tmp/x")

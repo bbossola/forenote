@@ -34,6 +34,10 @@ def build_parser() -> argparse.ArgumentParser:
     meetings.add_argument("--limit", type=int, default=20)
     transcript = sub.add_parser("transcript", help="print the transcript of a meeting")
     transcript.add_argument("meeting_id", type=int)
+    bench = sub.add_parser("bench", help="measure performance on this computer")
+    bsub = bench.add_subparsers(dest="bench_command", required=True)
+    basr = bsub.add_parser("asr", help="measure speech recognition cost")
+    basr.add_argument("--clips", default="tests/fixtures/ami", help="directory of 16 kHz mono WAV files")
     return ap
 
 
@@ -215,8 +219,35 @@ async def _main(args: argparse.Namespace) -> int:
             await client.close()
 
 
+def _bench_asr(clips: Path) -> int:
+    from forenote.asr.transcriber import WhisperTranscriber
+    from forenote.bench import bench_transcriber, load_utterances
+    from forenote.hw import detect
+    from forenote.models.download import ModelStore
+    from forenote.models.manifest import load_manifest
+
+    if not clips.is_dir():
+        print(f"No clips directory: {clips}", file=sys.stderr)
+        return 1
+    hw = detect()
+    store = ModelStore(Paths.from_env().models_dir)
+    speech = [e for e in load_manifest() if e.role == "speech" and store.is_installed(e)]
+    if not speech:
+        print("No speech model is installed. Run: forenote-cli models download.", file=sys.stderr)
+        return 1
+    utterances = load_utterances(clips)
+    print(f"{len(utterances)} utterances; {hw.asr_threads} threads")
+    for entry in speech:
+        r = bench_transcriber(WhisperTranscriber(store.path(entry), cpu_threads=hw.asr_threads), utterances)
+        print(f"{entry.id}: {r.cost_per_speech_s:.2f} s per s of speech; latency p50 {r.p50_s} s, p95 {r.p95_s} s, max {r.max_s} s")
+    print("Target: about 0.2 or less per s of speech keeps up with two streams and live partials.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.command == "bench":
+        return _bench_asr(Path(args.clips))
     try:
         return asyncio.run(_main(args))
     except KeyboardInterrupt:
