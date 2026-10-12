@@ -10,7 +10,7 @@ from pathlib import Path
 log = logging.getLogger(__name__)
 
 # (version, file name). Add new migrations at the end. Never edit an old one.
-MIGRATIONS: list[tuple[int, str]] = [(1, "schema_v1.sql")]
+MIGRATIONS: list[tuple[int, str]] = [(1, "schema_v1.sql"), (2, "schema_v2.sql")]
 
 
 class SchemaTooNew(RuntimeError):
