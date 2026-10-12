@@ -118,7 +118,10 @@ async def _main(args: argparse.Namespace) -> int:
     except (EngineStartTimeout, EngineStartError) as e:
         print(e, file=sys.stderr)
         return 1
-    except (ConnectionError, TimeoutError, OSError) as e:
+    except TimeoutError:
+        print("Error: the engine did not answer in time.", file=sys.stderr)
+        return 1
+    except (ConnectionError, OSError) as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
     except (KeyboardInterrupt, asyncio.CancelledError):

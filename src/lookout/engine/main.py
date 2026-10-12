@@ -2,19 +2,27 @@
 
 from __future__ import annotations
 
-import argparse
-import asyncio
-import logging
-import signal
-import sys
-from logging.handlers import RotatingFileHandler
+import os
 
-from lookout import __version__
-from lookout.engine.app import Engine
-from lookout.hw import HardwareReport, detect
-from lookout.paths import Paths
-from lookout.rpc.server import EngineAlreadyRunning
-from lookout.store.migrations import SchemaTooNew
+# Set these before huggingface_hub loads.
+os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
+os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
+
+import argparse  # noqa: E402
+import asyncio  # noqa: E402
+import logging  # noqa: E402
+import signal  # noqa: E402
+import sys  # noqa: E402
+from logging.handlers import RotatingFileHandler  # noqa: E402
+
+from lookout import __version__  # noqa: E402
+from lookout.engine.app import Engine  # noqa: E402
+from lookout.hw import HardwareReport, detect  # noqa: E402
+from lookout.paths import Paths  # noqa: E402
+from lookout.rpc.server import EngineAlreadyRunning  # noqa: E402
+from lookout.store.migrations import SchemaTooNew  # noqa: E402
+
+EXIT_SCHEMA_TOO_NEW = 3
 
 log = logging.getLogger("lookout.engine")
 
@@ -46,9 +54,12 @@ async def run(paths: Paths, hardware: HardwareReport) -> int:
         return 1
     except SchemaTooNew as e:
         log.error("%s", e)
-        return 1
+        return EXIT_SCHEMA_TOO_NEW
     except (ValueError, RuntimeError) as e:  # bad socket path or unsafe runtime dir
         log.error("%s", e, exc_info=log.isEnabledFor(logging.DEBUG))
+        return 1
+    except Exception:  # noqa: BLE001 - log every other start error
+        log.exception("engine start failed")
         return 1
     try:
         # If a signal came during start, wait_stopped returns at once.
@@ -65,9 +76,14 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--version", action="version", version=__version__)
     args = ap.parse_args(argv)
 
+    os.umask(0o077)  # new files are private to the user
     paths = Paths.from_env()
     setup_logging(paths, args.log_level)
-    hardware = detect()
+    try:
+        hardware = detect()
+    except Exception:  # noqa: BLE001 - log every detection error
+        log.exception("hardware detection failed")
+        return 1
     for warning in hardware.warnings:
         log.warning("%s", warning)
     if hardware.fatal and not args.no_hw_check:

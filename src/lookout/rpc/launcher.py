@@ -75,6 +75,10 @@ async def connect_or_start(
         if rc is not None:
             if exit_time is None:
                 exit_time = now
+            if rc == 3:
+                raise EngineStartError(
+                    f"The database comes from a newer version of Lookout. See {log}."
+                ) from None
             if rc == 2:
                 raise EngineStartError(
                     f"The engine stopped: this computer does not meet the minimum hardware. See {log}."

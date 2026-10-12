@@ -171,3 +171,20 @@ async def test_ctrl_c_during_status(monkeypatch, capsys):
     code, err = await _interrupted(monkeypatch, capsys, ["status"], InterruptedClient({}))
     assert code == 130
     assert err.strip() == "Interrupted."
+
+
+async def test_timeout_is_reported(monkeypatch, capsys):
+    class SlowClient(FakeClient):
+        async def call(self, method, params=None, timeout=30.0):
+            raise TimeoutError()
+
+        async def close(self):
+            pass
+
+    async def connect(path, name):
+        return SlowClient({})
+
+    monkeypatch.setattr(cli.RpcClient, "connect", connect)
+    code = await cli._main(build_parser().parse_args(["status"]))
+    assert code == 1
+    assert "the engine did not answer in time" in capsys.readouterr().err

@@ -103,3 +103,17 @@ async def test_launched_engine_is_reaped(env_paths):
             break
         await asyncio.sleep(0.1)
     assert not launcher._children
+
+
+async def test_newer_schema_exit_is_reported_at_once(short_tmp):
+    with pytest.raises(EngineStartError) as info:
+        await asyncio.wait_for(
+            connect_or_start(
+                short_tmp / "y.sock",
+                "pytest",
+                engine_cmd=[sys.executable, "-c", "raise SystemExit(3)"],
+                timeout=10,
+            ),
+            1.5,
+        )
+    assert "newer version" in str(info.value)
