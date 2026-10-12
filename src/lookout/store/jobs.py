@@ -33,17 +33,27 @@ class JobStore:
             )
         return int(cur.lastrowid)
 
-    def set_status(self, job_id: int, status: str, error: str | None = None) -> None:
+    def set_status(self, job_id: int, status: str, error: str | None = None) -> bool:
+        """Change the status of a job. Return True if the job changed.
+
+        Raise KeyError for an unknown job. A job in a final state does not change.
+        Then this method returns False.
+        """
         if status == "running":
-            sql = "UPDATE jobs SET status = ?, started_at = ? WHERE id = ?"
+            sql = "UPDATE jobs SET status = ?, started_at = ? WHERE id = ? AND status NOT IN ('done', 'failed', 'cancelled')"
             args: tuple[Any, ...] = (status, now_iso(), job_id)
         elif status in FINAL_STATUSES:
-            sql = "UPDATE jobs SET status = ?, error = ?, finished_at = ? WHERE id = ?"
+            sql = "UPDATE jobs SET status = ?, error = ?, finished_at = ? WHERE id = ? AND status NOT IN ('done', 'failed', 'cancelled')"
             args = (status, error, now_iso(), job_id)
         else:
             raise ValueError(f"unknown job status: {status}")
         with self._conn:
-            self._conn.execute(sql, args)
+            cur = self._conn.execute(sql, args)
+        if cur.rowcount == 0:
+            if self.get(job_id) is None:
+                raise KeyError(f"unknown job: {job_id}")
+            return False
+        return True
 
     def get(self, job_id: int) -> dict[str, Any] | None:
         row = self._conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()

@@ -57,3 +57,17 @@ def test_fail_unfinished_marks_pending_and_running(jobs):
     assert jobs.get(a)["status"] == "failed"
     assert jobs.get(b)["error"] == "engine restarted"
     assert jobs.get(c)["status"] == "done"
+
+
+def test_set_status_unknown_job_raises(jobs):
+    with pytest.raises(KeyError):
+        jobs.set_status(42, "running")
+
+
+def test_final_status_does_not_change(jobs):
+    jid = jobs.create("index", 3)
+    jobs.set_status(jid, "done")
+    assert jobs.set_status(jid, "running") is False
+    assert jobs.get(jid)["status"] == "done"
+    other = jobs.create("index", 3)
+    assert jobs.set_status(other, "running") is True
