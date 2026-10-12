@@ -4,6 +4,10 @@ Forenote is a private meeting notetaker and local knowledge assistant for
 Linux. All AI inference runs on your computer. See
 `docs/superpowers/specs/2026-10-12-forenote-design.md` for the design.
 
+Inspiration: [Google AI Edge Foresight](https://developers.google.com/edge/foresight),
+an on-device meeting notetaker for macOS. Forenote is an independent project for
+Linux. It is not affiliated with Google and does not use Foresight code or models.
+
 Status: early development. Only the engine skeleton exists.
 
 ## Requirements
