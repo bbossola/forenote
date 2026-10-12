@@ -337,6 +337,10 @@ class Recorder:
     def _now_ms(self) -> int:
         return round((self._clock() - self._t0) * 1000)
 
+    def elapsed_ms(self) -> int:
+        """The time since the meeting start, in ms. Transcript lines use the same base."""
+        return self._now_ms()
+
     def _mark_lost(self, speaker: str, reason: str) -> None:
         self._lost.add(speaker)
         self._marker(self._now_ms(), "source_lost", speaker)

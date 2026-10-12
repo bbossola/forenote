@@ -11,6 +11,7 @@ from forenote import __version__
 from forenote.engine.handlers.jobs import JobsHandlers
 from forenote.engine.handlers.meetings import MeetingsHandlers
 from forenote.engine.handlers.models import DOWNLOAD_JOB, ModelsHandlers  # noqa: F401 - DOWNLOAD_JOB is re-exported
+from forenote.engine.handlers.notes import NotesHandlers
 from forenote.engine.handlers.settings import SettingsHandlers
 from forenote.engine.handlers.system import SystemHandlers
 from forenote.hw import HardwareReport
@@ -25,6 +26,7 @@ from forenote.store.db import connect
 from forenote.store.jobs import JobStore
 from forenote.store.meetings import MeetingStore
 from forenote.store.migrations import migrate
+from forenote.store.notes import NotesStore
 from forenote.store.settings import Settings
 from forenote.workers import run_in_daemon_thread
 
@@ -40,7 +42,7 @@ def _whisper(model_dir, cpu_threads, beam):
     return WhisperTranscriber(model_dir, cpu_threads=cpu_threads, final_beam_size=beam)
 
 
-class Engine(SystemHandlers, SettingsHandlers, JobsHandlers, ModelsHandlers, MeetingsHandlers):
+class Engine(SystemHandlers, SettingsHandlers, JobsHandlers, ModelsHandlers, MeetingsHandlers, NotesHandlers):
     def __init__(
         self,
         paths: Paths,
@@ -65,6 +67,7 @@ class Engine(SystemHandlers, SettingsHandlers, JobsHandlers, ModelsHandlers, Mee
         self._download_task: asyncio.Task | None = None
         self.conn = None
         self.meetings = None
+        self.notes = None
         self.scheduler = None
         self._scheduler_task: asyncio.Task | None = None
         self._rpc_started = False
@@ -99,6 +102,7 @@ class Engine(SystemHandlers, SettingsHandlers, JobsHandlers, ModelsHandlers, Mee
             if stale:
                 log.warning("%d unfinished jobs marked as failed", stale)
             self.meetings = MeetingStore(self.conn)
+            self.notes = NotesStore(self.conn)
             interrupted = self.meetings.mark_interrupted()
             if interrupted:
                 log.warning("%d meetings were still recording and are now interrupted", interrupted)
@@ -225,4 +229,8 @@ class Engine(SystemHandlers, SettingsHandlers, JobsHandlers, ModelsHandlers, Mee
             "meeting.keep_recording": self._meeting_keep_recording,
             "meeting.dismiss_detection": self._meeting_dismiss_detection,
             "transcript.get": self._transcript_get,
+            "notes.add_bullet": self._notes_add_bullet,
+            "notes.update_bullets": self._notes_update_bullets,
+            "notes.get": self._notes_get,
+            "notes.update_enhanced": self._notes_update_enhanced,
         }

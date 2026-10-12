@@ -580,3 +580,12 @@ async def test_a_failed_write_in_the_final_flush_gives_error(store, monkeypatch)
     gate.set()
     assert await rec.stop("manual") == "done"
     assert store.get(mid)["stop_reason"] == "error"
+
+
+async def test_elapsed_ms_uses_the_meeting_clock(store):
+    clock = Clock()
+    clock.t = 100.0
+    rec, mid, events, finished = await record(store, FakeTranscriber(), clock=clock)
+    clock.t = 112.5
+    assert rec.elapsed_ms() == 12_500
+    await rec.stop("manual")

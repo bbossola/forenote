@@ -72,3 +72,11 @@ class JobStore:
                 (reason, now_iso()),
             )
         return cur.rowcount
+
+    def latest(self, type: str, meeting_id: int) -> dict[str, Any] | None:
+        """The newest job of this type for the meeting (payload field meeting_id)."""
+        row = self._conn.execute(
+            "SELECT * FROM jobs WHERE type = ? AND json_extract(payload, '$.meeting_id') = ? ORDER BY id DESC LIMIT 1",
+            (type, meeting_id),
+        ).fetchone()
+        return _to_dict(row) if row else None
