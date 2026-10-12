@@ -18,6 +18,9 @@ CALLS = [
     ("models.list", {}),
     ("models.set_tier", {"tier": "default"}),
     ("models.cancel_download", {}),
+    ("meeting.list", {}),
+    ("meeting.keep_recording", {}),
+    ("meeting.dismiss_detection", {"app": "zoom"}),
 ]
 
 
@@ -83,4 +86,6 @@ async def test_every_emitted_event_matches_the_schema(engine, client):
         seen.add(name)
         if name in ("job.done", "job.failed"):
             ends.discard(params["id"])
-    assert seen == set(schema["events"])
+    # test_meeting_rpc.py validates the meeting, transcript, audio and asr events.
+    recording = ("meeting.", "transcript.", "audio.", "asr.")
+    assert seen == {e for e in schema["events"] if not e.startswith(recording)}

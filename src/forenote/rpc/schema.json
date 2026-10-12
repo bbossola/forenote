@@ -132,6 +132,105 @@
         "properties": {"tier": {"type": "string"}, "installed": {"type": "boolean"}},
         "required": ["tier", "installed"]
       }
+    },
+    "meeting.start": {
+      "params": {
+        "type": "object",
+        "properties": {
+          "title": {"type": "string", "minLength": 1, "maxLength": 200},
+          "start_reason": {"enum": ["manual", "detected"]},
+          "debug_file": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {"meeting_id": {"type": "integer"}, "started_at": {"type": "string"}},
+        "required": ["meeting_id", "started_at"]
+      }
+    },
+    "meeting.stop": {
+      "params": {"type": "object", "additionalProperties": false},
+      "result": {
+        "type": "object",
+        "properties": {"meeting_id": {"type": "integer"}, "status": {"type": "string"}},
+        "required": ["meeting_id", "status"]
+      }
+    },
+    "meeting.list": {
+      "params": {
+        "type": "object",
+        "properties": {"limit": {"type": "integer", "minimum": 1, "maximum": 500}, "before_id": {"type": "integer"}},
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "array",
+        "items": {"type": "object", "required": ["id", "title", "started_at", "status", "line_count"]}
+      }
+    },
+    "meeting.get": {
+      "params": {
+        "type": "object",
+        "properties": {"id": {"type": "integer"}},
+        "required": ["id"],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "required": ["id", "title", "started_at", "ended_at", "status", "start_reason", "stop_reason", "line_count"]
+      }
+    },
+    "meeting.rename": {
+      "params": {
+        "type": "object",
+        "properties": {"id": {"type": "integer"}, "title": {"type": "string", "minLength": 1, "maxLength": 200}},
+        "required": ["id", "title"],
+        "additionalProperties": false
+      },
+      "result": {"type": "null"}
+    },
+    "meeting.delete": {
+      "params": {
+        "type": "object",
+        "properties": {"id": {"type": "integer"}},
+        "required": ["id"],
+        "additionalProperties": false
+      },
+      "result": {"type": "null"}
+    },
+    "meeting.keep_recording": {
+      "params": {"type": "object", "additionalProperties": false},
+      "result": {
+        "type": "object",
+        "properties": {"reset": {"type": "boolean"}},
+        "required": ["reset"]
+      }
+    },
+    "meeting.dismiss_detection": {
+      "params": {
+        "type": "object",
+        "properties": {"app": {"type": "string", "minLength": 1, "maxLength": 100}},
+        "required": ["app"],
+        "additionalProperties": false
+      },
+      "result": {"type": "null"}
+    },
+    "transcript.get": {
+      "params": {
+        "type": "object",
+        "properties": {
+          "meeting_id": {"type": "integer"},
+          "after_id": {"type": "integer"},
+          "limit": {"type": "integer", "minimum": 1, "maximum": 5000}
+        },
+        "required": ["meeting_id"],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {"lines": {"type": "array"}, "markers": {"type": "array"}},
+        "required": ["lines", "markers"]
+      }
     }
   },
   "events": {
@@ -164,6 +263,58 @@
       "type": "object",
       "properties": {"message": {"type": "string"}},
       "required": ["message"]
+    },
+    "meeting.state": {
+      "type": "object",
+      "properties": {"meeting_id": {"type": "integer"}, "status": {"type": "string"}, "stop_reason": {"type": ["string", "null"]}},
+      "required": ["meeting_id", "status"]
+    },
+    "meeting.detected": {
+      "type": "object",
+      "properties": {"app": {"type": "string"}},
+      "required": ["app"]
+    },
+    "meeting.auto_stop_pending": {
+      "type": "object",
+      "properties": {"meeting_id": {"type": "integer"}, "seconds_left": {"type": "integer"}},
+      "required": ["meeting_id", "seconds_left"]
+    },
+    "transcript.partial": {
+      "type": "object",
+      "properties": {
+        "meeting_id": {"type": "integer"},
+        "speaker": {"enum": ["me", "others"]},
+        "t_start_ms": {"type": "integer"},
+        "text": {"type": "string"}
+      },
+      "required": ["meeting_id", "speaker", "t_start_ms", "text"]
+    },
+    "transcript.final": {
+      "type": "object",
+      "properties": {
+        "meeting_id": {"type": "integer"},
+        "id": {"type": "integer"},
+        "speaker": {"enum": ["me", "others"]},
+        "t_start_ms": {"type": "integer"},
+        "t_end_ms": {"type": "integer"},
+        "text": {"type": "string"}
+      },
+      "required": ["meeting_id", "id", "speaker", "t_start_ms", "t_end_ms", "text"]
+    },
+    "audio.source_changed": {
+      "type": "object",
+      "properties": {"meeting_id": {"type": "integer"}, "speaker": {"enum": ["me", "others"]}, "device": {"type": "string"}},
+      "required": ["meeting_id", "speaker", "device"]
+    },
+    "audio.source_lost": {
+      "type": "object",
+      "properties": {"meeting_id": {"type": "integer"}, "speaker": {"enum": ["me", "others"]}, "reason": {"type": "string"}},
+      "required": ["meeting_id", "speaker", "reason"]
+    },
+    "asr.delayed": {
+      "type": "object",
+      "properties": {"meeting_id": {"type": "integer"}, "delayed": {"type": "boolean"}, "queued_s": {"type": "number"}},
+      "required": ["meeting_id", "delayed", "queued_s"]
     }
   }
 }

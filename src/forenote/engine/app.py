@@ -8,11 +8,14 @@ import logging
 from typing import Any
 
 from forenote import __version__
+from forenote.audio.devices import DeviceWatcher
 from forenote.engine.handlers.jobs import JobsHandlers
+from forenote.engine.handlers.meetings import MeetingsHandlers
 from forenote.engine.handlers.models import DOWNLOAD_JOB, ModelsHandlers  # noqa: F401 - DOWNLOAD_JOB is re-exported
 from forenote.engine.handlers.settings import SettingsHandlers
 from forenote.engine.handlers.system import SystemHandlers
 from forenote.hw import HardwareReport
+from forenote.meeting.detector import MeetingDetector
 from forenote.models.download import Fetch, ModelStore, hf_fetch
 from forenote.models.manifest import ModelEntry, load_manifest
 from forenote.paths import Paths
@@ -24,17 +27,29 @@ from forenote.store.jobs import JobStore
 from forenote.store.meetings import MeetingStore
 from forenote.store.migrations import migrate
 from forenote.store.settings import Settings
+from forenote.workers import run_in_daemon_thread
 
 log = logging.getLogger(__name__)
 
 
-class Engine(SystemHandlers, SettingsHandlers, JobsHandlers, ModelsHandlers):
+def _whisper(model_dir, cpu_threads, beam):
+    # Import at call time: keep the engine import light.
+    from forenote.asr.transcriber import WhisperTranscriber
+
+    return WhisperTranscriber(model_dir, cpu_threads=cpu_threads, final_beam_size=beam)
+
+
+class Engine(SystemHandlers, SettingsHandlers, JobsHandlers, ModelsHandlers, MeetingsHandlers):
     def __init__(
         self,
         paths: Paths,
         hardware: HardwareReport,
         fetch: Fetch = hf_fetch,
         manifest: list[ModelEntry] | None = None,
+        transcriber_factory=None,
+        watcher_factory=DeviceWatcher,
+        debug_sources: bool = False,
+        debug_realtime: bool = True,
     ):
         self.paths = paths
         self.hardware = hardware
@@ -52,6 +67,18 @@ class Engine(SystemHandlers, SettingsHandlers, JobsHandlers, ModelsHandlers):
         self.scheduler = None
         self._scheduler_task: asyncio.Task | None = None
         self._rpc_started = False
+        self.transcriber_factory = transcriber_factory or _whisper
+        self._watcher_factory = watcher_factory
+        self.debug_sources = debug_sources
+        self.debug_realtime = debug_realtime
+        self._watcher = None
+        self._recorder = None
+        self._starting = False
+        self._transcriber = None
+        self._transcriber_key = None
+        self._audio_defaults = None
+        self._detector = MeetingDetector([])
+        self._detector_task: asyncio.Task | None = None
 
     # Lifecycle
 
@@ -80,6 +107,17 @@ class Engine(SystemHandlers, SettingsHandlers, JobsHandlers, ModelsHandlers):
             self.scheduler = None
             raise
         self._scheduler_task = asyncio.create_task(self.scheduler.run())
+        self._detector.set_call_apps(self.settings.get("call_apps"))
+        if self._watcher_factory is not None and self.hardware.audio_server:
+            loop = asyncio.get_running_loop()
+
+            def from_thread(event) -> None:
+                with contextlib.suppress(RuntimeError):  # the loop can be closed already
+                    loop.call_soon_threadsafe(self._on_device_event, event)
+
+            self._watcher = self._watcher_factory(from_thread)
+            self._watcher.start()
+            self._detector_task = asyncio.create_task(self._detector_ticks())
         log.info("engine %s listening on %s", __version__, self.paths.socket_path)
 
     def request_stop(self) -> None:
@@ -93,6 +131,13 @@ class Engine(SystemHandlers, SettingsHandlers, JobsHandlers, ModelsHandlers):
             return
         self._closed = True
         self._download_cancel = True
+        await self._stop_recording_for_shutdown()
+        if self._detector_task is not None:
+            self._detector_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._detector_task
+        if self._watcher is not None:
+            await run_in_daemon_thread(self._watcher.stop)
         if self.scheduler is not None:
             await self.scheduler.stop()
         if self._scheduler_task is not None:
@@ -117,6 +162,16 @@ class Engine(SystemHandlers, SettingsHandlers, JobsHandlers, ModelsHandlers):
         task = asyncio.get_running_loop().create_task(coro)
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
+
+    def _emit_event(self, name: str, params: dict) -> None:
+        self._spawn(self.rpc.broadcast(name, params))
+
+    async def _detector_ticks(self) -> None:
+        while True:
+            await asyncio.sleep(1.0)
+            app = self._detector.tick()
+            if app and self.settings.get("meeting_detection"):
+                self._spawn(self.rpc.broadcast("meeting.detected", {"app": app}))
 
     def _on_job(self, job: dict[str, Any]) -> None:
         status = job["status"]
@@ -146,4 +201,13 @@ class Engine(SystemHandlers, SettingsHandlers, JobsHandlers, ModelsHandlers):
             "models.download": self._models_download,
             "models.cancel_download": self._models_cancel_download,
             "models.set_tier": self._models_set_tier,
+            "meeting.start": self._meeting_start,
+            "meeting.stop": self._meeting_stop,
+            "meeting.list": self._meeting_list,
+            "meeting.get": self._meeting_get,
+            "meeting.rename": self._meeting_rename,
+            "meeting.delete": self._meeting_delete,
+            "meeting.keep_recording": self._meeting_keep_recording,
+            "meeting.dismiss_detection": self._meeting_dismiss_detection,
+            "transcript.get": self._transcript_get,
         }
