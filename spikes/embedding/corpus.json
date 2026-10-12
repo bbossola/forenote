@@ -1,0 +1,36 @@
+{
+  "documents": [
+    {"id": "d01", "text": "The quarterly budget review moved to Thursday. Finance needs the updated headcount numbers from each team lead by Wednesday noon."},
+    {"id": "d02", "text": "To rotate the database credentials, run the vault rotate command, then restart the API pods so that they read the new secret."},
+    {"id": "d03", "text": "Our onboarding checklist: create the laptop account, add the new hire to the engineering group, and schedule the security training."},
+    {"id": "d04", "text": "The customer reported that exported PDF invoices show the wrong currency symbol when the account locale is set to Swiss German."},
+    {"id": "d05", "text": "Office move: the London team relocates to the fourth floor on 3 November. Desks are assigned by team, and parking passes stay the same."},
+    {"id": "d06", "text": "The mobile app crashes on startup on Android 15 devices because the notification channel is created before the permission check."},
+    {"id": "d07", "text": "Marketing plans a spring campaign for the new pricing tiers, with a webinar in March and a discount code for annual plans."},
+    {"id": "d08", "text": "The on-call rotation changes next month: each engineer covers one week, and the handover happens on Monday at 10:00."},
+    {"id": "d09", "text": "Vendor contract renewal: the cloud provider offers a 12 percent discount if we commit to three years of reserved capacity."},
+    {"id": "d10", "text": "The search service latency increased after the index grew past 40 million documents. Sharding by tenant is the proposed fix."},
+    {"id": "d11", "text": "Holiday policy: employees get 25 days of paid leave, and unused days up to five carry over to the next year."},
+    {"id": "d12", "text": "The design team finished the new dashboard mockups. The main change is a single summary card at the top with weekly trends."}
+  ],
+  "queries": [
+    {"text": "When is the headcount data due for the budget review?", "relevant": "d01"},
+    {"text": "how do I change the database password", "relevant": "d02"},
+    {"text": "steps for a new employee's first day", "relevant": "d03"},
+    {"text": "invoice currency bug for Swiss customers", "relevant": "d04"},
+    {"text": "which floor will the London office use", "relevant": "d05"},
+    {"text": "why does the Android app crash when it opens", "relevant": "d06"},
+    {"text": "pricing webinar and promotion plans", "relevant": "d07"},
+    {"text": "who is on call and when is the handover", "relevant": "d08"},
+    {"text": "discount for a multi-year cloud commitment", "relevant": "d09"},
+    {"text": "search is slow with a large index", "relevant": "d10"},
+    {"text": "how many vacation days can I carry over", "relevant": "d11"},
+    {"text": "what changed in the dashboard design", "relevant": "d12"}
+  ],
+  "image_queries": [
+    {"text": "a red square", "relevant": "red_square.png"},
+    {"text": "a blue circle", "relevant": "blue_circle.png"},
+    {"text": "a green triangle", "relevant": "green_triangle.png"},
+    {"text": "black text that says HELLO on a white background", "relevant": "hello_text.png"}
+  ]
+}
