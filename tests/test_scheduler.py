@@ -248,3 +248,42 @@ async def test_progress_fraction_is_clamped(sched):
     s.submit("notes", Priority.NOTES, job)
     await rec.wait_finished(1)
     assert [e["fraction"] for e in rec.events if e["status"] == "progress"] == [1.0, 0.0]
+
+
+async def test_a_report_after_the_job_ended_is_not_sent(sched):
+    s, rec = sched
+    late = []
+
+    async def job(token, report):
+        late.append(report)
+
+    s.submit("notes", Priority.NOTES, job)
+    await rec.wait_finished(1)
+    late[0]("too late", 0.5)
+    assert [e for e in rec.events if e["status"] == "progress"] == []
+
+
+async def test_a_listener_error_during_report_does_not_fail_the_job(jobs):
+    def bad_listener(event):
+        if event["status"] == "progress":
+            raise RuntimeError("listener broke")
+
+    s = Scheduler(jobs, listener=bad_listener)
+    task = asyncio.create_task(s.run())
+    try:
+
+        async def job(token, report):
+            report("step", 0.5)
+
+        jid = s.submit("notes", Priority.NOTES, job)
+
+        async def wait_done():
+            while jobs.get(jid)["status"] != "done":
+                await asyncio.sleep(0.005)
+
+        await asyncio.wait_for(wait_done(), 2)
+    finally:
+        await s.stop()
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task

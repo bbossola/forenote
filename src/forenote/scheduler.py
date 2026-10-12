@@ -19,7 +19,7 @@ import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import Any
+from typing import Any, Protocol
 
 from forenote.store.jobs import JobStore
 
@@ -38,8 +38,17 @@ class JobCancelled(Exception):
 
 
 class CancelToken:
+    """A cancel flag.
+
+    Call cancel() from the event loop thread only. The `cancelled` property is
+    a plain bool read, so worker threads can use it. The token can be created
+    outside a running loop: the asyncio.Event for wait() is created on the
+    first wait.
+    """
+
     def __init__(self) -> None:
         self._cancelled = False
+        self._event: asyncio.Event | None = None
 
     @property
     def cancelled(self) -> bool:
@@ -47,13 +56,26 @@ class CancelToken:
 
     def cancel(self) -> None:
         self._cancelled = True
+        if self._event is not None:
+            self._event.set()
+
+    async def wait(self) -> None:
+        """Return when the token is cancelled."""
+        if self._event is None:
+            self._event = asyncio.Event()
+            if self._cancelled:
+                self._event.set()
+        await self._event.wait()
 
     def check(self) -> None:
         if self._cancelled:
             raise JobCancelled()
 
 
-Report = Callable[[str, float | None], None]
+class Report(Protocol):
+    def __call__(self, message: str, fraction: float | None = None) -> None: ...
+
+
 JobFn = Callable[[CancelToken, Report], Awaitable[Any]]
 Listener = Callable[[dict[str, Any]], None]
 
@@ -182,6 +204,8 @@ class Scheduler:
                 log.exception("job listener failed")
 
     def _progress(self, q: _Queued, message: str, fraction: float | None) -> None:
+        if self._running is not q:
+            return  # a task that outlives its job must not report
         if fraction is not None:
             fraction = min(1.0, max(0.0, float(fraction)))
         if self._listener:

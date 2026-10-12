@@ -55,3 +55,62 @@ def test_gen_params_defaults():
     p = GenParams(max_tokens=5)
     assert p.temperature == 0.2
     assert p.json_schema is None
+
+
+async def test_the_first_piece_has_its_own_limit():
+    gen = FakeTextGenerator(["a", "b"], delay_s={0: 0.2})
+    with pytest.raises(GenerationStalled):
+        await collect(gen, "p", GenParams(max_tokens=10), CancelToken(), lambda t: None, stall_s=0.05)
+    gen = FakeTextGenerator(["a", "b"], delay_s={0: 0.2})
+    seen = []
+    text = await collect(
+        gen, "p", GenParams(max_tokens=10), CancelToken(), seen.append, stall_s=0.05, first_token_s=2.0
+    )
+    assert text == "ab"
+
+
+async def test_later_pieces_use_stall_s_not_first_token_s():
+    gen = FakeTextGenerator(["a", "b"], delay_s={1: 0.3})
+    with pytest.raises(GenerationStalled):
+        await collect(
+            gen, "p", GenParams(max_tokens=10), CancelToken(), lambda t: None, stall_s=0.05, first_token_s=5.0
+        )
+
+
+async def test_cancel_wakes_collect_while_the_model_is_silent():
+    token = CancelToken()
+    gen = FakeTextGenerator(["a"], delay_s={0: 30.0})
+    task = asyncio.create_task(collect(gen, "p", GenParams(max_tokens=10), token, lambda t: None))
+    await asyncio.sleep(0.05)
+    token.cancel()
+    with pytest.raises(JobCancelled):
+        await asyncio.wait_for(task, 1.0)
+    assert gen.closed
+
+
+async def test_cancel_of_the_task_closes_the_stream():
+    gen = FakeTextGenerator(["a"], delay_s={0: 30.0})
+    task = asyncio.create_task(collect(gen, "p", GenParams(max_tokens=10), CancelToken(), lambda t: None))
+    await asyncio.sleep(0.05)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert gen.closed
+
+
+async def test_a_token_cancelled_before_collect_raises_job_cancelled():
+    token = CancelToken()
+    gen = FakeTextGenerator(["a"], delay_s={0: 30.0})
+    token.cancel()
+    with pytest.raises(JobCancelled):
+        await collect(gen, "p", GenParams(max_tokens=10), token, lambda t: None, stall_s=0.05)
+
+
+async def test_cancel_token_wait_returns_after_cancel():
+    token = CancelToken()
+    waiter = asyncio.create_task(token.wait())
+    await asyncio.sleep(0.01)
+    assert not waiter.done()
+    token.cancel()
+    await asyncio.wait_for(waiter, 1.0)
+    await asyncio.wait_for(token.wait(), 1.0)
