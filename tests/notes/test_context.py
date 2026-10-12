@@ -76,9 +76,9 @@ def test_bullet_task_with_and_without_a_time():
     with_time = prompts.bullet_task(3, "budget slip", "12:30", ("09:30", "13:30"), ["04:12", "11:58"])
     assert "Expand note 3, «budget slip», written at 12:30." in with_time
     assert "between 09:30 and 13:30" in with_time
-    assert "Keyword matches: 04:12, 11:58." in with_time
+    assert "Transcript lines with words of the note start at: 04:12, 11:58." in with_time
     no_time = prompts.bullet_task(1, "dates", None, None, [])
-    assert "The note has no time." in no_time and "Keyword matches: none." in no_time
+    assert "The note has no time." in no_time and "No transcript line has the words of the note." in no_time
     assert "between" not in no_time
 
 
