@@ -71,6 +71,12 @@ class AsrWorker:
         with self._cond:
             return bool(self._finals)
 
+    @property
+    def delayed(self) -> bool:
+        """True while back-pressure drops partials. Read it on the loop to show the current state."""
+        with self._cond:
+            return self._delayed
+
     def queued_seconds(self) -> float:
         # The item in the decode now is not counted.
         with self._cond:

@@ -197,3 +197,19 @@ def test_callback_errors_log_the_type_only(caplog):
     text = caplog.text
     assert "ValueError" in text
     assert "secret transcript words" not in text
+
+
+def test_delayed_shows_the_back_pressure_state():
+    t, c = FakeTranscriber(), Collector()
+    t.gate.clear()
+    w = make(t, c, delay_on_s=3.0, delay_off_s=1.0)
+    assert w.delayed is False
+    w.submit(utt(seconds=1, tag=1))
+    assert t.entered.wait(2)
+    for tag in range(2, 6):  # 4 s of finals queued
+        w.submit(utt(seconds=1, tag=tag))
+    assert w.delayed is True
+    t.gate.set()
+    assert w.drain(3)
+    assert w.delayed is False
+    w.stop()
