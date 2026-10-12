@@ -190,6 +190,12 @@ class _Job:
                 prompts.HEADER + prompts.PARTS_TITLE + context.transcript_text(picked) + "\n"
                 + notes_text + "\n" + self._bullet_task(number, b, times)
             )
+            if not context.fits(self.gen, user_text):
+                # Many long notes can fill the prompt: leave the notes block out.
+                user_text = (
+                    prompts.HEADER + prompts.PARTS_TITLE + context.transcript_text(picked) + "\n"
+                    + self._bullet_task(number, b, times)
+                )
             await self._bullet(number, b, user_text)
         parts = await self._reduce(parts)
         base = prompts.HEADER + prompts.REDUCE_TITLE + "".join(p + "\n" for p in parts) + "\n"

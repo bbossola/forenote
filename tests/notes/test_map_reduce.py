@@ -94,3 +94,17 @@ async def test_chunk_notes_that_do_not_fit_are_combined_in_groups(db, monkeypatc
     assert any(prompts.GROUP_TASK in p for p in gen.prompts)
     summary_prompt = next(p for p in gen.prompts if prompts.SUMMARY_TASK in p)
     assert gen.count_tokens(summary_prompt) + 500 <= gen.context_size
+
+
+async def test_many_long_notes_do_not_break_the_bullet_prompts(db):
+    conn, _, notes, mid = db
+    added = [
+        notes.add_bullet(mid, " ".join(f"note{i}w{j}" for j in range(150)), 1_800_000 if i % 2 else None)
+        for i in range(60)
+    ]  # about 9,000 tokens of notes
+    gen = low_tier_gen()
+    mode, _ = await run(conn, mid, gen)
+    assert mode == "map_reduce"
+    for prompt, params in zip(gen.prompts, gen.params):
+        assert gen.count_tokens(prompt) + params.max_tokens <= gen.context_size
+    assert all(notes.bullet(b.id).enhanced_text == "The expansion." for b in added)
