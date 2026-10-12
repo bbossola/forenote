@@ -40,8 +40,8 @@ def transcribe_clip(transcriber, clip: str) -> str:
 
 @pytest.mark.models
 @pytest.mark.parametrize("model_id", ["whisper-base-en", "whisper-small-en"])
-def test_word_error_rate_stays_within_limits(speech_model_dir, model_id):
-    transcriber = WhisperTranscriber(speech_model_dir(model_id), cpu_threads=max(1, (os.cpu_count() or 2) // 2 - 2))
+def test_word_error_rate_stays_within_limits(model_dir, model_id):
+    transcriber = WhisperTranscriber(model_dir(model_id), cpu_threads=max(1, (os.cpu_count() or 2) // 2 - 2))
     limits = json.loads(LIMITS.read_text()) if LIMITS.exists() else {}
     update = os.environ.get("FORENOTE_UPDATE_WER_LIMITS") == "1"
     measured = {}

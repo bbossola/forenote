@@ -112,7 +112,7 @@ async def client(engine):
 
 
 @pytest.fixture(scope="session")
-def speech_model_dir():
+def model_dir():
     """Return a function: model id -> installed model directory. Downloads if needed."""
     from forenote.models.download import ModelStore
     from forenote.models.manifest import load_manifest

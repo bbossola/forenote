@@ -40,7 +40,7 @@ async def test_no_token_for_the_stall_time_raises():
     gen = FakeTextGenerator(["a", "b"], delay_s={1: 1.0})
     seen = []
     with pytest.raises(GenerationStalled):
-        await collect(gen, "p", GenParams(max_tokens=10), CancelToken(), seen.append, stall_s=0.05)
+        await collect(gen, "p", GenParams(max_tokens=10), CancelToken(), seen.append, stall_s=0.2)
     assert seen == ["a"]
     assert gen.closed
 
@@ -58,22 +58,22 @@ def test_gen_params_defaults():
 
 
 async def test_the_first_piece_has_its_own_limit():
-    gen = FakeTextGenerator(["a", "b"], delay_s={0: 0.2})
+    gen = FakeTextGenerator(["a", "b"], delay_s={0: 1.0})
     with pytest.raises(GenerationStalled):
-        await collect(gen, "p", GenParams(max_tokens=10), CancelToken(), lambda t: None, stall_s=0.05)
-    gen = FakeTextGenerator(["a", "b"], delay_s={0: 0.2})
+        await collect(gen, "p", GenParams(max_tokens=10), CancelToken(), lambda t: None, stall_s=0.2)
+    gen = FakeTextGenerator(["a", "b"], delay_s={0: 1.0})
     seen = []
     text = await collect(
-        gen, "p", GenParams(max_tokens=10), CancelToken(), seen.append, stall_s=0.05, first_token_s=2.0
+        gen, "p", GenParams(max_tokens=10), CancelToken(), seen.append, stall_s=0.2, first_token_s=3.0
     )
     assert text == "ab"
 
 
 async def test_later_pieces_use_stall_s_not_first_token_s():
-    gen = FakeTextGenerator(["a", "b"], delay_s={1: 0.3})
+    gen = FakeTextGenerator(["a", "b"], delay_s={1: 1.0})
     with pytest.raises(GenerationStalled):
         await collect(
-            gen, "p", GenParams(max_tokens=10), CancelToken(), lambda t: None, stall_s=0.05, first_token_s=5.0
+            gen, "p", GenParams(max_tokens=10), CancelToken(), lambda t: None, stall_s=0.2, first_token_s=5.0
         )
 
 
