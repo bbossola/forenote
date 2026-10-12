@@ -42,7 +42,7 @@ class CaptureThread:
         self._offset = offset_frames
         self._prompt = prompt
         self._post = post
-        self._vad = vad_factory()
+        self._vad_factory = vad_factory
         self._segmenter = Segmenter(speaker)
         self._stopping = threading.Event()
         self._thread = threading.Thread(target=self._run, name=f"forenote-capture-{speaker}", daemon=True)
@@ -60,16 +60,25 @@ class CaptureThread:
 
     def _submit(self, u: Utterance) -> None:
         shifted = dataclasses.replace(u, start_frame=u.start_frame + self._offset, end_frame=u.end_frame + self._offset)
-        self._worker.submit(shifted, self._prompt(self.speaker) if u.final else "")
+        prompt = ""
+        if u.final:
+            try:
+                prompt = self._prompt(self.speaker) or ""
+            except Exception as e:  # noqa: BLE001 - a bad prompt must not stop the capture
+                log.warning("prompt failed: %s", type(e).__name__)
+        self._worker.submit(shifted, prompt)
         if u.final:
             self.finals_submitted += 1
 
     def _run(self) -> None:
-        index = 0
+        # Exactly one terminal post at the end, unless stop() ended the thread.
+        outcome: tuple = ("stopped",)
         try:
+            vad = self._vad_factory()
+            index = 0
             while not self._stopping.is_set():
                 frame = self.source.read_frame()
-                prob = self._vad(frame)
+                prob = vad(frame)
                 for u in self._segmenter.push(index, frame, prob, final_pending=self._worker.final_pending()):
                     self._submit(u)
                 if index % PROGRESS_EVERY == 0 and not self._segmenter.in_speech:
@@ -77,20 +86,26 @@ class CaptureThread:
                     if safe > 0:
                         self._post("progress", self.speaker, (safe + self._offset) * FRAME_MS, self.finals_submitted)
                 index += 1
-            self._flush()
         except EndOfAudio:
-            self._flush()
-            self._post("ended", self.speaker)
+            outcome = ("ended",)
         except AudioSourceError as e:
-            self._flush()
             log.warning("audio source failed: %s", type(e).__name__)
-            self._post("error", self.speaker, type(e).__name__)
+            outcome = ("error", type(e).__name__)
         except Exception as e:  # noqa: BLE001 - report any failure, never silently die
             log.error("capture thread failed: %s", type(e).__name__)
-            self._post("error", self.speaker, type(e).__name__)
+            outcome = ("error", type(e).__name__)
         finally:
-            self.source.close()
+            self._safe_flush()
+            try:
+                self.source.close()
+            except Exception as e:  # noqa: BLE001
+                log.warning("source close failed: %s", type(e).__name__)
+            if outcome[0] != "stopped":
+                self._post(outcome[0], self.speaker, *outcome[1:])
 
-    def _flush(self) -> None:
-        for u in self._segmenter.flush():
-            self._submit(u)
+    def _safe_flush(self) -> None:
+        try:
+            for u in self._segmenter.flush():
+                self._submit(u)
+        except Exception as e:  # noqa: BLE001
+            log.warning("flush failed: %s", type(e).__name__)

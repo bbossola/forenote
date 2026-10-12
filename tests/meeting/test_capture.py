@@ -109,3 +109,64 @@ def test_stop_flushes_an_open_utterance_and_closes():
     assert cap.join(5)
     assert src.closed
     assert worker.items and worker.items[-1][0].final  # the flush sent a final
+
+
+class RaisingFinalWorker(FakeWorker):
+    def submit(self, utterance, prompt=""):
+        if utterance.final:
+            raise RuntimeError("worker is broken")
+        super().submit(utterance, prompt)
+
+
+def test_a_failing_submit_still_ends_with_one_terminal_post_and_closes():
+    worker, posts = RaisingFinalWorker(), Posts()
+    src = FileAudioSource("others", AMI / "ES2002a.wav", realtime=False)
+    src.start()
+    cap = CaptureThread("others", src, worker, 0, lambda s: "", posts)
+    cap.start()
+    assert posts.done.wait(30)
+    assert cap.join(5)
+    terminal = [k for k, _ in posts.items if k in ("ended", "error")]
+    assert terminal == ["error"]
+    assert posts.items[-1][0] == "error"
+
+
+def test_a_failing_flush_still_posts_the_terminal_event():
+    class FlushFails(FakeWorker):
+        def submit(self, utterance, prompt=""):
+            raise RuntimeError("no")
+
+    src = FailingSource(frames_before_error=5)
+    worker, posts = FlushFails(), Posts()
+    cap = CaptureThread("me", src, worker, 0, lambda s: "", posts)
+    cap._segmenter.flush = lambda: (_ for _ in ()).throw(RuntimeError("flush"))
+    cap.start()
+    assert posts.done.wait(10)
+    assert cap.join(5)
+    assert posts.items[-1][0] == "error"
+    assert src.closed
+
+
+def test_a_failing_prompt_gives_an_empty_prompt_and_a_normal_end():
+    def bad_prompt(speaker):
+        raise RuntimeError("prompt failed")
+
+    worker, posts, _ = run_capture(FileAudioSource("others", AMI / "ES2002a.wav", realtime=False), prompt=bad_prompt)
+    finals = [(u, p) for u, p in worker.items if u.final]
+    assert finals
+    assert all(p == "" for _, p in finals)
+    assert posts.items[-1][0] == "ended"
+
+
+def test_a_failing_vad_factory_posts_an_error_and_closes_the_source():
+    def bad_factory():
+        raise RuntimeError("no model")
+
+    src = FailingSource()
+    worker, posts = FakeWorker(), Posts()
+    cap = CaptureThread("me", src, worker, 0, lambda s: "", posts, vad_factory=bad_factory)  # must not raise here
+    cap.start()
+    assert posts.done.wait(10)
+    assert cap.join(5)
+    assert posts.items[-1] == ("error", ("me", "RuntimeError"))
+    assert src.closed
