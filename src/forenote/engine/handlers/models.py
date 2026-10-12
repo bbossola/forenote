@@ -11,6 +11,7 @@ from forenote.models.download import DISK_MARGIN, DownloadCancelled, _gib
 from forenote.models.manifest import ManifestError, ModelEntry, ModelFile, for_tier
 from forenote.rpc.protocol import APP_ERROR, RpcError
 from forenote.scheduler import Priority
+from forenote.workers import run_in_daemon_thread
 
 log = logging.getLogger(__name__)
 
@@ -65,8 +66,6 @@ class ModelsHandlers:
         return {"job_id": job_id}
 
     async def _run_download(self, job_id: int, entries: list[ModelEntry]) -> None:
-        from forenote.engine.app import run_in_daemon_thread  # avoid a circular import
-
         loop = asyncio.get_running_loop()
 
         def progress(entry: ModelEntry, f: ModelFile, i: int, n: int) -> None:
