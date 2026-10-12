@@ -19,7 +19,9 @@ download, the app does not need a network connection.
 
 - **(A) Meeting capture and live transcript.** The app records the microphone
   and the system audio and shows a live English transcript. Each line has the
-  label "Me" or "Others".
+  label "Me" or "Others". The app offers to start a transcript when a call
+  app opens the microphone, and it stops a recording after a period of
+  silence.
 - **(B) Notes enhancement.** During the meeting, the user writes shorthand
   bullets. After the meeting, the app expands each bullet with the transcript
   and writes a summary and action items.
@@ -36,6 +38,11 @@ download, the app does not need a network connection.
 - Languages other than English.
 - Speaker diarization inside one audio stream.
 - Audio retention after the transcription.
+- A transcript start without the consent of the user.
+- Capture of one app only (per-app capture). v1 records the full monitor of
+  the default sink.
+- Acoustic echo cancellation (for example the PipeWire `echo-cancel` module).
+  v1 removes echo lines with text comparison only (section 8.1).
 - Action intents (calendar events, e-mail, SMS).
 - Video embeddings.
 
@@ -81,6 +88,7 @@ Reference test systems: Ubuntu 24.04, Fedora 42, Debian 12.
 | Module | Purpose | Main dependency |
 |---|---|---|
 | `audio` | Records the mic (`@DEFAULT_SOURCE@`) and the speaker monitor (`@DEFAULT_MONITOR@`) as two 16 kHz mono streams. Follows changes of the default device. | libpulse |
+| `detect` | Watches which apps open the microphone and finds call apps (section 8.5). Measures the silence time during a recording (section 8.6). | libpulse events |
 | `asr` | VAD, utterance segmentation, streaming transcription, echo removal | faster-whisper (Silero VAD inside) |
 | `llm` | `TextGenerator` interface. Backends: llama.cpp (default), Ollama (optional). | `llama-cpp-python` |
 | `embed` | `Embedder` interface (`embed_text`, and `embed_image` when available) | Selected by the spike (section 12) |
@@ -139,8 +147,15 @@ Images (PNG, JPEG) are supported only if the spike confirms image embeddings.
   shortcut and shows a hint in settings.
 - **First-run wizard:** hardware check, model tier, model download, audio
   test, and the first watched folder.
+- **Desktop notifications:** "Start transcript?" with the actions
+  *Start* and *Not now* (section 8.5), and "Recording stops in 60 s" with the
+  action *Keep recording* (section 8.6).
+- **Autostart:** an option to start the UI in the tray at login, through the
+  Background portal or an XDG autostart file. Meeting detection works only
+  when the UI runs.
 - **Settings:** model tier, GPU on or off, watched folders, audio devices,
-  optional Ollama URL, and the bullet context window.
+  optional Ollama URL, the bullet context window, meeting detection on or off,
+  the list of call apps, and the silence timeout.
 
 ### 5.5 CLI
 
@@ -164,7 +179,7 @@ connection.
 |---|---|
 | system | `hello`, `status`, `shutdown` |
 | models | `list`, `download`, `cancel_download`, `set_tier` |
-| meeting | `start`, `stop`, `list`, `get`, `rename`, `delete`, `reprocess` |
+| meeting | `start`, `stop`, `list`, `get`, `rename`, `delete`, `reprocess`, `keep_recording`, `dismiss_detection` |
 | transcript | `get` |
 | notes | `get`, `update_bullets`, `update_enhanced`, `enhance` |
 | library | `add_folder`, `remove_folder`, `list`, `reindex`, `errors` |
@@ -174,7 +189,8 @@ connection.
 
 ### 6.2 Events
 
-`meeting.state`, `transcript.partial`, `transcript.final`,
+`meeting.state`, `meeting.detected`, `meeting.auto_stop_pending`,
+`transcript.partial`, `transcript.final`,
 `audio.source_changed`, `audio.source_lost`, `asr.delayed`, `notes.delta`,
 `notes.done`, `chat.delta`, `chat.done`, `job.progress`, `job.done`,
 `job.failed`, `models.progress`, `engine.error`.
@@ -185,7 +201,7 @@ One SQLite database: `$XDG_DATA_HOME/lookout/lookout.db`, WAL mode.
 
 | Table | Main columns |
 |---|---|
-| `meetings` | `id`, `title`, `started_at`, `ended_at`, `status` (`recording`, `processing`, `done`, `interrupted`) |
+| `meetings` | `id`, `title`, `started_at`, `ended_at`, `status` (`recording`, `processing`, `done`, `interrupted`), `start_reason` (`manual`, `detected`), `stop_reason` (`manual`, `silence`, `error`) |
 | `transcript_lines` | `id`, `meeting_id`, `speaker` (`me`, `others`), `t_start_ms`, `t_end_ms`, `text` |
 | `bullets` | `id`, `meeting_id`, `position`, `text`, `t_written_ms`, `enhanced_text` |
 | `meeting_outputs` | `meeting_id`, `summary`, `action_items` (JSON), `model`, `created_at` |
@@ -264,7 +280,48 @@ Limits: files larger than 50 MB or longer than 500 pages get the status
 5. `chat.done` contains the citations: chunk ID, file path or meeting, and
    locator.
 
-### 8.5 Scheduling
+### 8.5 Meeting detection
+
+1. The `detect` module subscribes to PulseAudio events for new and removed
+   source outputs (streams that record from a source).
+2. For each new source output, it reads the stream properties
+   `application.process.binary` and `application.name`.
+3. A source output is a call app if its binary or name is in the call app
+   list. The default list: `zoom`, `teams-for-linux`, `slack`, `discord`,
+   `skypeforlinux`, `firefox`, `chrome`, `chromium`, `brave`, `msedge`. The
+   user can edit the list.
+4. Browsers use the mic for other tasks too. So for browsers, the engine sends
+   the event only if the source output stays open for 10 s or more.
+5. If no recording runs, the engine sends `meeting.detected` with the app
+   name. The UI shows the notification "Start transcript?".
+6. *Start* calls `meeting.start` with `start_reason = detected`. The meeting
+   title is "<app name> call, <date> <time>". *Not now* calls
+   `meeting.dismiss_detection`. The engine then sends no new event for the
+   same app until the app closes all its mic streams.
+7. The engine never starts a recording without a user action. Lookout's own
+   source outputs are ignored.
+8. If the notification gets no answer within 2 minutes, the UI removes it.
+
+Risk to verify in step 3: the Flatpak sandbox must let the engine read the
+source outputs of other apps through `--socket=pulseaudio`. If it does not,
+meeting detection is available only in the AppImage and developer builds.
+
+### 8.6 Auto-stop on silence
+
+1. During a recording, the engine measures the time since the last final
+   transcript line from either stream.
+2. When this time reaches the silence timeout (default 5 minutes, setting
+   range 1–60, 0 = off), the engine sends `meeting.auto_stop_pending`.
+3. The UI shows "Recording stops in 60 s" with the action *Keep recording*,
+   and the tray icon blinks.
+4. *Keep recording* calls `meeting.keep_recording`, which resets the silence
+   time. New speech also resets it and cancels the pending stop.
+5. If nothing happens in 60 s, the engine stops the meeting with
+   `stop_reason = silence`. Post-processing then runs as after a manual stop.
+6. A call app that closes all its mic streams during a recording does not
+   stop the recording. It only shortens the remaining silence time to 60 s.
+
+### 8.7 Scheduling
 
 - Job priority: live ASR > chat > notes > indexing.
 - During a recording, indexing pauses, and LLM jobs wait until the recording
@@ -340,6 +397,8 @@ selection of AVX2 and AVX-512) and Vulkan.
 | Protocol version mismatch | The UI shows an error and does not continue |
 | Engine crash | The UI restarts the engine one time. A second crash within 60 s stops the restarts, and the UI shows the log path. |
 | UI crash or close | The engine continues. A recording continues. |
+| Meeting detection cannot read stream properties | The engine logs a warning and ignores that stream. Manual recording still works. |
+| No desktop notification service | The UI shows the detection prompt and the auto-stop warning in the tray menu and in the main window |
 | Default audio device changes | The stream follows the new device. `audio.source_changed` adds a marker to the transcript. |
 | Stream failure | 3 retries with backoff. Then the other stream continues, and `audio.source_lost` tells the UI. |
 | ASR queue holds more than 30 s of audio | The engine stops partial decodes and sends `asr.delayed`. If the delay keeps growing, the UI suggests a smaller speech model. |
@@ -363,10 +422,13 @@ selection of AVX2 and AVX-512) and Vulkan.
 | Unit | Engine modules | pytest with fakes: `FakeTextGenerator`, `FakeEmbedder`, `FakeTranscriber`, `FileAudioSource` |
 | Contract | RPC | One test for each method and event against `schema.json`, plus the version handshake |
 | Storage | Migrations | Migration from each old schema version, with database fixtures |
+| Detection | Call app matching, browser 10 s rule, dismissal until the app closes its streams, own streams ignored | Unit tests with recorded PulseAudio event sequences |
+| Auto-stop | Timeout, *Keep recording*, reset by speech, shorter time after the call app closes | Unit tests with a fake clock and `FakeTranscriber` |
 | Parsers | File formats | One fixture for each format with the expected text. Broken files give `error`, not a crash. |
 | Integration | Engine with real models, no GUI | `FileAudioSource`, `base.en`, Gemma 4 E2B, EmbeddingGemma 2. pytest marker `models`. These tests run only when the models are present. |
 | UI | QML views | pytest-qt smoke tests with a fake engine |
-| Manual | Real meetings | Release checklist: Zoom, Meet, and Teams in a browser; headphones and speakers; Bluetooth device change; GNOME and KDE; Wayland and X11 |
+| Manual | Real meetings | Release checklist: Zoom, Meet, and Teams in a browser; headphones and speakers; Bluetooth device change; meeting detection for
+each call app; auto-stop after silence; GNOME and KDE; Wayland and X11 |
 
 ### 11.2 Quality checks
 
