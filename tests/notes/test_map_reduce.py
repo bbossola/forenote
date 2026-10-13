@@ -2,7 +2,7 @@ import pytest
 
 from forenote.llm.fake import FakeTextGenerator
 from forenote.notes import context, prompts
-from forenote.notes.enhance import NotesDeps, enhance_notes
+from forenote.notes.enhance import NotesDeps, NotesError, enhance_notes
 from forenote.scheduler import CancelToken
 from forenote.store.db import connect
 from forenote.store.meetings import MeetingStore
@@ -108,3 +108,22 @@ async def test_many_long_notes_do_not_break_the_bullet_prompts(db):
     for prompt, params in zip(gen.prompts, gen.params):
         assert gen.count_tokens(prompt) + params.max_tokens <= gen.context_size
     assert all(notes.bullet(b.id).enhanced_text == "The expansion." for b in added)
+
+
+async def test_all_empty_map_outputs_fail_the_job(db):
+    conn, _, notes, mid = db
+    gen = FakeTextGenerator(lambda p: [""] if "Task: this is part" in p else ["x"])
+    gen.context_size = 8192
+    with pytest.raises(NotesError, match="no points"):
+        await run(conn, mid, gen)
+    assert not any(prompts.SUMMARY_TASK in p for p in gen.prompts)
+
+
+async def test_the_map_reduce_summary_sees_the_notes_of_the_user(db):
+    conn, _, notes, mid = db
+    notes.add_bullet(mid, "budget slip", 1_800_000)
+    gen = low_tier_gen()
+    mode, _ = await run(conn, mid, gen)
+    assert mode == "map_reduce"
+    summary_prompt = next(p for p in gen.prompts if prompts.SUMMARY_TASK in p)
+    assert prompts.NOTES_TITLE in summary_prompt and "budget slip" in summary_prompt

@@ -1,5 +1,6 @@
 import logging
 import sqlite3
+import threading
 
 import pytest
 
@@ -257,3 +258,20 @@ async def test_the_first_token_limit_grows_with_the_prompt(db, monkeypatch):
     monkeypatch.setattr(enhance, "collect", spy)
     await run(conn, mid, BigPrompt(script()))
     assert seen and set(seen) == {first_token_limit(10_000)} == {560.0}
+
+
+async def test_token_counts_run_off_the_event_loop(db):
+    conn, _, notes, mid = db
+    notes.add_bullet(mid, "budget", 65_000)
+    loop_thread = threading.get_ident()
+    threads = []
+
+    class Gen(FakeTextGenerator):
+        def count_tokens(self, prompt):
+            threads.append(threading.get_ident())
+            return super().count_tokens(prompt)
+
+    mode, _ = await run(conn, mid, Gen(script()))
+    assert mode == "prefix"
+    # The count for the first-token limit of each step runs in a worker thread.
+    assert any(t != loop_thread for t in threads)
