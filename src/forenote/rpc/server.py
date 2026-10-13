@@ -237,8 +237,9 @@ class RpcServer:
             data = p.encode(p.response(mid, result))
         except p.RpcError as e:
             reply = p.error_response(mid, e)
-        except Exception:  # noqa: BLE001 - never leak internals to a client
-            log.exception("RPC handler failed: %s", msg.get("method"))
+        except Exception as e:  # noqa: BLE001 - never leak internals to a client
+            # The message can hold user content (spec 10.1): log the type only.
+            log.error("RPC handler failed: %s: %s", msg.get("method"), type(e).__name__)
             reply = p.error_response(mid, p.RpcError(p.INTERNAL_ERROR, "internal error, see the engine log"))
         else:
             reply = None

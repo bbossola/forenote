@@ -182,7 +182,8 @@ class Scheduler:
             if task is not None and task.cancelling():
                 raise
         except Exception as e:  # noqa: BLE001 - a job failure must not stop the worker
-            log.exception("job %d (%s) failed", q.job_id, q.type)
+            # The message can hold user content (spec 10.1): log the type only.
+            log.error("job %d (%s) failed: %s", q.job_id, q.type, type(e).__name__)
             self._finish(q, "failed", str(e) or type(e).__name__)
         else:
             self._finish(q, "done", None)
@@ -192,16 +193,16 @@ class Scheduler:
     def _finish(self, q: _Queued, status: str, error: str | None) -> None:
         try:
             self._jobs.set_status(q.job_id, status, error)
-        except Exception:  # noqa: BLE001 - a store error must not stop the worker
-            log.exception("cannot set status %s for job %d", status, q.job_id)
+        except Exception as e:  # noqa: BLE001 - a store error must not stop the worker
+            log.error("cannot set status %s for job %d: %s", status, q.job_id, type(e).__name__)
         self._notify(q, status, error)
 
     def _notify(self, q: _Queued, status: str, error: str | None) -> None:
         if self._listener:
             try:
                 self._listener({"id": q.job_id, "type": q.type, "status": status, "error": error})
-            except Exception:  # noqa: BLE001 - a listener error must not stop the worker
-                log.exception("job listener failed")
+            except Exception as e:  # noqa: BLE001 - a listener error must not stop the worker
+                log.error("job listener failed: %s", type(e).__name__)
 
     def _progress(self, q: _Queued, message: str, fraction: float | None) -> None:
         if self._running is not q:
@@ -213,5 +214,5 @@ class Scheduler:
                 self._listener(
                     {"id": q.job_id, "type": q.type, "status": "progress", "message": message, "fraction": fraction}
                 )
-            except Exception:  # noqa: BLE001 - a listener error must not stop the job
-                log.exception("job listener failed")
+            except Exception as e:  # noqa: BLE001 - a listener error must not stop the job
+                log.error("job listener failed: %s", type(e).__name__)

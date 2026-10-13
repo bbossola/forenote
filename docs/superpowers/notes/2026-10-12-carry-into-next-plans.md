@@ -7,7 +7,7 @@ Each next plan must read this list first and handle the items that apply to it.
 
 ## All plans
 
-- **Log content.** Exception messages from parsers, the LLM, or ASR can contain user text. They must never reach `log.exception` output (spec 10.1). Add a rule or a log filter before the first plan that handles user content.
+- **Log content.** Exception messages from parsers, the LLM, or ASR can contain user text. They must never reach `log.exception` output (spec 10.1). Add a rule or a log filter before the first plan that handles user content. Done in plan B2 (Task 8).
 - **Engine handler size.** `engine/app.py` gets about 30 more RPC methods (meeting, notes, library, chat). Split the handlers into domain modules (for example `engine/handlers/models.py`) before a plan adds them.
 - **Shared worker helper.** `run_in_daemon_thread` is in `engine/app.py`. Move it to a shared module (for example `forenote/workers.py`) for embedding, parsing, and LLM jobs.
 
@@ -99,7 +99,7 @@ These items stay open after the A2 reviews. None of them blocks the merge.
   for an unknown meeting id.
 - **RPC server log.** `rpc/server.py` writes the full exception text of an
   unexpected handler error. No path puts user content into these messages
-  today. Log only the error type before a handler accepts more user text.
+  today. Log only the error type before a handler accepts more user text. Done in plan B2 (Task 8).
 - **Debug file restarts.** A capture error on a debug recording starts the WAV
   again from the beginning. This affects only `--debug-sources`.
 - **Audio server status.** `forenote-cli status` does not show whether the
@@ -115,7 +115,7 @@ Source: the final review of plan B1 (branch `feature/notes-b1`). The first task 
 - **Prefill only.** The live reading needs a method that reads the prompt and writes no output. Do not use `max_tokens=0`: llama-cpp-python reads it as "no limit", and `GenParams` refuses it.
 - **Prefix reuse test.** The model test checks only the template marks. Assert the prefix reuse too, with the first-token time ratio or the evaluated token count.
 - **Fixture name.** Rename the `speech_model_dir` fixture. It also serves LLM models.
-- **Scheduler log.** `scheduler.py` calls `log.exception("job %d (%s) failed")`. This writes `str(e)` and the traceback. Add the log rule or a log filter before the first notes job (see "Log content" above).
+- **Scheduler log.** `scheduler.py` calls `log.exception("job %d (%s) failed")`. This writes `str(e)` and the traceback. Add the log rule or a log filter before the first notes job (see "Log content" above). Done in plan B2 (Task 8).
 - **Thread rule.** The rule `physical_cores - 1` comes from one 12-core machine. Measure it again on other machines.
 - **Spike options.** The spike script has no `--flash-attn` or `--swa-full` flags, so `bench llm` must measure these options again. Decision 0003 does not explain why the first-token time goes from 0.94 s to 1.61 s with `flash_attn`. The value "76 MiB per 1,000 tokens" is per 1,024 tokens (74 MiB per 1,000 tokens).
 
