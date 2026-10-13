@@ -71,13 +71,20 @@ async def test_two_launchers_share_one_engine(env_paths):
     late_cmd = [sys.executable, "-c", "import time, runpy, sys; time.sleep(1.5); "
                 f"sys.argv = {cmd[2:]!r}; runpy.run_module('forenote.engine.main', run_name='__main__')"]
     before = set(launcher._children)
-    a, b = await asyncio.gather(
-        connect_or_start(env_paths.socket_path, "pytest-a", engine_cmd=cmd),
-        connect_or_start(env_paths.socket_path, "pytest-b", engine_cmd=late_cmd),
-    )
-    started = set(launcher._children) - before
     try:
+        # return_exceptions: if one launcher fails, wait for the other one too.
+        results = await asyncio.gather(
+            connect_or_start(env_paths.socket_path, "pytest-a", engine_cmd=cmd),
+            connect_or_start(env_paths.socket_path, "pytest-b", engine_cmd=late_cmd),
+            return_exceptions=True,
+        )
+        clients = [r for r in results if not isinstance(r, BaseException)]
         try:
+            for r in results:
+                if isinstance(r, BaseException):
+                    raise r
+            a, b = clients
+            started = set(launcher._children) - before
             assert (await a.call("system.status"))["protocol"] == "1.0"
             assert (await b.call("system.status"))["protocol"] == "1.0"
             # The second engine must lose the lock before the shutdown. If the shutdown
@@ -89,8 +96,8 @@ async def test_two_launchers_share_one_engine(env_paths):
             assert sorted(proc.poll() for proc in started if proc.poll() is not None) == [1]
             await a.call("system.shutdown")
         finally:
-            await a.close()
-            await b.close()
+            for client in clients:
+                await client.close()
 
         for _ in range(50):
             if not env_paths.socket_path.exists():
@@ -101,13 +108,13 @@ async def test_two_launchers_share_one_engine(env_paths):
         for proc in started:
             await asyncio.to_thread(proc.wait, 10)
     finally:
-        _stop(started)
+        _stop(set(launcher._children) - before)
 
 
 async def test_loser_exit_waits_for_the_winner(env_paths):
     procs = []
     real = [sys.executable, "-m", "forenote.engine.main", "--no-hw-check", "--log-level", "WARNING"]
-    asyncio.get_running_loop().call_later(0.5, lambda: procs.append(subprocess.Popen(real)))
+    timer = asyncio.get_running_loop().call_later(0.5, lambda: procs.append(subprocess.Popen(real)))
     try:
         client = await connect_or_start(
             env_paths.socket_path, "pytest", engine_cmd=[sys.executable, "-c", "raise SystemExit(1)"]
@@ -116,8 +123,11 @@ async def test_loser_exit_waits_for_the_winner(env_paths):
             await client.call("system.shutdown")
         finally:
             await client.close()
+        assert len(procs) == 1
         procs[0].wait(timeout=10)
     finally:
+        # If the test fails before 0.5 s, the timer must not start an engine later.
+        timer.cancel()
         _stop(procs)
 
 
