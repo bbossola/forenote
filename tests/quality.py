@@ -6,8 +6,15 @@ import re
 
 _ONES = "zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen".split()
 _TENS = "_ _ twenty thirty forty fifty sixty seventy eighty ninety".split()
-# Capitalized words that are not names.
+# Capitalized words that are not names, anywhere in a sentence.
 _COMMON = {"I", "Me", "Others", "OK", "Okay", "Mr", "Mrs", "Ms", "TV", "LCD", "AI"}
+# Words that often start a sentence or a list line and are not names.
+_START_WORDS = {
+    "The", "This", "These", "Those", "They", "We", "It", "He", "She", "You", "A", "An", "In", "On", "At",
+    "For", "And", "But", "So", "If", "When", "After", "Before", "Then", "There", "That", "Each", "All",
+    "Some", "No", "Also", "Both", "Next", "First", "Finally", "Overall", "Team", "Meeting", "Summary",
+    "Action", "Owner", "Decision", "Decisions", "Topic", "Notes", "Note", "Other", "One", "Two",
+}
 
 
 def number_words(n: int) -> str:
@@ -24,15 +31,22 @@ def number_words(n: int) -> str:
 
 
 def _norm(text: str) -> str:
-    return " " + re.sub(r"[^a-z0-9:]+", " ", text.lower().replace("-", " ")) + " "
+    """Lower-case the text and keep only words, digits, ":" in times, and "." in decimals."""
+    cleaned = re.sub(r"[^a-z0-9:.]+", " ", text.lower().replace("-", " "))
+    return " " + re.sub(r"(?<!\d)\.|\.(?!\d)", " ", cleaned) + " "
 
 
 def unsupported_terms(output: str, transcript: str, notes: str = "") -> list[str]:
     """Return the names and numbers of the output that the transcript and the notes do not hold.
 
-    A name is a capitalized word that does not start a sentence or a list line. A
-    number passes when its digits or its words occur. Times (mm:ss) pass when they occur.
+    A name is a capitalized word. A word at the start of a sentence or a list line
+    passes when it is a common start word, when the transcript or the notes hold it,
+    or when the output also holds it in lower case. A number passes when its digits or
+    its words occur. A decimal ending in .5 or .50 also passes for "<n> and a half" or
+    "<n> point five". A time (mm:ss) passes when it occurs. AMI writes all numbers as
+    words, so an invented number from 1 to 9 can pass: its word form is common.
     """
+    output = re.sub(r"[*_#`]", "", output)
     source = _norm(transcript + "\n" + notes)
     found: list[str] = []
     for m in re.finditer(r"\d+(?::\d+)?(?:[.,]\d+)?", output):
@@ -42,12 +56,21 @@ def unsupported_terms(output: str, transcript: str, notes: str = "") -> list[str
         digits = token.replace(",", "")
         if digits.isdigit() and int(digits) < 1_000_000 and f" {number_words(int(digits))} " in source:
             continue
+        whole, _, fraction = token.partition(".")
+        if whole.isdigit() and fraction in ("5", "50") and int(whole) < 1_000_000:
+            words = number_words(int(whole))
+            if f" {words} and a half " in source or f" {words} point five " in source:
+                continue
         found.append(token)
     for m in re.finditer(r"\b[A-Z][a-zA-Z]+\b", output):
         word = m.group(0)
-        before = output[: m.start()].rstrip(" \"'«(")
-        if not before or before[-1] in ".!?:\n-*" or word in _COMMON:
+        if word in _COMMON:
             continue
-        if f" {word.lower()} " not in source:
-            found.append(word)
+        before = output[: m.start()].rstrip(" \"'«(")
+        if f" {word.lower()} " in source:
+            continue
+        if not before or before[-1] in ".!?\n-":
+            if word in _START_WORDS or re.search(rf"\b{word.lower()}\b", output):
+                continue
+        found.append(word)
     return found

@@ -13,6 +13,7 @@ def load_transcript(name: str) -> list[dict]:
     with open(DIR / f"{name}.jsonl", encoding="utf-8") as f:
         return [json.loads(line) for line in f if line.strip()]
 
+
 QUALITY_MEETINGS = ("ES2002a", "IS1009a", "TS3003a")
 BENCH_MEETING = "ES2010c"
 BULLETS = DIR.parent / "bullets.json"

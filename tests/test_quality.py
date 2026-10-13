@@ -27,8 +27,41 @@ def test_an_invented_number_is_found():
     assert unsupported_terms("The price is 30 euro.", TRANSCRIPT) == ["30"]
 
 
-def test_a_word_at_the_start_of_a_sentence_is_not_a_name():
-    assert unsupported_terms("Budget is a topic. Design too.\n- Marketing is next.", TRANSCRIPT) == []
+def test_an_invented_name_at_a_list_start_is_found():
+    assert unsupported_terms("Summary:\n- Michael will lead.", TRANSCRIPT) == ["Michael"]
+
+
+def test_an_invented_name_after_a_colon_is_found():
+    assert unsupported_terms("Owner: Michael", TRANSCRIPT) == ["Michael"]
+
+
+def test_an_invented_name_in_bold_is_found():
+    assert unsupported_terms("**Michael** agreed.", TRANSCRIPT) == ["Michael"]
+
+
+def test_common_start_words_are_not_names():
+    assert unsupported_terms("The price came up. Then we agreed.\n- Next: designs.", TRANSCRIPT) == []
+
+
+def test_a_start_word_from_the_transcript_is_not_a_name():
+    assert unsupported_terms("Price is a topic. Models too.", TRANSCRIPT) == []
+
+
+def test_a_start_word_in_lower_case_elsewhere_is_not_a_name():
+    assert unsupported_terms("Budget is a topic. The budget came up.", TRANSCRIPT) == []
+
+
+def test_a_decimal_from_the_transcript_passes():
+    assert unsupported_terms("It costs 12.5 euro.", "it costs 12.5 euro") == []
+
+
+def test_a_decimal_half_passes_for_words():
+    assert unsupported_terms("Cost is 12.5 or 12.50 euro.", "cost is twelve and a half euro") == []
+    assert unsupported_terms("Cost is 12.5 euro.", "cost is twelve point five euro") == []
+
+
+def test_an_invented_decimal_is_found():
+    assert unsupported_terms("Cost is 12.7 euro.", "cost is twelve and a half euro") == ["12.7"]
 
 
 def test_names_from_the_notes_pass():
