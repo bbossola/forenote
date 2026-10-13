@@ -1,3 +1,4 @@
+import asyncio
 import io
 
 import pytest
@@ -32,17 +33,32 @@ class FakeClient:
     async def call(self, method, params=None, timeout=30.0):
         self.calls.append((method, params))
         self.timeouts[method] = timeout
-        return self.results[method]
+        result = self.results[method]
+        return result(params) if callable(result) else result
 
     async def events(self):
         for e in self._events:
             yield e
 
 
-async def run_cli(argv, client):
+async def run_cli(argv, client, lines=None):
     out = io.StringIO()
-    code = await run(build_parser().parse_args(argv), client, out)
+
+    async def feed():
+        for line in lines:
+            yield line
+
+    code = await run(build_parser().parse_args(argv), client, out, feed() if lines is not None else None)
     return code, out.getvalue()
+
+
+class SlowClient(FakeClient):
+    """Events come after a short wait, so that typed lines are handled first."""
+
+    async def events(self):
+        for e in self._events:
+            await asyncio.sleep(0.05)
+            yield e
 
 
 async def test_status_shows_hardware_and_tier_models():
@@ -365,7 +381,7 @@ async def test_record_flushes_after_every_line():
         ],
     )
     await run(build_parser().parse_args(["record"]), client, out)
-    assert out.flushes >= len(out.getvalue().splitlines()) == 3
+    assert out.flushes >= len(out.getvalue().splitlines()) == 4
 
 
 async def test_meetings_shows_local_time(monkeypatch):
@@ -434,3 +450,126 @@ async def test_record_prints_engine_errors_to_stderr(capsys):
     assert code == 0
     assert "Error: Disk full" in capsys.readouterr().err
     assert "Disk full" not in out
+
+
+NOTES = {
+    "bullets": [
+        {"id": 7, "position": 1, "text": "budget slip", "t_written_ms": 750_000, "enhanced_text": "The budget slips.",
+         "enhanced_edited": False},
+        {"id": 8, "position": 2, "text": "dates", "t_written_ms": None, "enhanced_text": None, "enhanced_edited": False},
+    ],
+    "summary": "We met.",
+    "action_items": [{"owner": "Anna", "text": "send the slides"}, {"owner": None, "text": "check the price"}],
+    "model": "m", "mode": "prefix", "created_at": "2026-10-13T10:00:00+00:00", "job": {"id": 3, "status": "done"},
+}
+EMPTY_NOTES = {"bullets": [], "summary": None, "action_items": None, "model": None, "mode": None,
+               "created_at": None, "job": None}
+
+
+def bullet_result(params):
+    return {"bullet": {"id": 1, "position": 1, "text": params["text"], "t_written_ms": 5000,
+                       "enhanced_text": None, "enhanced_edited": False}}
+
+
+async def test_notes_prints_summary_items_and_bullets():
+    code, out = await run_cli(["notes", "4"], FakeClient({"notes.get": NOTES}))
+    assert code == 0
+    assert out == (
+        "Summary:\nWe met.\n\nAction items:\n- Anna: send the slides\n- No owner: check the price\n\n"
+        "Notes:\n1. [12:30] budget slip\n   The budget slips.\n2. dates\n"
+    )
+
+
+async def test_notes_without_notes():
+    code, out = await run_cli(["notes", "4"], FakeClient({"notes.get": EMPTY_NOTES}))
+    assert code == 0 and out == "No notes yet. Run 'forenote-cli enhance 4'.\n"
+
+
+async def test_note_adds_a_bullet_to_the_running_meeting():
+    client = FakeClient({"meeting.list": [{"id": 5, "status": "recording"}], "notes.add_bullet": bullet_result})
+    code, out = await run_cli(["note", "budget slip"], client)
+    assert code == 0 and out == "+ bullet 1 at 00:05\n"
+    assert client.calls[-1] == ("notes.add_bullet", {"meeting_id": 5, "text": "budget slip"})
+
+
+async def test_note_without_a_recording(capsys):
+    code, _ = await run_cli(["note", "x"], FakeClient({"meeting.list": [{"id": 5, "status": "done"}]}))
+    assert code == 1 and "No recording runs." in capsys.readouterr().err
+
+
+async def test_record_adds_typed_lines_and_prints_the_notes():
+    client = SlowClient(
+        {"meeting.start": {"meeting_id": 4, "started_at": "x"}, "notes.add_bullet": bullet_result, "notes.get": NOTES},
+        events=[
+            ("meeting.state", {"meeting_id": 4, "status": "processing", "stop_reason": "manual"}),
+            ("notes.delta", {"meeting_id": 4, "part": "summary", "text": "We"}),
+            ("notes.done", {"meeting_id": 4, "status": "done"}),
+        ],
+    )
+    code, out = await run_cli(["record"], client, lines=["budget slip\n", "   \n"])
+    assert code == 0
+    assert [c for c in client.calls if c[0] == "notes.add_bullet"] == [
+        ("notes.add_bullet", {"meeting_id": 4, "text": "budget slip"})]
+    assert "+ bullet 1 at 00:05" in out
+    assert "Recording stopped (manual). Writing the notes..." in out
+    assert "Summary:\nWe met." in out
+
+
+async def test_record_reports_a_failed_notes_job():
+    client = FakeClient(
+        {"meeting.start": {"meeting_id": 4, "started_at": "x"}},
+        events=[
+            ("meeting.state", {"meeting_id": 4, "status": "processing", "stop_reason": "manual"}),
+            ("notes.done", {"meeting_id": 4, "status": "failed"}),
+        ],
+    )
+    code, out = await run_cli(["record"], client)
+    assert code == 1 and "forenote-cli enhance 4" in out
+
+
+async def test_enhance_streams_parts_and_ends():
+    client = FakeClient(
+        {"notes.get": NOTES, "notes.enhance": {"job_id": 9}},
+        events=[
+            ("notes.delta", {"meeting_id": 4, "part": "bullet", "bullet_id": 8, "text": "Dates "}),
+            ("notes.delta", {"meeting_id": 4, "part": "bullet", "bullet_id": 8, "text": "move."}),
+            ("notes.delta", {"meeting_id": 4, "part": "summary", "text": "We met."}),
+            ("notes.delta", {"meeting_id": 5, "part": "summary", "text": "OTHER"}),
+            ("notes.done", {"meeting_id": 4, "status": "done"}),
+        ],
+    )
+    code, out = await run_cli(["enhance", "4", "--force"], client)
+    assert code == 0
+    assert ("notes.enhance", {"meeting_id": 4, "force": True}) in client.calls
+    assert "Note 2:\nDates move.\nSummary:\nWe met.\n" in out
+    assert "OTHER" not in out and out.endswith("The notes are ready.\n")
+
+
+async def test_enhance_failure_shows_the_job_error():
+    client = FakeClient(
+        {"notes.get": NOTES, "notes.enhance": {"job_id": 9}},
+        events=[
+            ("job.failed", {"id": 9, "type": "notes.enhance", "error": "The meeting has no transcript."}),
+            ("notes.done", {"meeting_id": 4, "status": "failed"}),
+        ],
+    )
+    code, out = await run_cli(["enhance", "4"], client)
+    assert code == 1 and "The notes job failed: The meeting has no transcript." in out
+
+
+async def test_ctrl_c_during_enhance_cancels_the_job():
+    class Interrupting(FakeClient):
+        async def events(self):
+            raise KeyboardInterrupt
+            yield  # pragma: no cover
+
+    client = Interrupting({"notes.get": NOTES, "notes.enhance": {"job_id": 9}, "jobs.cancel": {"cancelled": True}})
+    code, out = await run_cli(["enhance", "4"], client)
+    assert code == 130 and ("jobs.cancel", {"id": 9}) in client.calls
+    assert "The notes job is cancelled." in out
+
+
+def test_note_and_notes_do_not_start_the_engine():
+    from forenote.cli import NO_START
+
+    assert "note" in NO_START and "notes" in NO_START and "enhance" not in NO_START

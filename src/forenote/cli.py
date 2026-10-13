@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import json
 import sys
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, TextIO
@@ -42,6 +44,13 @@ def build_parser() -> argparse.ArgumentParser:
     meetings.add_argument("--limit", type=_positive_int, default=20)
     transcript = sub.add_parser("transcript", help="print the transcript of a meeting")
     transcript.add_argument("meeting_id", type=int)
+    note = sub.add_parser("note", help="add a bullet to the running meeting")
+    note.add_argument("text")
+    notes = sub.add_parser("notes", help="print the notes of a meeting")
+    notes.add_argument("meeting_id", type=int)
+    enhance = sub.add_parser("enhance", help="write the notes of a meeting again and stream them")
+    enhance.add_argument("meeting_id", type=int)
+    enhance.add_argument("--force", action="store_true", help="also replace the expansions that you edited")
     bench = sub.add_parser("bench", help="measure performance on this computer")
     bsub = bench.add_subparsers(dest="bench_command", required=True)
     basr = bsub.add_parser("asr", help="measure speech recognition cost")
@@ -87,9 +96,12 @@ def _model_line(m: dict[str, Any]) -> str:
     return f"  {m['role']:<7} {m['id']:<24} {_gib(m['size']):>9}  {state}"
 
 
-async def run(args: argparse.Namespace, client: Any, out: TextIO = sys.stdout) -> int:
+async def run(args: argparse.Namespace, client: Any, out: TextIO = sys.stdout, inp: Any = None) -> int:
     def say(text: str) -> None:
         print(text, file=out, flush=True)
+
+    def write(text: str) -> None:
+        print(text, end="", file=out, flush=True)
 
     if args.command == "status":
         s = await client.call("system.status")
@@ -145,7 +157,10 @@ async def run(args: argparse.Namespace, client: Any, out: TextIO = sys.stdout) -
         if args.from_file:
             params["debug_file"] = str(Path(args.from_file).resolve())
         mid = (await client.call("meeting.start", params))["meeting_id"]
-        say(f"Recording meeting {mid}. Press Ctrl-C or run 'forenote-cli stop' to stop.")
+        say(f"Recording meeting {mid}. Type a note and press Enter to add a bullet.")
+        say("Press Ctrl-C or run 'forenote-cli stop' to stop.")
+        reader = asyncio.ensure_future(_read_bullets(client, mid, inp, say)) if inp is not None else None
+        writing_notes = False
         try:
             async for name, p in client.events():
                 if name == "engine.error":
@@ -153,16 +168,31 @@ async def run(args: argparse.Namespace, client: Any, out: TextIO = sys.stdout) -
                     continue
                 if p.get("meeting_id") != mid:
                     continue
-                if name == "transcript.final":
+                if name == "transcript.final" and not writing_notes:
                     say(_line_text(p))
                 elif name in ("audio.source_changed", "audio.source_lost"):
                     say(_marker_text(name.split(".")[1], p["speaker"]))
                 elif name == "meeting.auto_stop_pending":
                     say(f"[silence: the recording stops in {p['seconds_left']} s]")
-                elif name == "meeting.state" and p["status"] != "recording":
+                elif name == "meeting.state" and p["status"] == "processing":
+                    if reader is not None:
+                        reader.cancel()
+                    say(f"Recording stopped ({p.get('stop_reason')}). Writing the notes...")
+                    writing_notes = True
+                elif name == "meeting.state" and p["status"] != "recording" and not writing_notes:
                     say(f"Recording stopped ({p.get('stop_reason')}).")
                     return 0
+                elif name == "notes.done":
+                    if p["status"] == "done":
+                        for row in _notes_lines(mid, await client.call("notes.get", {"meeting_id": mid})):
+                            say(row)
+                        return 0
+                    say(f"The notes were not written. Run 'forenote-cli enhance {mid}' to try again.")
+                    return 1
         except (KeyboardInterrupt, asyncio.CancelledError):
+            if writing_notes:
+                say(f"The notes job continues in the engine. Run 'forenote-cli notes {mid}' later.")
+                return 130
             say("Stopping the recording...")
             try:
                 result = await client.call("meeting.stop", timeout=STOP_TIMEOUT)
@@ -171,6 +201,11 @@ async def run(args: argparse.Namespace, client: Any, out: TextIO = sys.stdout) -
                 return 130
             say(f"Meeting {result['meeting_id']} stopped.")
             return 0
+        finally:
+            if reader is not None:
+                reader.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await reader
         say("The connection to the engine closed.")
         return 1
 
@@ -201,7 +236,131 @@ async def run(args: argparse.Namespace, client: Any, out: TextIO = sys.stdout) -
             say(text)
         return 0
 
+    if args.command == "note":
+        found = await client.call("meeting.list", {"limit": 1})
+        if not found or found[0]["status"] != "recording":
+            print("No recording runs.", file=sys.stderr)
+            return 1
+        bullet = (await client.call("notes.add_bullet", {"meeting_id": found[0]["id"], "text": args.text}))["bullet"]
+        say(_bullet_text(bullet))
+        return 0
+
+    if args.command == "notes":
+        for row in _notes_lines(args.meeting_id, await client.call("notes.get", {"meeting_id": args.meeting_id})):
+            say(row)
+        return 0
+
+    if args.command == "enhance":
+        current = await client.call("notes.get", {"meeting_id": args.meeting_id})
+        positions = {b["id"]: b["position"] for b in current["bullets"]}
+        params = {"meeting_id": args.meeting_id}
+        if args.force:
+            params["force"] = True
+        job_id = (await client.call("notes.enhance", params))["job_id"]
+        say(f"Writing the notes (job {job_id}). Press Ctrl-C to cancel.")
+        part = None
+        try:
+            async for name, p in client.events():
+                if name == "job.failed" and p["id"] == job_id:
+                    if part is not None:
+                        write("\n")
+                    say(f"The notes job failed: {p['error']}")
+                    return 1
+                if p.get("meeting_id") != args.meeting_id:
+                    continue
+                if name == "notes.delta":
+                    key = (p["part"], p.get("bullet_id"))
+                    if key != part:
+                        if part is not None:
+                            write("\n")
+                        part = key
+                        say(_part_title(p, positions))
+                    write(p["text"])
+                elif name == "notes.done":
+                    if part is not None:
+                        write("\n")
+                    if p["status"] == "done":
+                        say("The notes are ready.")
+                        return 0
+                    say("The notes job was cancelled." if p["status"] == "cancelled" else "The notes job failed.")
+                    return 1
+        except (KeyboardInterrupt, asyncio.CancelledError):
+            await client.call("jobs.cancel", {"id": job_id})
+            if part is not None:
+                write("\n")
+            say("The notes job is cancelled.")
+            return 130
+        say("The connection to the engine closed.")
+        return 1
+
     return 2
+
+
+PART_TITLE = {"summary": "Summary:", "action_items": "Action items:"}
+
+
+def _part_title(p: dict[str, Any], positions: dict[int, int]) -> str:
+    if p["part"] == "bullet":
+        return f"Note {positions.get(p.get('bullet_id'), '?')}:"
+    return PART_TITLE[p["part"]]
+
+
+def _notes_lines(meeting_id: int, n: dict[str, Any]) -> list[str]:
+    rows: list[str] = []
+    if n["summary"]:
+        rows += ["Summary:", n["summary"], ""]
+    if n["action_items"] is not None:
+        rows.append("Action items:")
+        rows += [f"- {i['owner'] or 'No owner'}: {i['text']}" for i in n["action_items"]] or ["- none"]
+        rows.append("")
+    if n["bullets"]:
+        rows.append("Notes:")
+        for b in n["bullets"]:
+            when = f"[{_clock(b['t_written_ms'])}] " if b["t_written_ms"] is not None else ""
+            rows.append(f"{b['position']}. {when}{b['text']}")
+            if b["enhanced_text"]:
+                rows.append(f"   {b['enhanced_text']}")
+    if not n["summary"] and n["action_items"] is None and not any(b["enhanced_text"] for b in n["bullets"]):
+        return [f"No notes yet. Run 'forenote-cli enhance {meeting_id}'."]
+    return rows
+
+
+def _bullet_text(b: dict[str, Any]) -> str:
+    when = f" at {_clock(b['t_written_ms'])}" if b["t_written_ms"] is not None else ""
+    return f"+ bullet {b['position']}{when}"
+
+
+async def _read_bullets(client: Any, meeting_id: int, inp: Any, say: Any) -> None:
+    """Add each typed line as a bullet (spec 7.3). Empty lines do nothing."""
+    async for raw in inp:
+        text = raw.strip()[:500]
+        if not text:
+            continue
+        try:
+            bullet = (await client.call("notes.add_bullet", {"meeting_id": meeting_id, "text": text}))["bullet"]
+        except RpcError as e:
+            print(f"Error: {e.message}", file=sys.stderr, flush=True)
+            continue
+        say(_bullet_text(bullet))
+
+
+async def _stdin_lines():
+    """Yield the lines that the user types. A daemon thread reads stdin."""
+    loop = asyncio.get_running_loop()
+    queue: asyncio.Queue[str | None] = asyncio.Queue()
+
+    def put(item: str | None) -> None:
+        with contextlib.suppress(RuntimeError):  # the loop can be closed already
+            loop.call_soon_threadsafe(queue.put_nowait, item)
+
+    def read() -> None:
+        for line in sys.stdin:
+            put(line)
+        put(None)
+
+    threading.Thread(target=read, daemon=True, name="forenote-stdin").start()
+    while (line := await queue.get()) is not None:
+        yield line
 
 
 def _interrupt_text(args: argparse.Namespace) -> str:
@@ -215,7 +374,7 @@ def _interrupt_text(args: argparse.Namespace) -> str:
 PAGE = 1000
 STOP_TIMEOUT = 90.0  # the engine can drain for 60 s
 BEAM_SIZE = 5
-NO_START = ("status", "shutdown", "stop", "meetings", "transcript")
+NO_START = ("status", "shutdown", "stop", "meetings", "transcript", "note", "notes")
 
 
 async def _main(args: argparse.Namespace) -> int:
@@ -235,7 +394,7 @@ async def _main(args: argparse.Namespace) -> int:
             )
         else:
             client = await connect_or_start(paths.socket_path, "forenote-cli")
-        return await run(args, client)
+        return await run(args, client, inp=_stdin_lines() if args.command == "record" else None)
     except (FileNotFoundError, ConnectionRefusedError):
         if client is None and args.command in NO_START:
             print("The engine is not running.", file=sys.stderr)
