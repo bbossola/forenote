@@ -99,3 +99,19 @@ def test_group_parts_keeps_each_group_inside_the_budget():
         text = prompts.HEADER + prompts.REDUCE_TITLE + "".join(p + "\n" for p in g) + prompts.GROUP_TASK
         assert context.fits(gen, text) or len(g) == 1
     assert len(groups) < len(parts)
+
+
+class TrimGen(FakeTextGenerator):
+    """A template that trims the user text, like the Gemma template."""
+
+    def render(self, user_text):
+        return f"<bos><user>\n{user_text.strip()}<end>\n<model>\n"
+
+
+def test_open_prompt_is_a_prefix_of_every_longer_prompt():
+    gen = TrimGen([])
+    short = "Header\nTranscript:\n[00:01] Me: hello\n"
+    longer = short + "[00:05] Others: hi\n\nThe user wrote no notes.\nTask: x\n"
+    opened = context.open_prompt(gen, short)
+    assert opened == "<bos><user>\nHeader\nTranscript:\n[00:01] Me: hello\n"
+    assert gen.render(longer).startswith(opened)
