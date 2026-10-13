@@ -1,4 +1,5 @@
 import logging
+import sqlite3
 
 import pytest
 
@@ -192,6 +193,32 @@ async def test_a_failed_rerun_keeps_the_old_summary(db):
         await run(conn, mid, FakeTextGenerator(outputs))
     out = notes.output(mid)
     assert out["summary"] == "old summary" and out["action_items"] == [{"owner": None, "text": "old item"}]
+
+
+async def test_a_failed_summary_write_keeps_the_old_result(db):
+    conn, _, notes, mid = db
+    notes.start_output(mid, "old-model", "prefix")
+    notes.set_summary(mid, "old summary")
+    notes.set_action_items(mid, [{"owner": None, "text": "old item"}])
+    conn.execute(
+        "CREATE TRIGGER fail_summary BEFORE UPDATE ON meeting_outputs "
+        "WHEN NEW.summary = 'Short summary.' BEGIN SELECT RAISE(ABORT, 'test failure'); END"
+    )
+    with pytest.raises(sqlite3.IntegrityError):
+        await run(conn, mid, FakeTextGenerator(script()))
+    out = notes.output(mid)
+    assert (out["summary"], out["model"]) == ("old summary", "old-model")
+    assert out["action_items"] == [{"owner": None, "text": "old item"}]
+
+
+async def test_an_empty_summary_in_a_rerun_stores_a_new_result(db):
+    conn, _, notes, mid = db
+    notes.start_output(mid, "old-model", "prefix")
+    notes.set_summary(mid, "old summary")
+    await run(conn, mid, FakeTextGenerator(script(summary=("",))))
+    out = notes.output(mid)
+    assert out["summary"] is None and out["model"] != "old-model"
+    assert out["action_items"] == [{"owner": "Anna", "text": "send the slides"}]
 
 
 async def test_a_deleted_meeting_stops_the_job_and_stores_nothing(db):

@@ -158,10 +158,15 @@ class MeetingsHandlers:
             self._transcriber = None
         self.scheduler.resume(Priority.NOTES)
         if status == "processing" and recorder is not None:
+            mid = recorder.meeting_id
             try:
-                self._queue_notes(recorder.meeting_id, False)
-            except RuntimeError:  # the scheduler stops: no job can run now
-                self.meetings.end_processing(recorder.meeting_id)
+                self._queue_notes(mid, False)
+            except Exception as e:  # noqa: BLE001 - for example the scheduler stops: no job can run now
+                log.error("the notes job cannot start: %s", type(e).__name__)
+                # Send the events of a failed job, so that a waiting client does not wait forever.
+                if self.meetings.end_processing(mid):
+                    self._emit_event("meeting.state", {"meeting_id": mid, "status": "done"})
+                    self._emit_event("notes.done", {"meeting_id": mid, "status": "failed"})
 
     async def _stop_recording_for_shutdown(self) -> None:
         if self._recorder is not None:

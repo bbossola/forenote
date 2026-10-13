@@ -135,6 +135,20 @@ class NotesStore:
                 (meeting_id, model, mode, now_iso()),
             )
 
+    def replace_summary(self, meeting_id: int, model: str, mode: str, summary: str | None) -> None:
+        """Start a new result with this summary in one transaction. An empty summary stores NULL.
+
+        A failure keeps the old result complete.
+        """
+        with self._conn:
+            self._conn.execute(
+                "INSERT INTO meeting_outputs(meeting_id, summary, action_items, model, mode, created_at) "
+                "VALUES (?, ?, NULL, ?, ?, ?) "
+                "ON CONFLICT(meeting_id) DO UPDATE SET summary = excluded.summary, action_items = NULL, "
+                "model = excluded.model, mode = excluded.mode, created_at = excluded.created_at",
+                (meeting_id, summary or None, model, mode, now_iso()),
+            )
+
     def set_summary(self, meeting_id: int, text: str) -> bool:
         with self._conn:
             cur = self._conn.execute("UPDATE meeting_outputs SET summary = ? WHERE meeting_id = ?", (text, meeting_id))

@@ -146,10 +146,9 @@ class _Job:
 
     async def _summary_and_items(self, base: str, mode: str) -> None:
         summary = await self.generate(base + prompts.SUMMARY_TASK, SUMMARY_TOKENS, "summary")
-        # Replace the old result only now: a failure before this keeps it (carry item "Failed re-run").
-        self.notes.start_output(self.mid, self.gen.model_id, mode)
-        if summary:
-            self.notes.set_summary(self.mid, summary)
+        # Replace the old result only now, in one transaction: a failure before or during the write
+        # keeps it (carry item "Failed re-run").
+        self.notes.replace_summary(self.mid, self.gen.model_id, mode, summary)
         self.step_done("summary")
         raw = await self.generate(
             base + prompts.ACTION_ITEMS_TASK, ACTION_ITEMS_TOKENS, "action_items", schema=prompts.ACTION_ITEMS_SCHEMA

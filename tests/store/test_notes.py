@@ -1,3 +1,5 @@
+import sqlite3
+
 import pytest
 
 from forenote.store.db import connect
@@ -127,3 +129,36 @@ def test_set_summary_and_action_items_report_a_missing_output(stores):
     notes.start_output(mid, "gemma", "prefix")
     assert notes.set_summary(mid, "x") is True
     assert notes.set_action_items(mid, []) is True
+
+
+def fail_on_summary(conn, text):
+    """A trigger that stops an update that writes this summary, like a write error."""
+    conn.execute(
+        "CREATE TRIGGER fail_summary BEFORE UPDATE ON meeting_outputs "
+        f"WHEN NEW.summary = '{text}' BEGIN SELECT RAISE(ABORT, 'test failure'); END"
+    )
+
+
+def test_replace_summary_starts_a_new_result_in_one_transaction(stores):
+    notes, mid, _ = stores
+    notes.start_output(mid, "old", "prefix")
+    notes.set_summary(mid, "old summary")
+    notes.set_action_items(mid, [{"owner": None, "text": "old item"}])
+    fail_on_summary(notes._conn, "boom")
+    with pytest.raises(sqlite3.IntegrityError):
+        notes.replace_summary(mid, "new", "map_reduce", "boom")
+    out = notes.output(mid)
+    assert (out["summary"], out["model"], out["mode"]) == ("old summary", "old", "prefix")
+    assert out["action_items"] == [{"owner": None, "text": "old item"}]
+    notes.replace_summary(mid, "new", "map_reduce", "new summary")
+    out = notes.output(mid)
+    assert (out["summary"], out["action_items"], out["model"], out["mode"]) == ("new summary", None, "new", "map_reduce")
+
+
+def test_replace_summary_stores_null_for_an_empty_summary(stores):
+    notes, mid, _ = stores
+    notes.replace_summary(mid, "m", "prefix", "")
+    assert notes.output(mid)["summary"] is None
+    notes.replace_summary(mid, "m", "prefix", "s")
+    notes.replace_summary(mid, "m", "prefix", None)
+    assert notes.output(mid)["summary"] is None

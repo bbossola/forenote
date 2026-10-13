@@ -511,7 +511,7 @@ async def test_record_adds_typed_lines_and_prints_the_notes():
     assert [c for c in client.calls if c[0] == "notes.add_bullet"] == [
         ("notes.add_bullet", {"meeting_id": 4, "text": "budget slip"})]
     assert "+ bullet 1 at 00:05" in out
-    assert "Recording stopped (manual). Writing the notes..." in out
+    assert "Recording stopped (manual). Writing the notes. Press Ctrl-C to leave; the notes job continues." in out
     assert "Summary:\nWe met." in out
 
 
@@ -616,7 +616,7 @@ async def test_ctrl_c_waits_for_the_notes_when_the_stop_returns_processing():
         events=[("notes.done", {"meeting_id": 4, "status": "done"})],
     )
     code, out = await run_cli(["record"], client)
-    assert code == 0 and "Writing the notes..." in out and "Summary:\nWe met." in out
+    assert code == 0 and "Writing the notes. Press Ctrl-C to leave; the notes job continues." in out and "Summary:\nWe met." in out
 
 
 async def test_ctrl_c_during_the_notes_wait_leaves_the_job_running():
@@ -628,3 +628,115 @@ async def test_ctrl_c_during_the_notes_wait_leaves_the_job_running():
     code, out = await run_cli(["record"], client)
     assert code == 130 and "The notes job continues in the engine." in out
     assert not [c for c in client.calls if c[0] == "jobs.cancel"]
+
+
+async def test_record_shows_the_reason_of_a_failed_notes_job():
+    client = FakeClient(
+        {"meeting.start": {"meeting_id": 4, "started_at": "x"}},
+        events=[
+            ("meeting.state", {"meeting_id": 4, "status": "processing", "stop_reason": "manual"}),
+            ("job.failed", {"id": 2, "type": "notes.enhance", "error": "Try the low tier."}),
+            ("notes.done", {"meeting_id": 4, "status": "failed"}),
+        ],
+    )
+    code, out = await run_cli(["record"], client)
+    assert code == 1
+    assert "The notes job failed: Try the low tier.\n" in out
+    assert out.index("The notes job failed") < out.index("forenote-cli enhance 4")
+
+
+async def test_ctrl_c_wait_shows_the_reason_of_a_failed_notes_job():
+    client = CtrlCThenEvents(
+        {"meeting.start": {"meeting_id": 4, "started_at": "x"},
+         "meeting.stop": {"meeting_id": 4, "status": "processing"}},
+        events=[
+            ("job.failed", {"id": 2, "type": "notes.enhance", "error": "Try the low tier."}),
+            ("notes.done", {"meeting_id": 4, "status": "failed"}),
+        ],
+    )
+    code, out = await run_cli(["record"], client)
+    assert code == 1 and "The notes job failed: Try the low tier." in out
+
+
+async def test_notes_while_the_job_runs():
+    running = {**EMPTY_NOTES, "job": {"id": 6, "status": "running"}}
+    code, out = await run_cli(["notes", "4"], FakeClient({"notes.get": running}))
+    assert code == 0 and out == "The notes are in progress (job 6).\n"
+    pending = {**NOTES, "job": {"id": 7, "status": "pending"}}
+    _, out = await run_cli(["notes", "4"], FakeClient({"notes.get": pending}))
+    assert out.startswith("The notes are in progress (job 7).\nSummary:\nWe met.")
+
+
+class FakeStdin:
+    def __init__(self, tty, fg=True, error=False):
+        self.tty, self.fg, self.error = tty, fg, error
+
+    def isatty(self):
+        return self.tty
+
+    def fileno(self):
+        return 0
+
+
+@pytest.mark.parametrize(
+    ("tty", "fg", "error", "expected"),
+    [(False, False, False, True), (True, True, False, True), (True, False, False, False), (True, True, True, False)],
+)
+def test_record_reads_stdin_only_in_the_foreground(monkeypatch, tty, fg, error, expected):
+    def tcgetpgrp(fd):
+        if error:
+            raise OSError("no tty")
+        return 100 if fg else 200
+
+    monkeypatch.setattr(cli.sys, "stdin", FakeStdin(tty))
+    monkeypatch.setattr(cli.os, "tcgetpgrp", tcgetpgrp)
+    monkeypatch.setattr(cli.os, "getpgrp", lambda: 100)
+    assert cli._can_read_stdin() is expected
+
+
+def test_record_without_stdin_reads_nothing(monkeypatch):
+    monkeypatch.setattr(cli.sys, "stdin", None)
+    assert cli._can_read_stdin() is False
+
+
+PROGRESS = ("job.progress", {"id": 9, "type": "notes.enhance", "message": "summary", "fraction": 0.5})
+OTHER_PROGRESS = ("job.progress", {"id": 3, "type": "models.download", "message": "file", "fraction": 0.1})
+STARTED = ("job.progress", {"id": 9, "type": "notes.enhance", "message": "started"})
+
+
+async def test_record_shows_the_notes_progress():
+    client = FakeClient(
+        {"meeting.start": {"meeting_id": 4, "started_at": "x"}, "notes.get": NOTES},
+        events=[
+            ("meeting.state", {"meeting_id": 4, "status": "processing", "stop_reason": "manual"}),
+            STARTED, OTHER_PROGRESS, PROGRESS,
+            ("notes.done", {"meeting_id": 4, "status": "done"}),
+        ],
+    )
+    code, out = await run_cli(["record"], client)
+    assert code == 0
+    assert "Writing the notes. Press Ctrl-C to leave; the notes job continues.\n" in out
+    assert out.count("[notes:") == 1 and "[notes: summary, 50%]\n" in out
+
+
+async def test_ctrl_c_wait_shows_the_notes_progress():
+    client = CtrlCThenEvents(
+        {"meeting.start": {"meeting_id": 4, "started_at": "x"},
+         "meeting.stop": {"meeting_id": 4, "status": "processing"}, "notes.get": NOTES},
+        events=[STARTED, OTHER_PROGRESS, PROGRESS, ("notes.done", {"meeting_id": 4, "status": "done"})],
+    )
+    code, out = await run_cli(["record"], client)
+    assert code == 0
+    assert "Writing the notes. Press Ctrl-C to leave; the notes job continues.\n" in out
+    assert out.count("[notes:") == 1 and "[notes: summary, 50%]\n" in out
+
+
+async def test_enhance_shows_the_progress_of_its_job():
+    other = ("job.progress", {"id": 8, "type": "notes.enhance", "message": "other job", "fraction": 0.2})
+    client = FakeClient(
+        {"notes.get": NOTES, "notes.enhance": {"job_id": 9}},
+        events=[STARTED, other, PROGRESS, ("notes.done", {"meeting_id": 4, "status": "done"})],
+    )
+    code, out = await run_cli(["enhance", "4"], client)
+    assert code == 0
+    assert out.count("[notes:") == 1 and "[notes: summary, 50%]\n" in out

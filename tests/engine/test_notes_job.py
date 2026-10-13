@@ -212,3 +212,16 @@ async def test_out_of_memory_in_generation_fails_the_job_and_drops_the_instance(
     )
     await asyncio.sleep(0.1)
     assert engine._llm is None and gen.released
+
+
+async def test_a_failed_submit_at_the_stop_ends_the_meeting(engine, client, speech_installed, llm_installed, monkeypatch):
+    def submit(*args, **kwargs):
+        raise ValueError("test failure")
+
+    monkeypatch.setattr(engine.scheduler, "submit", submit)
+    mid = (await client.call("meeting.start", {"debug_file": CLIP}))["meeting_id"]
+    seen = await events_until(client, notes_done(mid))
+    assert seen[-1][1]["status"] == "failed"
+    states = [p["status"] for n, p in seen if n == "meeting.state" and p["meeting_id"] == mid]
+    assert states[-2:] == ["processing", "done"]
+    assert engine.meetings.get(mid)["status"] == "done"

@@ -41,7 +41,7 @@ Run the engine and the CLI:
 
 `forenote-cli models download` starts the engine if it does not run.
 
-After a recording, the engine writes the notes with the local language model. On the default tier this takes about 6 to 7 minutes for a 30-minute meeting. Plan B3 makes it faster.
+After a recording, the engine writes the notes with the local language model. On the default tier this takes about 6 to 7 minutes for a 30-minute meeting. A later version reads the transcript during the meeting to make this faster. `record` waits for the notes after the stop and prints them. Ctrl-C during that wait leaves the notes job running.
 
 ## Files
 
