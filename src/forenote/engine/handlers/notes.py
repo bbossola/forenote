@@ -18,6 +18,7 @@ log = logging.getLogger(__name__)
 
 NOTES_JOB = "notes.enhance"
 MODEL_MISSING = "The language model is not downloaded. Run: forenote-cli models download."
+OUT_OF_MEMORY = "The language model ran out of memory (MemoryError). Try the low tier: it uses a smaller model."
 
 
 class NotesHandlers:
@@ -108,9 +109,12 @@ class NotesHandlers:
             deps = NotesDeps(gen, self.conn, self._emit_event, self.notes_stall_s)
             try:
                 await enhance_notes(deps, meeting_id, force, cancel, report)
-            except (GenerationStalled, MemoryError):
+            except GenerationStalled:
                 self._drop_llm()  # the instance can be in a bad state (spec 8.1)
                 raise
+            except MemoryError:
+                self._drop_llm()
+                raise NotesError(OUT_OF_MEMORY) from None
 
         return self.scheduler.submit(NOTES_JOB, Priority.NOTES, job, {"meeting_id": meeting_id, "force": force})
 

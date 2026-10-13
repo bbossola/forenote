@@ -186,13 +186,29 @@ async def test_processing_meetings_become_done_at_start(paths, hardware, test_ma
 async def test_a_stop_during_engine_shutdown_does_not_queue_a_job(engine, client, speech_installed, llm_installed):
     engine.debug_realtime = True
     mid = (await client.call("meeting.start", {"debug_file": CLIP}))["meeting_id"]
-    await asyncio.sleep(0.3)
+    await events_until(client, lambda n, p: n == "transcript.final" and p["meeting_id"] == mid)
+    assert engine.meetings.get(mid)["line_count"] > 0
     await engine.stop()
     from forenote.store.db import connect
+    from forenote.store.jobs import JobStore
     from forenote.store.meetings import MeetingStore
 
     conn = connect(engine.paths.db_path)
     try:
+        assert JobStore(conn).latest("notes.enhance", mid) is None
         assert MeetingStore(conn).get(mid)["status"] == "done"
     finally:
         conn.close()
+
+
+async def test_out_of_memory_in_generation_fails_the_job_and_drops_the_instance(engine, client, llm_installed):
+    gen = use_gen(engine, FakeTextGenerator(fake_llm_outputs, error=MemoryError()))
+    mid = new_meeting(engine)
+    job_id = (await client.call("notes.enhance", {"meeting_id": mid}))["job_id"]
+    seen = await events_until(client, notes_done(mid))
+    failed = [p for n, p in seen if n == "job.failed" and p["id"] == job_id][0]
+    assert failed["error"] == (
+        "The language model ran out of memory (MemoryError). Try the low tier: it uses a smaller model."
+    )
+    await asyncio.sleep(0.1)
+    assert engine._llm is None and gen.released

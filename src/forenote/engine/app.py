@@ -187,6 +187,9 @@ class Engine(SystemHandlers, SettingsHandlers, JobsHandlers, ModelsHandlers, Mee
             if self._download_task is not None and not self._download_task.done():
                 self._download_task.cancel()
             await asyncio.gather(*self._tasks, return_exceptions=True)
+            # gather() does not yield when all tasks are done, so the done callbacks
+            # cannot run. Remove the done tasks here, or this loop never ends.
+            self._tasks.difference_update([t for t in self._tasks if t.done()])
         if self._rpc_started:
             await self.rpc.close()
         if self.conn is not None:

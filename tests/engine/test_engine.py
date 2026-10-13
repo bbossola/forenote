@@ -276,3 +276,26 @@ async def test_download_refused_without_disk_space(engine, client):
     assert "Not enough disk space" in e.value.message
     assert await client.call("jobs.list") == []
     assert (await client.call("system.status"))["running_job"] is None
+
+
+async def test_stop_ends_when_a_done_task_is_still_in_the_set(paths, hardware, test_manifest):
+    import faulthandler
+
+    engine = Engine(paths, hardware, manifest=test_manifest)
+    await engine.start()
+
+    async def nothing():
+        return None
+
+    engine._spawn(nothing())
+    task = next(iter(engine._tasks))
+    # The state just before the done callback runs: the task is done and still in the set.
+    task.remove_done_callback(engine._tasks.discard)
+    await asyncio.sleep(0)
+    assert task.done() and task in engine._tasks
+    faulthandler.dump_traceback_later(30, exit=True)  # an endless loop cannot fail a test in another way
+    try:
+        await engine.stop()
+    finally:
+        faulthandler.cancel_dump_traceback_later()
+    assert not engine._tasks
