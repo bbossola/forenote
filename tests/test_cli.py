@@ -573,3 +573,58 @@ def test_note_and_notes_do_not_start_the_engine():
     from forenote.cli import NO_START
 
     assert "note" in NO_START and "notes" in NO_START and "enhance" not in NO_START
+
+
+async def test_a_failing_bullet_call_does_not_replace_the_record_result(capsys):
+    def boom(params):
+        raise ConnectionError("lost")
+
+    client = SlowClient(
+        {"meeting.start": {"meeting_id": 4, "started_at": "x"}, "notes.add_bullet": boom, "notes.get": NOTES},
+        events=[
+            ("meeting.state", {"meeting_id": 4, "status": "processing", "stop_reason": "manual"}),
+            ("notes.done", {"meeting_id": 4, "status": "done"}),
+        ],
+    )
+    code, out = await run_cli(["record"], client, lines=["budget slip\n"])
+    assert code == 0 and "Summary:\nWe met." in out
+    assert "Error: the note was not saved (ConnectionError)." in capsys.readouterr().err
+
+
+class CtrlCThenEvents(FakeClient):
+    """The first events() call raises Ctrl-C. The second call yields the events, then raises if asked."""
+
+    def __init__(self, results, events=(), interrupt_after=False):
+        super().__init__(results, events)
+        self.interrupt_after = interrupt_after
+        self.opened = 0
+
+    async def events(self):
+        self.opened += 1
+        if self.opened == 1:
+            raise KeyboardInterrupt
+        for e in self._events:
+            yield e
+        if self.interrupt_after:
+            raise KeyboardInterrupt
+
+
+async def test_ctrl_c_waits_for_the_notes_when_the_stop_returns_processing():
+    client = CtrlCThenEvents(
+        {"meeting.start": {"meeting_id": 4, "started_at": "x"},
+         "meeting.stop": {"meeting_id": 4, "status": "processing"}, "notes.get": NOTES},
+        events=[("notes.done", {"meeting_id": 4, "status": "done"})],
+    )
+    code, out = await run_cli(["record"], client)
+    assert code == 0 and "Writing the notes..." in out and "Summary:\nWe met." in out
+
+
+async def test_ctrl_c_during_the_notes_wait_leaves_the_job_running():
+    client = CtrlCThenEvents(
+        {"meeting.start": {"meeting_id": 4, "started_at": "x"},
+         "meeting.stop": {"meeting_id": 4, "status": "processing"}},
+        interrupt_after=True,
+    )
+    code, out = await run_cli(["record"], client)
+    assert code == 130 and "The notes job continues in the engine." in out
+    assert not [c for c in client.calls if c[0] == "jobs.cancel"]

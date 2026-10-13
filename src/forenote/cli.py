@@ -183,12 +183,7 @@ async def run(args: argparse.Namespace, client: Any, out: TextIO = sys.stdout, i
                     say(f"Recording stopped ({p.get('stop_reason')}).")
                     return 0
                 elif name == "notes.done":
-                    if p["status"] == "done":
-                        for row in _notes_lines(mid, await client.call("notes.get", {"meeting_id": mid})):
-                            say(row)
-                        return 0
-                    say(f"The notes were not written. Run 'forenote-cli enhance {mid}' to try again.")
-                    return 1
+                    return await _finish_notes(client, mid, p["status"], say)
         except (KeyboardInterrupt, asyncio.CancelledError):
             if writing_notes:
                 say(f"The notes job continues in the engine. Run 'forenote-cli notes {mid}' later.")
@@ -199,6 +194,17 @@ async def run(args: argparse.Namespace, client: Any, out: TextIO = sys.stdout, i
             except (KeyboardInterrupt, asyncio.CancelledError):
                 print(_interrupt_text(args), file=sys.stderr, flush=True)
                 return 130
+            if result.get("status") == "processing":
+                say("Writing the notes...")
+                try:
+                    async for name, p in client.events():
+                        if name == "notes.done" and p.get("meeting_id") == mid:
+                            return await _finish_notes(client, mid, p["status"], say)
+                except (KeyboardInterrupt, asyncio.CancelledError):
+                    say(f"The notes job continues in the engine. Run 'forenote-cli notes {mid}' later.")
+                    return 130
+                say("The connection to the engine closed.")
+                return 1
             say(f"Meeting {result['meeting_id']} stopped.")
             return 0
         finally:
@@ -330,6 +336,16 @@ def _bullet_text(b: dict[str, Any]) -> str:
     return f"+ bullet {b['position']}{when}"
 
 
+async def _finish_notes(client: Any, mid: int, status: str, say: Any) -> int:
+    """Print the notes after a notes.done event, or the hint when the job did not finish."""
+    if status == "done":
+        for row in _notes_lines(mid, await client.call("notes.get", {"meeting_id": mid})):
+            say(row)
+        return 0
+    say(f"The notes were not written. Run 'forenote-cli enhance {mid}' to try again.")
+    return 1
+
+
 async def _read_bullets(client: Any, meeting_id: int, inp: Any, say: Any) -> None:
     """Add each typed line as a bullet (spec 7.3). Empty lines do nothing."""
     async for raw in inp:
@@ -341,6 +357,9 @@ async def _read_bullets(client: Any, meeting_id: int, inp: Any, say: Any) -> Non
         except RpcError as e:
             print(f"Error: {e.message}", file=sys.stderr, flush=True)
             continue
+        except Exception as e:  # the reader must not replace the result of record
+            print(f"Error: the note was not saved ({type(e).__name__}).", file=sys.stderr, flush=True)
+            return
         say(_bullet_text(bullet))
 
 
