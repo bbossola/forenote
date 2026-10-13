@@ -740,3 +740,23 @@ async def test_enhance_shows_the_progress_of_its_job():
     code, out = await run_cli(["enhance", "4"], client)
     assert code == 0
     assert out.count("[notes:") == 1 and "[notes: summary, 50%]\n" in out
+
+
+def test_bench_llm_parser_defaults():
+    args = build_parser().parse_args(["bench", "llm"])
+    assert (args.command, args.bench_command) == ("bench", "llm")
+    assert (args.model, args.threads, args.live_threads, args.context) == (None, None, None, None)
+    assert (args.flash_attn, args.swa_full, args.clips, args.no_cold) == ("on", "off", None, False)
+    assert args.fixture == "tests/fixtures/ami"
+
+
+def test_bench_llm_parser_values():
+    args = build_parser().parse_args(["bench", "llm", "--flash-attn", "off", "--threads", "4", "--no-cold"])
+    assert (args.flash_attn, args.threads, args.no_cold) == ("off", 4, True)
+
+
+def test_bench_llm_without_a_model(tmp_path, capsys, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    assert cli.main(["bench", "llm"]) == 1
+    assert "No language model is installed. Run: forenote-cli models download." in capsys.readouterr().err
