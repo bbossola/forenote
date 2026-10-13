@@ -109,22 +109,34 @@ These items stay open after the A2 reviews. None of them blocks the merge.
 
 Source: the final review of plan B1 (branch `feature/notes-b1`). The first task of B2 must handle these items.
 
-- **Lock wait after a cancel or a stall.** A cancel or a stall during the prompt read keeps the model lock until the read ends. The next call's first-token timer counts the wait for the lock, so it can raise a false `GenerationStalled`. Register `llama_cpp.llama_set_abort_callback` (it exists in 0.3.36) and let it check the stop event. Or start the first-token timer only after the worker holds the lock, or do both.
-- **close() during a generation.** `close()` does not signal a running worker. An engine shutdown can block for minutes. Use the same abort callback.
-- **count_tokens() and close().** `count_tokens()` runs without the lock. A `close()` in another thread can free the model while `tokenize` runs. Make this safe when B2 releases failed instances (spec 8.1).
-- **Prefill only.** The live reading needs a method that reads the prompt and writes no output. Do not use `max_tokens=0`: llama-cpp-python reads it as "no limit", and `GenParams` refuses it.
-- **Prefix reuse test.** The model test checks only the template marks. Assert the prefix reuse too, with the first-token time ratio or the evaluated token count.
-- **Fixture name.** Rename the `speech_model_dir` fixture. It also serves LLM models.
+- **Lock wait after a cancel or a stall.** A cancel or a stall during the prompt read keeps the model lock until the read ends. The next call's first-token timer counts the wait for the lock, so it can raise a false `GenerationStalled`. Register `llama_cpp.llama_set_abort_callback` (it exists in 0.3.36) and let it check the stop event. Or start the first-token timer only after the worker holds the lock, or do both. Done in plan B2.
+- **close() during a generation.** `close()` does not signal a running worker. An engine shutdown can block for minutes. Use the same abort callback. Done in plan B2.
+- **count_tokens() and close().** `count_tokens()` runs without the lock. A `close()` in another thread can free the model while `tokenize` runs. Make this safe when B2 releases failed instances (spec 8.1). Done in plan B2.
+- **Prefill only.** The live reading needs a method that reads the prompt and writes no output. Do not use `max_tokens=0`: llama-cpp-python reads it as "no limit", and `GenParams` refuses it. Plan B3.
+- **Prefix reuse test.** The model test checks only the template marks. Assert the prefix reuse too, with the first-token time ratio or the evaluated token count. Done in plan B2.
+- **Fixture name.** Rename the `speech_model_dir` fixture. It also serves LLM models. Done in plan B2.
 - **Scheduler log.** `scheduler.py` calls `log.exception("job %d (%s) failed")`. This writes `str(e)` and the traceback. Add the log rule or a log filter before the first notes job (see "Log content" above). Done in plan B2 (Task 8).
-- **Thread rule.** The rule `physical_cores - 1` comes from one 12-core machine. Measure it again on other machines.
-- **Spike options.** The spike script has no `--flash-attn` or `--swa-full` flags, so `bench llm` must measure these options again. Decision 0003 does not explain why the first-token time goes from 0.94 s to 1.61 s with `flash_attn`. The value "76 MiB per 1,000 tokens" is per 1,024 tokens (74 MiB per 1,000 tokens).
+- **Thread rule.** The rule `physical_cores - 1` comes from one 12-core machine. Measure it again on other machines. Plan B3.
+- **Spike options.** The spike script has no `--flash-attn` or `--swa-full` flags, so `bench llm` must measure these options again. Decision 0003 does not explain why the first-token time goes from 0.94 s to 1.61 s with `flash_attn`. The value "76 MiB per 1,000 tokens" is per 1,024 tokens (74 MiB per 1,000 tokens). Plan B3.
 
 ## Plan B2: decisions from the PR #3 review
 
 Source: the code review of PR #3 (plan B1). Plan B2 must decide each item.
 
-- **Total memory.** Decision 0003 compares the LLM memory alone (7.4 to 7.7 GB for E4B at 16k) with the 7–8 GB of spec 9.1. That budget is for the LLM, Whisper and the embeddings together. With the live reading, Whisper and the LLM run at the same time. Separate the file-backed pages from the anonymous memory, or measure the total on a 16 GB machine with ASR and the live reading on.
-- **Failed re-run.** `NotesStore.start_output` (`store/notes.py`) clears the old summary and action items when a job starts. If the re-run fails or the user cancels it, the old result is lost. Decide: keep the old result until the new summary is stored, or call `start_output` only when the first new step is ready.
-- **Watchdog tests.** Spec 10.1 asks for a fake clock. The tests in `tests/llm/test_base.py` and `tests/llm/test_llamacpp.py` use real timers (`stall_s=0.05` against delays of 0.2 to 1.0 s). Use larger margins, or a fake clock, or record the difference.
-- **render() after close().** `LlamaCppGenerator.close()` does not clear `_formatter`, so `render()` still works on a closed generator. Clear it in the lifecycle task.
-- **Progress rate.** Each `report()` call becomes one RPC broadcast. When B2 reports progress in a token loop, limit the rate.
+- **Total memory.** Decision 0003 compares the LLM memory alone (7.4 to 7.7 GB for E4B at 16k) with the 7–8 GB of spec 9.1. That budget is for the LLM, Whisper and the embeddings together. With the live reading, Whisper and the LLM run at the same time. Separate the file-backed pages from the anonymous memory, or measure the total on a 16 GB machine with ASR and the live reading on. Plan B3.
+- **Failed re-run.** `NotesStore.start_output` (`store/notes.py`) clears the old summary and action items when a job starts. If the re-run fails or the user cancels it, the old result is lost. Decide: keep the old result until the new summary is stored, or call `start_output` only when the first new step is ready. Done in plan B2 (the summary write replaces the old result).
+- **Watchdog tests.** Spec 10.1 asks for a fake clock. The tests in `tests/llm/test_base.py` and `tests/llm/test_llamacpp.py` use real timers (`stall_s=0.05` against delays of 0.2 to 1.0 s). Use larger margins, or a fake clock, or record the difference. Done in plan B2 (larger margins).
+- **render() after close().** `LlamaCppGenerator.close()` does not clear `_formatter`, so `render()` still works on a closed generator. Clear it in the lifecycle task. Done in plan B2.
+- **Progress rate.** Each `report()` call becomes one RPC broadcast. When B2 reports progress in a token loop, limit the rate. Plan B3.
+
+## Plan B3: from the B2 reviews
+
+Source: the task reviews and the final review of plan B2 (branch `feature/notes-b2`). The first item is the first task of B3.
+
+- **Abort callback cost (first B3 task).** ggml calls the abort callback for each graph node, and the callback takes the Python GIL. Measured on the E2B prompt read (2,480 tokens): 64.7 tok/s idle, with or without the callback. With a busy Python thread: 40.9 tok/s with the callback, 59.8 tok/s without it. Nobody measured the generation. A notes job can continue into a new recording (spec 5.1). Fix: switch the callback off after the first token (the token loop checks the stop between tokens), and on again for the next prompt read. Or first measure the generation tok/s and the ASR real-time factor with a busy thread.
+- **Cancel rule.** Only `collect()` turns a cancel into an abort. The caller of `generate()` must close the stream. The prefill-only method of the live reading must keep this rule.
+- **Two models in RAM.** After a tier change or a stall, the engine closes the old instance in a daemon thread and loads the new one at once. Before `load()`, wait for the close of the old instance, with a time limit. B3 also loads the model at the recording start, next to ASR.
+- **All-empty map outputs.** In map-reduce, if every map step returns empty text, the summary prompt has no points, and the model invents a summary. Raise `NotesError` instead.
+- **Prompt quality.** Tune the prompt words against the AMI quality fixtures (spec 10.4): the «» marks, "explain the note", and an instruction to use the notes of the user and the language of the transcript. In map-reduce, the summary step does not see the notes of the user.
+- **Engine leak in a test.** `tests/rpc/test_launcher.py` `test_loser_exit_waits_for_the_*` sometimes leaves an engine process after the suite (5 processes after about 16 runs, temporary paths only).
+- **Count tokens off the loop.** The notes job counts the tokens of each full prompt on the event loop (tens of ms for each step). Move the count to a thread if the loop latency is important.

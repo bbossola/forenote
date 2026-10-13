@@ -2,13 +2,13 @@
 
 ## Start here
 
-- Plan B1 (LLM runtime) is complete. It is in PR #3 (`feature/notes-b1`).
-  If PR #3 is not merged yet, ask the owner before you start work that
-  builds on it.
-- The next step is to write plan B2. Read
+- Plan B2 (notes job, engine wiring, RPC and CLI) is complete on
+  `feature/notes-b2`. It is in a PR. If that PR is not merged yet, ask the
+  owner before you start work that builds on it.
+- The next step is to write plan B3. Read
   `docs/superpowers/notes/2026-10-12-handoff.md` and
   `docs/superpowers/notes/2026-10-12-carry-into-next-plans.md` first. The
-  carry note has a required first task for B2: "LLM instance lifecycle".
+  carry note section "Plan B3: from the B2 reviews" lists the first B3 task.
 - To set up a new machine, run `scripts/bootstrap-dev.sh --help`.
 
 ## Rules
