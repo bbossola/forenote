@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import threading
 import time
 
@@ -163,23 +164,33 @@ async def test_the_live_reading_pauses_while_asr_is_busy(engine, llm_installed):
     engine._stop_live_reading()
 
 
-async def test_a_load_failure_keeps_the_recording(engine, client, speech_installed, llm_installed):
+async def test_a_load_failure_keeps_the_recording(engine, client, speech_installed, llm_installed, caplog):
     class Broken(FakeTextGenerator):
         def load(self):
             raise MemoryError()
 
     live_engine(engine, Broken(fake_llm_outputs))
-    mid = (await client.call("meeting.start", {"debug_file": CLIP}))["meeting_id"]
-    seen = await events_until(client, notes_done(mid))
+    with caplog.at_level(logging.WARNING, logger="forenote.notes.live"):
+        mid = (await client.call("meeting.start", {"debug_file": CLIP}))["meeting_id"]
+        seen = await events_until(client, notes_done(mid))
     states = [p["status"] for n, p in seen if n == "meeting.state" and p["meeting_id"] == mid]
     assert states[:2] == ["recording", "processing"]
+    # _notes_generator() wraps the MemoryError in a NotesError.
+    assert "live reading: the language model cannot load: NotesError" in caplog.messages
 
 
 async def test_a_recording_starts_and_stops_the_live_reading(engine, client, speech_installed, llm_installed):
     gen = live_engine(engine, FakeTextGenerator(fake_llm_outputs))
+    engine.debug_realtime = True  # the recording runs until meeting.stop, so the live reading has time for a step
     mid = (await client.call("meeting.start", {"debug_file": CLIP}))["meeting_id"]
+    await until(lambda: len(gen.prefills) >= 1, timeout=30.0)
+    reader = engine._live
+    assert reader is not None and reader.state == "reading"
+    await client.call("meeting.stop", {})
     await events_until(client, notes_done(mid))
+    assert reader.state == "stopped"
     assert gen.loads == 1
+    assert gen.prompts[0].startswith(gen.prefills[-1][0])
     assert engine._live is None
     await engine._wait_live_reading(1.0)
     assert engine._live_task is None or engine._live_task.done()
