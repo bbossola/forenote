@@ -1,0 +1,191 @@
+{"t_start_ms": 54950, "t_end_ms": 60850, "speaker": "me", "text": "Okay Everybody ready Uh I think the first thing we do is introduce ourselves"}
+{"t_start_ms": 55700, "t_end_ms": 56030, "speaker": "others", "text": "Okay"}
+{"t_start_ms": 56900, "t_end_ms": 57040, "speaker": "others", "text": "Yeah"}
+{"t_start_ms": 57250, "t_end_ms": 57700, "speaker": "others", "text": "I think so"}
+{"t_start_ms": 61540, "t_end_ms": 62570, "speaker": "others", "text": "Yeah that's a good plan"}
+{"t_start_ms": 62000, "t_end_ms": 67290, "speaker": "me", "text": "and everybody's name and what your function is So maybe we start with you"}
+{"t_start_ms": 66630, "t_end_ms": 80830, "speaker": "others", "text": "Okay Yeah my name is Francina And I'm uh an user interface my role is uh the main responsibility is user interface And my role is to design uh a television remote control"}
+{"t_start_ms": 76080, "t_end_ms": 76430, "speaker": "me", "text": "Mm-hmm"}
+{"t_start_ms": 81040, "t_end_ms": 82050, "speaker": "me", "text": "Mm-hmm Okay"}
+{"t_start_ms": 83390, "t_end_ms": 86940, "speaker": "others", "text": "And I'm a marketing person I wanna figure out how to sell them"}
+{"t_start_ms": 87490, "t_end_ms": 88590, "speaker": "me", "text": "Mm-hmm And your name is"}
+{"t_start_ms": 88820, "t_end_ms": 89690, "speaker": "others", "text": "My name is Eileen"}
+{"t_start_ms": 90210, "t_end_ms": 90520, "speaker": "me", "text": "Okay"}
+{"t_start_ms": 91310, "t_end_ms": 107400, "speaker": "others", "text": "Yeah Uh I'm Jeanne-Oui Um uh my role is industrial designer and my responsibilities are uh uh um deal with the technical-functional designs and specifications of user interface and dealing with user interface design"}
+{"t_start_ms": 107880, "t_end_ms": 118170, "speaker": "me", "text": "Very good And as you already know I am Betty I am the project manager for today So why don't we look at the presentation to see what we really are supposed to do"}
+{"t_start_ms": 118760, "t_end_ms": 119050, "speaker": "others", "text": "Okay"}
+{"t_start_ms": 119380, "t_end_ms": 119910, "speaker": "me", "text": "Um"}
+{"t_start_ms": 122400, "t_end_ms": 142310, "speaker": "me", "text": "Yes y opening acquaintance tool training well the tools are I think we already I guess the tool is really our the computer as far as I can see Uh we get ins each of us will get instructions and we'll take it from there Project plan that falls under the same heading pretty much Um I don't"}
+{"t_start_ms": 131130, "t_end_ms": 131490, "speaker": "others", "text": "Mm-hmm"}
+{"t_start_ms": 142310, "t_end_ms": 146770, "speaker": "me", "text": "think we have any great discussion at this point Um"}
+{"t_start_ms": 145550, "t_end_ms": 145790, "speaker": "others", "text": "No"}
+{"t_start_ms": 149440, "t_end_ms": 162320, "speaker": "me", "text": "Here is what this thing should be This thing we are gonna um uh design is a new remote control Uh should be original trendy and of course user friendly"}
+{"t_start_ms": 159510, "t_end_ms": 159780, "speaker": "others", "text": "Mm-hmm"}
+{"t_start_ms": 165190, "t_end_ms": 166990, "speaker": "me", "text": "So maybe you wanna make some notes of that"}
+{"t_start_ms": 188060, "t_end_ms": 188340, "speaker": "others", "text": "Okay"}
+{"t_start_ms": 195040, "t_end_ms": 195270, "speaker": "me", "text": "Okay"}
+{"t_start_ms": 195560, "t_end_ms": 195820, "speaker": "others", "text": "Mm-hmm"}
+{"t_start_ms": 196380, "t_end_ms": 202400, "speaker": "me", "text": "All right Here is what the functional design is supposed to achieve Um"}
+{"t_start_ms": 203780, "t_end_ms": 218200, "speaker": "me", "text": "That is it's gonna be individual work and then at the meeting we'll discuss what uh we have come up with The same goes for the conceptual design there will be individual work whic and then discussion afterwards"}
+{"t_start_ms": 219440, "t_end_ms": 222120, "speaker": "me", "text": "Detailed design same thing basically"}
+{"t_start_ms": 220460, "t_end_ms": 221490, "speaker": "others", "text": "Mm 'kay so"}
+{"t_start_ms": 222760, "t_end_ms": 226450, "speaker": "others", "text": "Three different types of design that we're gonna be concerned with okay"}
+{"t_start_ms": 225980, "t_end_ms": 227270, "speaker": "me", "text": "Mm-hmm Mm-hmm"}
+{"t_start_ms": 236110, "t_end_ms": 238380, "speaker": "others", "text": "Functional conception"}
+{"t_start_ms": 241010, "t_end_ms": 242500, "speaker": "others", "text": "and detailed"}
+{"t_start_ms": 243940, "t_end_ms": 245450, "speaker": "me", "text": "I can't write with this thing"}
+{"t_start_ms": 248320, "t_end_ms": 251040, "speaker": "others", "text": "Maybe we should redesign it"}
+{"t_start_ms": 251800, "t_end_ms": 252700, "speaker": "me", "text": "Yes"}
+{"t_start_ms": 252790, "t_end_ms": 254690, "speaker": "others", "text": "After we've finished the remote control we'll get to that"}
+{"t_start_ms": 255240, "t_end_ms": 257740, "speaker": "me", "text": "Yeah okay All right"}
+{"t_start_ms": 260020, "t_end_ms": 272520, "speaker": "me", "text": "Then tool training try out the white board participant can draw their favourite animal Does anybody want to go and see how the white board works So that in case we have to in the next meeting present something on the white board"}
+{"t_start_ms": 274680, "t_end_ms": 275950, "speaker": "me", "text": "You wanna go Eileen and"}
+{"t_start_ms": 276230, "t_end_ms": 278890, "speaker": "others", "text": "Okay I'll see what I can do See if I r"}
+{"t_start_ms": 277590, "t_end_ms": 279860, "speaker": "me", "text": "Whether you without hanging yourself"}
+{"t_start_ms": 280080, "t_end_ms": 285510, "speaker": "others", "text": "See if I remember how to draw a kitty cat or a rabbit or something"}
+{"t_start_ms": 288100, "t_end_ms": 291150, "speaker": "me", "text": "And remember you have to press so it works Mm-hmm"}
+{"t_start_ms": 290060, "t_end_ms": 297750, "speaker": "others", "text": "So that it will record okay Um uh um traditional kitty cat"}
+{"t_start_ms": 308920, "t_end_ms": 310650, "speaker": "me", "text": "Fat a fat cat"}
+{"t_start_ms": 311190, "t_end_ms": 318450, "speaker": "others", "text": "I've a very fat cat And it likes to sit like that Okay"}
+{"t_start_ms": 317630, "t_end_ms": 318040, "speaker": "me", "text": "Okay"}
+{"t_start_ms": 320530, "t_end_ms": 327500, "speaker": "me", "text": "And you're Francine right Would you like s like just to see um how it feels so that you have a little idea"}
+{"t_start_ms": 322230, "t_end_ms": 325080, "speaker": "others", "text": "Yes I'm Francina Yes sure"}
+{"t_start_ms": 328770, "t_end_ms": 332820, "speaker": "others", "text": "Am I supposed to wipe off that or okay"}
+{"t_start_ms": 329040, "t_end_ms": 331530, "speaker": "me", "text": "In No no No that's okay"}
+{"t_start_ms": 331580, "t_end_ms": 333360, "speaker": "others", "text": "No Okay"}
+{"t_start_ms": 333570, "t_end_ms": 335490, "speaker": "me", "text": "I don't know we'll get to that later"}
+{"t_start_ms": 336020, "t_end_ms": 336430, "speaker": "others", "text": "Okay"}
+{"t_start_ms": 337470, "t_end_ms": 339630, "speaker": "others", "text": "What should I draw"}
+{"t_start_ms": 347670, "t_end_ms": 348310, "speaker": "others", "text": "Snake"}
+{"t_start_ms": 347990, "t_end_ms": 349780, "speaker": "others", "text": "I'm going to draw a snake"}
+{"t_start_ms": 355860, "t_end_ms": 358950, "speaker": "others", "text": "How does it look like"}
+{"t_start_ms": 357320, "t_end_ms": 358060, "speaker": "others", "text": "Uh okay"}
+{"t_start_ms": 358580, "t_end_ms": 360450, "speaker": "me", "text": "Okay Okay"}
+{"t_start_ms": 359990, "t_end_ms": 364820, "speaker": "others", "text": "I hope the kitty cat is hungry 'cause I don't like snakes"}
+{"t_start_ms": 367250, "t_end_ms": 375930, "speaker": "me", "text": "Here's the project finance uh which of course we all have to think about when we design this thing Um selling price is supposed to be twenty five Euro"}
+{"t_start_ms": 377250, "t_end_ms": 386090, "speaker": "me", "text": "Uh profit aim for the company is fifty million Euro the market range unlimited meaning international"}
+{"t_start_ms": 377480, "t_end_ms": 377930, "speaker": "others", "text": "Mm-hmm"}
+{"t_start_ms": 386530, "t_end_ms": 387020, "speaker": "others", "text": "Okay"}
+{"t_start_ms": 387400, "t_end_ms": 393640, "speaker": "me", "text": "and the production cost should not exceed hopefully should be less than twelve fifty Euro"}
+{"t_start_ms": 395230, "t_end_ms": 398510, "speaker": "others", "text": "Mm 'kay that should keep everybody on their toes and challenged"}
+{"t_start_ms": 398760, "t_end_ms": 399290, "speaker": "me", "text": "Mm-hmm"}
+{"t_start_ms": 400240, "t_end_ms": 400930, "speaker": "others", "text": "Profit"}
+{"t_start_ms": 402860, "t_end_ms": 406480, "speaker": "others", "text": "Um is fifty mm"}
+{"t_start_ms": 403810, "t_end_ms": 412670, "speaker": "me", "text": "So these are all things of course to remember with the budget and when you design to materials cost etcetera"}
+{"t_start_ms": 419160, "t_end_ms": 427580, "speaker": "me", "text": "Now uh the discussion I guess is um does anyone of you have experience with remote control"}
+{"t_start_ms": 420140, "t_end_ms": 420460, "speaker": "others", "text": "Oops"}
+{"t_start_ms": 428690, "t_end_ms": 431540, "speaker": "others", "text": "Yeah of course using remote control Yeah"}
+{"t_start_ms": 428950, "t_end_ms": 434990, "speaker": "me", "text": "I exp I s 'cause we we use 'em we use 'em right everyday And um"}
+{"t_start_ms": 429730, "t_end_ms": 430100, "speaker": "others", "text": "Yes"}
+{"t_start_ms": 436560, "t_end_ms": 449230, "speaker": "me", "text": "now having used a remote control for years does anybody already have like an idea like things you didn't like with it things you would like to change things you would like to improve with this thing ye any first ideas"}
+{"t_start_ms": 450370, "t_end_ms": 460580, "speaker": "me", "text": "Would you like it to be smaller bigger have more have more buttons on it or maybe clearly better marked buttons you know things like that"}
+{"t_start_ms": 451060, "t_end_ms": 451370, "speaker": "others", "text": "Uh"}
+{"t_start_ms": 453940, "t_end_ms": 454360, "speaker": "others", "text": "Yeah I"}
+{"t_start_ms": 459860, "t_end_ms": 461800, "speaker": "others", "text": "Yeah Yeah"}
+{"t_start_ms": 461460, "t_end_ms": 481430, "speaker": "others", "text": "Yes I I feel that all the remote should be very compact Yeah those which we get here nowadays it's very long And um and it should have multi-purpose Like uh the remote control which we use for T_V_ it shou uh it should be used f uh for some other purpose also like controlling the"}
+{"t_start_ms": 465150, "t_end_ms": 466450, "speaker": "me", "text": "Small right Mm-hmm"}
+{"t_start_ms": 469290, "t_end_ms": 469680, "speaker": "me", "text": "Mm-hmm"}
+{"t_start_ms": 481370, "t_end_ms": 482620, "speaker": "me", "text": "Mm-hmm"}
+{"t_start_ms": 481430, "t_end_ms": 486730, "speaker": "others", "text": "uh temperature inside the house or for air-conditioners or for heating system"}
+{"t_start_ms": 481700, "t_end_ms": 484340, "speaker": "others", "text": "Audio player Oh Okay"}
+{"t_start_ms": 486720, "t_end_ms": 495260, "speaker": "me", "text": "So it should be a multi-functional uh gadget that would um control all your household uh uh machines basically"}
+{"t_start_ms": 488480, "t_end_ms": 490400, "speaker": "others", "text": "Yes exactly Yes"}
+{"t_start_ms": 490400, "t_end_ms": 490460, "speaker": "others", "text": "Hmm"}
+{"t_start_ms": 492570, "t_end_ms": 492920, "speaker": "others", "text": "Yes"}
+{"t_start_ms": 493310, "t_end_ms": 495510, "speaker": "others", "text": "Divides us Yeah Yeah"}
+{"t_start_ms": 494720, "t_end_ms": 495680, "speaker": "others", "text": "Yeah Exactly"}
+{"t_start_ms": 497240, "t_end_ms": 502270, "speaker": "others", "text": "At um twelve fifty Euros per"}
+{"t_start_ms": 502770, "t_end_ms": 503460, "speaker": "me", "text": "Well"}
+{"t_start_ms": 503780, "t_end_ms": 506750, "speaker": "others", "text": "Well who knows if we get a really good designer maybe we can do that"}
+{"t_start_ms": 506180, "t_end_ms": 506790, "speaker": "others", "text": "Yeah"}
+{"t_start_ms": 508170, "t_end_ms": 513570, "speaker": "others", "text": "We certainly can try to I agree with her that to market something successfully it should do some more things"}
+{"t_start_ms": 513110, "t_end_ms": 521070, "speaker": "me", "text": "It should be something new it should be s it it should do something different than than just what we have Now of course the other thing to think there is maybe the design"}
+{"t_start_ms": 517360, "t_end_ms": 517760, "speaker": "others", "text": "That's right"}
+{"t_start_ms": 517800, "t_end_ms": 518740, "speaker": "others", "text": "Yeah of course"}
+{"t_start_ms": 518130, "t_end_ms": 518500, "speaker": "others", "text": "Yeah"}
+{"t_start_ms": 521060, "t_end_ms": 525410, "speaker": "others", "text": "Yeah design should be yeah it should be different All the almost all the remotes"}
+{"t_start_ms": 524220, "t_end_ms": 538730, "speaker": "me", "text": "Like trendy no like f for earlier we saw maybe it should be something trendy you know Maybe it should different colours or materials or you know Um so yeah shapes right you know like kidney shape feels better in your hand or something you know"}
+{"t_start_ms": 527830, "t_end_ms": 533050, "speaker": "others", "text": "Yeah maybe ten I do yeah colours and al shapes also Yeah"}
+{"t_start_ms": 527900, "t_end_ms": 528820, "speaker": "others", "text": "Yes exactly"}
+{"t_start_ms": 530680, "t_end_ms": 532690, "speaker": "others", "text": "Are different shapes Yes"}
+{"t_start_ms": 537030, "t_end_ms": 537480, "speaker": "others", "text": "Yes"}
+{"t_start_ms": 538090, "t_end_ms": 539240, "speaker": "others", "text": "Yeah of course yeah"}
+{"t_start_ms": 538530, "t_end_ms": 551130, "speaker": "others", "text": "Yeah okay friendly shape that would help I think another thing that would help is um if it beeps when you clap because I think one of the big things that happens is people lose them They can't find it"}
+{"t_start_ms": 539970, "t_end_ms": 540330, "speaker": "me", "text": "Yeah"}
+{"t_start_ms": 544120, "t_end_ms": 544570, "speaker": "me", "text": "Yes"}
+{"t_start_ms": 552510, "t_end_ms": 572460, "speaker": "me", "text": "That is true because they put a newspaper or they put it behind a plant or we you know whatever And and they suddenly the phone rings and they want to turn the T_V_ off and they say where the hell is my my remote control yeah Well or yeah or if it's really if it's really in a dark spot that it gives out a a sound or a"}
+{"t_start_ms": 555680, "t_end_ms": 556720, "speaker": "others", "text": "Yeah"}
+{"t_start_ms": 558160, "t_end_ms": 558630, "speaker": "others", "text": "Mm-hmm"}
+{"t_start_ms": 566020, "t_end_ms": 566780, "speaker": "others", "text": "So some"}
+{"t_start_ms": 572010, "t_end_ms": 574670, "speaker": "others", "text": "Yeah some beep or something like that so that we can go"}
+{"t_start_ms": 572460, "t_end_ms": 581450, "speaker": "me", "text": "signal Yeah Mm-hmm So if lost If lost uh signal with b throw signal you know"}
+{"t_start_ms": 572640, "t_end_ms": 576760, "speaker": "others", "text": "Uh so so it's really the beep or or a light should blink"}
+{"t_start_ms": 573120, "t_end_ms": 573250, "speaker": "others", "text": "Or a b"}
+{"t_start_ms": 577040, "t_end_ms": 580160, "speaker": "others", "text": "Should ha A fluorescent signal yeah"}
+{"t_start_ms": 577060, "t_end_ms": 577370, "speaker": "others", "text": "Yeah"}
+{"t_start_ms": 580390, "t_end_ms": 580910, "speaker": "others", "text": "Mm 'kay"}
+{"t_start_ms": 581480, "t_end_ms": 587950, "speaker": "others", "text": "Yeah maybe it should have a light so that we can we can just recognise where it is Yeah yeah May not be beep"}
+{"t_start_ms": 585680, "t_end_ms": 592540, "speaker": "me", "text": "Exactly I mean just that's what I'm saying I'm just saying throw signal meaning just whether it's a beep or whether a light or"}
+{"t_start_ms": 590860, "t_end_ms": 593030, "speaker": "others", "text": "Beep or uh it's a light maybe it's a light"}
+{"t_start_ms": 592250, "t_end_ms": 605710, "speaker": "others", "text": "And do you think a good c c um clue for that is that it would respond to a clap or it would respond to your voice or it would respond what what should you have to do to make it beep or blink"}
+{"t_start_ms": 605680, "t_end_ms": 625080, "speaker": "me", "text": "Okay my my idea is maybe that the minute it's really hidden in in other words if it's like in a dark spot uh meaning you know like a newspaper is on top a sweater is on top or it it's behind a plant at that moment it's it's like it's like um what you call it a light s sensors you"}
+{"t_start_ms": 613300, "t_end_ms": 613690, "speaker": "others", "text": "Mm-hmm"}
+{"t_start_ms": 617960, "t_end_ms": 618260, "speaker": "others", "text": "Mm-hmm"}
+{"t_start_ms": 625080, "t_end_ms": 637210, "speaker": "me", "text": "know In in that moment it has a sensor i it it gets a certain darkness it ge has a sensor and it gives out a signal whether that be a light signal or a beep I mean that we can discuss that later you know"}
+{"t_start_ms": 625550, "t_end_ms": 626090, "speaker": "others", "text": "Okay so"}
+{"t_start_ms": 627790, "t_end_ms": 628000, "speaker": "others", "text": "Yes"}
+{"t_start_ms": 628290, "t_end_ms": 628670, "speaker": "others", "text": "Okay"}
+{"t_start_ms": 634310, "t_end_ms": 637630, "speaker": "others", "text": "Yeah probably yeah probably it's a yeah yeah"}
+{"t_start_ms": 638220, "t_end_ms": 639150, "speaker": "others", "text": "Yeah And uh"}
+{"t_start_ms": 639090, "t_end_ms": 641250, "speaker": "others", "text": "So the light sensor would activate the signal"}
+{"t_start_ms": 641300, "t_end_ms": 658440, "speaker": "me", "text": "That's right You know there would be right you have to have some kind of sensor and I I think uh voice or clapping it's not specific enough Uh I know there are the lamps and stuff you know you can clap on and off but I think they only work to certain degree and"}
+{"t_start_ms": 641810, "t_end_ms": 642120, "speaker": "others", "text": "Mm-hmm"}
+{"t_start_ms": 652910, "t_end_ms": 653240, "speaker": "others", "text": "Mm-hmm"}
+{"t_start_ms": 653700, "t_end_ms": 654090, "speaker": "others", "text": "Yes"}
+{"t_start_ms": 658190, "t_end_ms": 661770, "speaker": "others", "text": "But it could be someplace really obvious and you still wouldn't be able to find it"}
+{"t_start_ms": 663980, "t_end_ms": 665070, "speaker": "others", "text": "Yeah of course that didn't"}
+{"t_start_ms": 664080, "t_end_ms": 664740, "speaker": "me", "text": "What with"}
+{"t_start_ms": 665220, "t_end_ms": 679990, "speaker": "others", "text": "Well because you're s because you're silly Because people are silly I mean it could be on well i if it were like on top of your bookcase and you usually kept it on the coffee table um you know well maybe we have to move along okay"}
+{"t_start_ms": 665400, "t_end_ms": 666250, "speaker": "others", "text": "Then in that case"}
+{"t_start_ms": 666110, "t_end_ms": 667150, "speaker": "others", "text": "I i we can't do it"}
+{"t_start_ms": 667700, "t_end_ms": 671590, "speaker": "me", "text": "Oh yeah well but then those people we can't help everybody"}
+{"t_start_ms": 678080, "t_end_ms": 683950, "speaker": "me", "text": "Okay we have uh yeah we have to move along but I think we have some good good points to start with here"}
+{"t_start_ms": 682070, "t_end_ms": 683110, "speaker": "others", "text": "Yeah good point"}
+{"t_start_ms": 685840, "t_end_ms": 703980, "speaker": "me", "text": "Okay the next meeting will be in thirty minutes I think you all did you get uh notices on your computer for this Okay so well you got the notice um uh The working design I guess that's the function I_D_ uh who is this The industrial designer That's you"}
+{"t_start_ms": 691650, "t_end_ms": 692330, "speaker": "others", "text": "Me yeah"}
+{"t_start_ms": 693820, "t_end_ms": 693970, "speaker": "others", "text": "Yes"}
+{"t_start_ms": 702970, "t_end_ms": 703280, "speaker": "others", "text": "Yeah"}
+{"t_start_ms": 704610, "t_end_ms": 707730, "speaker": "others", "text": "Yeah it's functional de yeah exactly technical"}
+{"t_start_ms": 706820, "t_end_ms": 711130, "speaker": "me", "text": "Okay So we looking for a working design when we come back"}
+{"t_start_ms": 710260, "t_end_ms": 710700, "speaker": "others", "text": "Yeah"}
+{"t_start_ms": 711710, "t_end_ms": 715680, "speaker": "others", "text": "Uh working design yeah it's it's uh mainly technical-functional design"}
+{"t_start_ms": 714210, "t_end_ms": 714490, "speaker": "me", "text": "Then"}
+{"t_start_ms": 715720, "t_end_ms": 735260, "speaker": "me", "text": "And then the technical funct you are the technical function so so you are the working design So you have a working design and then a functional design And the marketing manager is coming up with some user requirement specification like friendliness and what we just discussed in general That would be your"}
+{"t_start_ms": 717250, "t_end_ms": 718700, "speaker": "others", "text": "Yeah functional design and you"}
+{"t_start_ms": 720410, "t_end_ms": 720780, "speaker": "others", "text": "Okay"}
+{"t_start_ms": 735260, "t_end_ms": 744620, "speaker": "me", "text": "idea And of course price That it that it that the price is a good price I mean the price is given but that was"}
+{"t_start_ms": 741370, "t_end_ms": 741700, "speaker": "others", "text": "Mm-hmm"}
+{"t_start_ms": 745250, "t_end_ms": 749860, "speaker": "others", "text": "We have to justify that price by having sufficient features to make it sell at that price"}
+{"t_start_ms": 746330, "t_end_ms": 746790, "speaker": "me", "text": "That's right"}
+{"t_start_ms": 749440, "t_end_ms": 750080, "speaker": "me", "text": "That's right"}
+{"t_start_ms": 751380, "t_end_ms": 758000, "speaker": "me", "text": "And you know specifi you you will get specific um instructions for that I think that's the end of the show Yeah"}
+{"t_start_ms": 764720, "t_end_ms": 775950, "speaker": "me", "text": "So um we have well we have a twen two two two three minutes Um any questions at this point Or uh suggestions"}
+{"t_start_ms": 777270, "t_end_ms": 777820, "speaker": "others", "text": "Mm"}
+{"t_start_ms": 777800, "t_end_ms": 787090, "speaker": "me", "text": "I think basically basically you will get instructions to work with and if you have any questions uh uh I guess you can uh"}
+{"t_start_ms": 782900, "t_end_ms": 783200, "speaker": "others", "text": "Okay"}
+{"t_start_ms": 784260, "t_end_ms": 784460, "speaker": "others", "text": "Yeah"}
+{"t_start_ms": 787580, "t_end_ms": 794680, "speaker": "others", "text": "Okay I think I have enough to think about 'til our next meeting How about you people Really Okay 'Kay"}
+{"t_start_ms": 790950, "t_end_ms": 791280, "speaker": "me", "text": "Mm-hmm"}
+{"t_start_ms": 791250, "t_end_ms": 793950, "speaker": "others", "text": "Yeah even I have Yeah even I have I think yeah"}
+{"t_start_ms": 792790, "t_end_ms": 793130, "speaker": "others", "text": "Yes"}
+{"t_start_ms": 793230, "t_end_ms": 793510, "speaker": "me", "text": "Mm-hmm"}
+{"t_start_ms": 795570, "t_end_ms": 795880, "speaker": "me", "text": "Okay"}
+{"t_start_ms": 796500, "t_end_ms": 797590, "speaker": "others", "text": "Alright well uh"}
+{"t_start_ms": 796520, "t_end_ms": 797810, "speaker": "others", "text": "Yeah so let's see"}
+{"t_start_ms": 797960, "t_end_ms": 803610, "speaker": "me", "text": "Then uh we see you in about thirty minutes And see what we can come up with"}
+{"t_start_ms": 801890, "t_end_ms": 802400, "speaker": "others", "text": "Yes"}
+{"t_start_ms": 803390, "t_end_ms": 803680, "speaker": "others", "text": "Hmm"}
+{"t_start_ms": 803800, "t_end_ms": 804530, "speaker": "others", "text": "Okay very good"}
+{"t_start_ms": 804080, "t_end_ms": 805720, "speaker": "others", "text": "Okay Yes"}
+{"t_start_ms": 804790, "t_end_ms": 805070, "speaker": "me", "text": "Okay"}
+{"t_start_ms": 805490, "t_end_ms": 805680, "speaker": "others", "text": "Yeah"}

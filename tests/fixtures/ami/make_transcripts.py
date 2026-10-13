@@ -16,7 +16,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 WORDS_URL = "https://groups.inf.ed.ac.uk/ami/AMICorpusAnnotations/ami_public_manual_1.6.2.zip"
-MEETINGS = ["ES2010c"]
+MEETINGS = ["ES2010c", "ES2002a", "IS1009a", "TS3003a"]
 ME = "A"  # the AMI speaker that plays "Me"; all other speakers are "Others"
 GAP_S = 1.0  # a pause longer than this starts a new line
 MAX_LINE_S = 20.0  # same limit as the live segmenter
