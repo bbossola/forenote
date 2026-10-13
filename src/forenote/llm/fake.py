@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncIterator, Callable
 
-from forenote.llm.base import GenParams
+from forenote.llm.base import GenParams, PromptTooLong
 from forenote.scheduler import CancelToken
 
 
@@ -27,11 +27,16 @@ class FakeTextGenerator:
         delay_s: dict[int, float] | None = None,
         on_token: Callable[[int], None] | None = None,
         error: BaseException | None = None,
+        prefill_delay_s: float = 0.0,
+        prefill_error: BaseException | None = None,
     ):
         self._outputs = outputs
         self._delay_s = delay_s or {}
         self._on_token = on_token
         self._error = error
+        self._prefill_delay_s = prefill_delay_s
+        self._prefill_error = prefill_error
+        self.prefills: list[tuple[str, int | None]] = []
         self.prompts: list[str] = []
         self.params: list[GenParams] = []
         self.closed = False
@@ -50,6 +55,20 @@ class FakeTextGenerator:
 
     def count_tokens(self, prompt: str) -> int:
         return len(prompt.split())
+
+    async def prefill(self, prompt: str, cancel: CancelToken, threads: int | None = None) -> int:
+        self.prefills.append((prompt, threads))
+        if self._prefill_delay_s:
+            try:
+                await asyncio.wait_for(cancel.wait(), self._prefill_delay_s)
+            except TimeoutError:
+                pass
+        cancel.check()
+        if self._prefill_error is not None:
+            raise self._prefill_error
+        if self.count_tokens(prompt) + 1 > self.context_size:
+            raise PromptTooLong(f"{self.count_tokens(prompt)} prompt tokens + 1 > context {self.context_size}")
+        return self.count_tokens(prompt)
 
     async def generate(self, prompt: str, params: GenParams, cancel: CancelToken) -> AsyncIterator[str]:
         self.prompts.append(prompt)

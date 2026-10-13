@@ -13,6 +13,7 @@ from typing import Any
 from forenote.llm.base import GenParams, LlmError, PromptTooLong
 from forenote.scheduler import CancelToken
 
+PREFILL_SLICE = 128  # tokens between two stop checks in prefill(); prefill() has no abort callback
 _DONE = object()
 
 
@@ -23,11 +24,25 @@ class LlamaCppGenerator:
     or close() stops a running prompt read through the abort callback of llama.cpp.
     """
 
-    def __init__(self, model_path: Path, model_id: str, context_size: int, threads: int):
+    def __init__(
+        self,
+        model_path: Path,
+        model_id: str,
+        context_size: int,
+        threads: int,
+        *,
+        flash_attn: bool = True,
+        swa_full: bool = False,
+        seed: int | None = None,
+    ):
         self.model_path = model_path
         self.model_id = model_id
         self.context_size = context_size
         self.threads = threads
+        self.flash_attn = flash_attn
+        self.swa_full = swa_full
+        self.seed = seed
+        self._lib: Any = None  # the llama_cpp module, kept after load()
         self._llm: Any = None
         self._formatter: Any = None
         self._grammar_type: Any = None
@@ -52,15 +67,19 @@ class LlamaCppGenerator:
         from llama_cpp.llama_chat_format import Jinja2ChatFormatter
 
         self._closing.clear()
+        options: dict[str, Any] = {}
+        if self.seed is not None:
+            options["seed"] = self.seed
         llm = llama_cpp.Llama(
             model_path=str(self.model_path),
             n_ctx=self.context_size,
             n_threads=self.threads,
             n_threads_batch=self.threads,
             n_batch=512,
-            flash_attn=True,  # decision 0003: faster, less memory
-            swa_full=False,  # decision 0003: the prefix reuse still works
+            flash_attn=self.flash_attn,  # decision 0003: the default is faster and uses less memory
+            swa_full=self.swa_full,  # decision 0003: the default keeps the prefix reuse
             verbose=False,
+            **options,
         )
         try:
             template = llm.metadata.get("tokenizer.chat_template")
@@ -78,6 +97,7 @@ class LlamaCppGenerator:
             llm.close()
             raise
         self._formatter, self._grammar_type, self._abort_cb = formatter, grammar_type, abort_cb
+        self._lib = llama_cpp
         self._llm = llm
 
     def close(self) -> None:
@@ -96,6 +116,17 @@ class LlamaCppGenerator:
             raise LlmError("the model is not loaded")
         return formatter(messages=[{"role": "user", "content": user_text}]).prompt
 
+    def _set_abort(self, llm: Any, on: bool) -> None:
+        """Switch the abort callback on for a prompt read, and off for the token loop.
+
+        ggml calls the callback for each graph node, and the callback takes the GIL
+        (carry note "Abort callback cost").
+        """
+        self._lib.llama_set_abort_callback(llm._ctx.ctx, self._abort_cb if on else self._lib.ggml_abort_callback(), None)  # ctypes refuses None
+
+    def _set_threads(self, llm: Any, threads: int) -> None:
+        self._lib.llama_set_n_threads(llm._ctx.ctx, threads, threads)
+
     @staticmethod
     def _tokens(llm: Any, prompt: str) -> list[int]:
         # The rendered prompt already holds the BOS text (decision 0003).
@@ -107,6 +138,83 @@ class LlamaCppGenerator:
             if llm is None:
                 raise LlmError("the model is not loaded")
             return len(self._tokens(llm, prompt))
+
+    async def prefill(self, prompt: str, cancel: CancelToken, threads: int | None = None) -> int:
+        """Read the prompt into the cache and write no output. Return the prompt token count.
+
+        The read runs in slices of PREFILL_SLICE tokens, with no abort callback, and
+        stops between two slices after a cancel or close(). Raise JobCancelled after a
+        cancel: this method turns a cancel into a stop itself (carry item "Cancel rule").
+        """
+        if self._llm is None:
+            raise LlmError("the model is not loaded")
+        loop = asyncio.get_running_loop()
+        done: asyncio.Future[Any] = loop.create_future()
+        stop = threading.Event()
+
+        def resolve(ok: bool, value: Any) -> None:
+            if not done.done():
+                if ok:
+                    done.set_result(value)
+                else:
+                    done.set_exception(value)
+
+        def work() -> None:
+            try:
+                with self._lock:
+                    n = self._prefill(prompt, cancel, stop, threads)
+            except BaseException as e:  # noqa: BLE001 - hand every error to the loop
+                err = LlmError("the model is closed") if self._closing.is_set() else e
+                with contextlib.suppress(RuntimeError):  # the loop can be closed already
+                    loop.call_soon_threadsafe(resolve, False, err)
+            else:
+                with contextlib.suppress(RuntimeError):
+                    loop.call_soon_threadsafe(resolve, True, n)
+
+        threading.Thread(target=work, daemon=True, name="forenote-llm-prefill").start()
+        cancel_task = asyncio.ensure_future(cancel.wait())
+        try:
+            await asyncio.wait({done, cancel_task}, return_when=asyncio.FIRST_COMPLETED)
+            if not done.done():
+                stop.set()
+                await asyncio.shield(done)  # the thread stops after the current slice
+        finally:
+            stop.set()
+            cancel_task.cancel()
+        n = done.result()  # raise the error of the thread
+        cancel.check()
+        if n is None:  # stopped by close() between two slices
+            raise LlmError("the model is closed")
+        return n
+
+    def _prefill(self, prompt: str, cancel: CancelToken, stop: threading.Event, threads: int | None) -> int | None:
+        """Read the prompt. The caller holds self._lock. Return None when a stop came first."""
+        llm = self._llm
+        if llm is None or self._closing.is_set():
+            raise LlmError("the model is closed")
+        tokens = self._tokens(llm, prompt)
+        if len(tokens) + 1 > self.context_size:
+            raise PromptTooLong(f"{len(tokens)} prompt tokens + 1 > context {self.context_size}")
+        cached = 0
+        for a, b in zip(llm._input_ids[: llm.n_tokens], tokens):
+            if a != b:
+                break
+            cached += 1
+        if cached >= len(tokens):
+            return len(tokens)  # all cached: a shorter call would cut the cache
+        self._set_abort(llm, False)
+        self._set_threads(llm, threads or self.threads)
+        try:
+            end = cached
+            while end < len(tokens):
+                if stop.is_set() or cancel.cancelled or self._closing.is_set():
+                    return None
+                end = min(len(tokens), end + PREFILL_SLICE)
+                for _ in llm.create_completion(tokens[:end], max_tokens=1, temperature=0.0, stream=True):
+                    pass
+        finally:
+            self._set_threads(llm, self.threads)
+        return len(tokens)
 
     async def generate(self, prompt: str, params: GenParams, cancel: CancelToken) -> AsyncIterator[str]:
         if self._llm is None:
@@ -164,6 +272,9 @@ class LlamaCppGenerator:
         grammar = None
         if params.json_schema is not None:
             grammar = self._grammar_type.from_json_schema(json.dumps(params.json_schema), verbose=False)
+        self._set_threads(llm, self.threads)
+        self._set_abort(llm, True)  # the prompt read can take minutes: a stop must abort it
+        first = True
         for chunk in llm.create_completion(
             tokens,
             max_tokens=params.max_tokens,
@@ -171,6 +282,11 @@ class LlamaCppGenerator:
             stream=True,
             grammar=grammar,
         ):
+            if first:
+                self._set_abort(llm, False)  # the token loop checks the stop between tokens
+                first = False
+            if self._closing.is_set():
+                raise LlmError("the model is closed")  # no abort callback in the token loop: check here
             if stop.is_set() or cancel.cancelled:
                 break
             text = chunk["choices"][0]["text"]

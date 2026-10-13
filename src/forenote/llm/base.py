@@ -53,6 +53,12 @@ class TextGenerator(Protocol):
     def count_tokens(self, prompt: str) -> int:
         """Count the tokens of a rendered prompt."""
 
+    async def prefill(self, prompt: str, cancel: CancelToken, threads: int | None = None) -> int:
+        """Read the prompt into the cache with no output. Return the prompt token count.
+
+        Raise JobCancelled after a cancel. threads=None uses the threads of a notes job.
+        """
+
     def generate(self, prompt: str, params: GenParams, cancel: CancelToken) -> AsyncIterator[str]:
         """Yield text pieces. Stop early when cancel is set.
 
