@@ -13,7 +13,7 @@ _START_WORDS = {
     "The", "This", "These", "Those", "They", "We", "It", "He", "She", "You", "A", "An", "In", "On", "At",
     "For", "And", "But", "So", "If", "When", "After", "Before", "Then", "There", "That", "Each", "All",
     "Some", "No", "Also", "Both", "Next", "First", "Finally", "Overall", "Team", "Meeting", "Summary",
-    "Action", "Owner", "Decision", "Decisions", "Topic", "Notes", "Note", "Other", "One", "Two",
+    "Key", "However", "Explore", "Desired", "Potential", "Action", "Owner", "Decision", "Decisions", "Topic", "Notes", "Note", "Other", "One", "Two",
 }
 
 
@@ -31,7 +31,8 @@ def number_words(n: int) -> str:
 
 
 def _norm(text: str) -> str:
-    """Lower-case the text and keep only words, digits, ":" in times, and "." in decimals."""
+    """Join letter runs like "D_V_D", lower-case the text, and keep only words, digits, ":" in times, and "." in decimals."""
+    text = re.sub(r"(?<![A-Za-z0-9])(?:[A-Za-z]_)+[A-Za-z]?(?![A-Za-z0-9])", lambda m: m.group(0).replace("_", ""), text)
     cleaned = re.sub(r"[^a-z0-9:.]+", " ", text.lower().replace("-", " "))
     return " " + re.sub(r"(?<!\d)\.|\.(?!\d)", " ", cleaned) + " "
 
@@ -68,6 +69,8 @@ def unsupported_terms(output: str, transcript: str, notes: str = "") -> list[str
             continue
         before = output[: m.start()].rstrip(" \"'«(")
         if f" {word.lower()} " in source:
+            continue
+        if word.endswith("s") and f" {word[:-1].lower()} " in source:
             continue
         if not before or before[-1] in ".!?\n-":
             if word in _START_WORDS or re.search(rf"\b{word.lower()}\b", output):

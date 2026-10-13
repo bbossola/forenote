@@ -57,14 +57,18 @@ async def run_quality(gen, tmp_path, name):
     return out
 
 
-@pytest.mark.parametrize(
-    "name",
-    [pytest.param(n, marks=pytest.mark.xfail(strict=False, reason="prompt tuning in Task 7")) for n in QUALITY_MEETINGS],
-)
+@pytest.mark.parametrize("name", QUALITY_MEETINGS)
 async def test_notes_quality(e2b, tmp_path, name):
     r = await run_quality(e2b, tmp_path, name)
     written = load_bullets(name)
     notes_text = "\n".join(b["text"] for b in written)
+    output_for_check = "\n".join(
+        [r["output"]["summary"] or ""]
+        + [b.enhanced_text for b in r["bullets"]]
+        + [i["text"] + " " + (i["owner"] or "") for i in r["output"]["action_items"]]
+    )
+    unsupported = unsupported_terms(output_for_check, r["transcript"], notes_text)
+    print(f"QUALITY {name} mode={r['mode']} seconds={r['seconds']:.0f} unsupported={unsupported}")
     # Each bullet gets an expansion, and the bullet text does not change.
     assert [b.text for b in r["bullets"]] == [b["text"] for b in written]
     assert all(b.enhanced_text for b in r["bullets"]), name
@@ -72,11 +76,4 @@ async def test_notes_quality(e2b, tmp_path, name):
     items = r["output"]["action_items"]
     jsonschema.validate(items, prompts.ACTION_ITEMS_SCHEMA)
     # Each name and number in the output occurs in the transcript or the notes.
-    output = "\n".join(
-        [r["output"]["summary"] or ""]
-        + [b.enhanced_text for b in r["bullets"]]
-        + [i["text"] + " " + (i["owner"] or "") for i in items]
-    )
-    unsupported = unsupported_terms(output, r["transcript"], notes_text)
-    print(f"QUALITY {name} mode={r['mode']} seconds={r['seconds']:.0f} unsupported={unsupported}")
     assert unsupported == [], json.dumps({"mode": r["mode"]})

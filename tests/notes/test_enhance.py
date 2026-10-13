@@ -94,7 +94,7 @@ async def test_the_bullet_task_has_the_window_and_the_keyword_matches(db):
     notes.add_bullet(mid, "budget", 240_000)
     gen = FakeTextGenerator(script())
     await run(conn, mid, gen)
-    assert "Expand note 1, «budget», written at 04:00." in gen.prompts[0]
+    assert 'Expand note 1, "budget", written at 04:00.' in gen.prompts[0]
     assert "between 01:00 and 05:00" in gen.prompts[0]
     assert "Transcript lines with words of the note start at: 01:00." in gen.prompts[0]
 

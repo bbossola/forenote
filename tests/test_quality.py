@@ -43,6 +43,19 @@ def test_common_start_words_are_not_names():
     assert unsupported_terms("The price came up. Then we agreed.\n- Next: designs.", TRANSCRIPT) == []
 
 
+def test_an_acronym_with_underscores_in_the_transcript_passes():
+    assert unsupported_terms("The DVD player is new.", "[00:01] Me: the D_V_D player is new") == []
+
+
+def test_a_trailing_underscore_and_a_plural_pass():
+    source = "[00:01] Me: people who have T_V_ sets and a D_V_D_ player"
+    assert unsupported_terms("The DVD player and the TVs.", source) == []
+
+
+def test_however_and_key_are_start_words():
+    assert unsupported_terms("Key points. However, the price came up.", TRANSCRIPT) == []
+
+
 def test_a_start_word_from_the_transcript_is_not_a_name():
     assert unsupported_terms("Price is a topic. Models too.", TRANSCRIPT) == []
 
