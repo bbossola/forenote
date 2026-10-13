@@ -60,6 +60,9 @@ value and no speech cost.
   target holds.
 - The live reading computes for 388 to 476 s over a recording of about 30
   minutes. The live reading keeps up with the recording.
+- The ASR measure takes about 90 s. It runs at the start of the 388 to 476 s
+  of live steps, with no pause between them. The LLM is busy during all of
+  it, so the speech measure is pessimistic.
 - Limit of this evidence: one machine, one meeting, and a busy machine. The
   margin is small. A slower 8-core PC can miss the target.
 
@@ -104,9 +107,9 @@ cores for the live reading. On this machine it gives 7 and 4.
 Of the three values, 7 threads is the fastest. Fewer threads are slower. All
 hardware threads are slower, and the generation falls by a factor of 3.5. Two
 extra threads on a busy machine do not explain this. The 15-thread run also
-shows oversubscription, because other jobs used cores at that time. Three
-points cannot show the best count. One machine cannot confirm the rule. The bench runs on other
-machines, and the owner must collect the results.
+shows oversubscription, because other jobs used cores at that time. Three points
+cannot show the best count. One machine cannot confirm the rule. The owner must
+run the bench on other machines and collect the results.
 
 ## Memory
 
@@ -119,9 +122,9 @@ reads it again from the disk.
 The budget of spec 9.1 is 7-8 GB for the LLM, Whisper and the embeddings
 together. The LLM alone uses about 8 GB when the file pages count. With Whisper
 and the embeddings, the total is above the budget. The anonymous memory alone
-(about 3 GB) is inside the budget, and Whisper can use the rest. Nobody measured the total with
-ASR and the live reading on a 16 GB machine. The memory item stays open (see the
-carry note).
+(about 3 GB) is inside the budget, and Whisper can use the rest. Nobody
+measured the total with ASR and the live reading on a 16 GB machine. The memory
+item stays open (see the carry note).
 
 ## Abort callback
 
