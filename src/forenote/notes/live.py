@@ -103,17 +103,17 @@ class LiveReader:
             return
         if self._model_busy() or self._asr_busy():  # spec 5.5.4, 5.5.7
             return
-        lines = self._fetch()
-        if not lines:
-            return
-        text = self.live_text + context.transcript_text(lines)
-        prompt = context.open_prompt(gen, text)
-        n = await run_in_daemon_thread(lambda: gen.count_tokens(prompt))
-        if n > gen.context_size - context.PREFIX_RESERVE:
-            log.info("live reading stops: %d tokens do not fit the prefix budget", n)
-            self.state = "full"  # spec 5.5.5: the notes job uses map-reduce
-            return
         try:
+            lines = self._fetch()
+            if not lines:
+                return
+            text = self.live_text + context.transcript_text(lines)
+            prompt = context.open_prompt(gen, text)
+            n = await run_in_daemon_thread(lambda: gen.count_tokens(prompt))
+            if n > gen.context_size - context.PREFIX_RESERVE:
+                log.info("live reading stops: %d tokens do not fit the prefix budget", n)
+                self.state = "full"  # spec 5.5.5: the notes job uses map-reduce
+                return
             await gen.prefill(prompt, self._cancel, self.threads)
         except JobCancelled:
             raise

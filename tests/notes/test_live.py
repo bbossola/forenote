@@ -172,3 +172,30 @@ async def test_lines_come_in_pages(monkeypatch):
     await r._load_model()
     await r.step()
     assert r.live_text.endswith("line 5\n")
+
+
+async def test_a_count_tokens_error_ends_the_reading_quietly():
+    gen, lines = FakeTextGenerator([]), Lines()
+
+    def broken(_text):
+        raise LlmError("the model is not loaded")
+
+    gen.count_tokens = broken
+    r = reader(gen, lines)
+    lines.add(1)
+    await asyncio.wait_for(r.run(), 1.0)
+    assert r.state == "failed"
+
+
+async def test_a_store_error_ends_the_reading_quietly():
+    gen = FakeTextGenerator([])
+
+    def broken(_after, _limit):
+        raise RuntimeError("store closed")
+
+    async def load():
+        return gen
+
+    r = LiveReader(load, broken, lambda: False, lambda: False, 4, interval_s=0.01)
+    await asyncio.wait_for(r.run(), 1.0)
+    assert r.state == "failed"
