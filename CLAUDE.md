@@ -2,10 +2,10 @@
 
 ## Start here
 
-- Plan B3 (live reading, quality tests, `bench llm`, speed target) is
-  complete on `feature/notes-b3`. It is in a PR. If that PR is not merged yet,
-  ask the owner before you start work that builds on it.
-- The next step is sub-project C (knowledge base and chat). Read
+- Sub-project B (notes enhancement) is complete. Plans B1, B2 and B3 are
+  merged on `main` (PR #3, #4 and #5).
+- The next step is sub-project C (knowledge base and chat). C has no spec yet:
+  write the spec first, with the brainstorming skill. Read
   `docs/superpowers/notes/2026-10-12-handoff.md` and
   `docs/superpowers/notes/2026-10-12-carry-into-next-plans.md` first. The
   carry note section "Next plans: from plan B3" lists the open items.
