@@ -543,11 +543,16 @@ def _bench_asr_run(clips: Path) -> int:
 
 
 def _bench_llm(args: argparse.Namespace) -> int:
+    from forenote.bench_llm import FixtureTooLong
+
     try:
         return _bench_llm_run(args)
     except KeyboardInterrupt:
         print("Interrupted.", file=sys.stderr)
         return 130
+    except FixtureTooLong as e:
+        print(str(e), file=sys.stderr)
+        return 1
     except (OSError, RuntimeError) as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1

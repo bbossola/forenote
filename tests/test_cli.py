@@ -760,3 +760,25 @@ def test_bench_llm_without_a_model(tmp_path, capsys, monkeypatch):
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
     assert cli.main(["bench", "llm"]) == 1
     assert "No language model is installed. Run: forenote-cli models download." in capsys.readouterr().err
+
+
+class _NoLoadGen:
+    def load(self):
+        pass
+
+    def close(self):
+        pass
+
+
+def test_bench_llm_fixture_too_long_message(capsys, monkeypatch):
+    import forenote.bench_llm
+    from forenote.models.download import ModelStore
+
+    def too_long(*a, **k):
+        raise forenote.bench_llm.FixtureTooLong(10197)
+
+    monkeypatch.setattr(ModelStore, "is_installed", lambda self, entry: True)
+    monkeypatch.setattr("forenote.llm.llamacpp.LlamaCppGenerator", lambda *a, **k: _NoLoadGen())
+    monkeypatch.setattr(forenote.bench_llm, "run_bench", too_long)
+    assert cli.main(["bench", "llm", "--model", "gemma-4-e2b-q4_0"]) == 1
+    assert "The fixture needs 10197 tokens. Use --context 16384 or more." in capsys.readouterr().err

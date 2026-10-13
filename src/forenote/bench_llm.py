@@ -27,6 +27,16 @@ GEN_TOKENS = 128
 RESET_TEXT = "Reset."
 
 
+class FixtureTooLong(RuntimeError):
+    """The transcript does not fit the prefix budget, so the live reading would stop."""
+
+    def __init__(self, tokens: int):
+        need = tokens + context.PREFIX_RESERVE
+        self.tokens = tokens
+        self.context_needed = next((c for c in (8192, 16384, 32768) if c >= need), need)
+        super().__init__(f"The fixture needs {tokens} tokens. Use --context {self.context_needed} or more.")
+
+
 @dataclass(frozen=True)
 class LlmBench:
     model_id: str
@@ -108,14 +118,17 @@ async def run_bench(
     cold: bool = True,
     asr: Callable[[], float] | None = None,
 ) -> LlmBench:
+    head = prompts.HEADER + prompts.TRANSCRIPT_TITLE
+    prompt = context.open_prompt(gen, head + context.transcript_text(lines))
+    tokens = await asyncio.to_thread(gen.count_tokens, prompt)
+    if tokens > gen.context_size - context.PREFIX_RESERVE:  # the live reading would stop (live.py)
+        raise FixtureTooLong(tokens)
     conn = connect(Path(db_dir) / "bench.db")
     migrate(conn)
     deps = NotesDeps(gen, conn, lambda name, params: None)
     threads = getattr(gen, "threads", 0)
-    head = prompts.HEADER + prompts.TRANSCRIPT_TITLE
 
     # 1. Prompt speed, from a cold cache, with the job threads.
-    prompt = context.open_prompt(gen, head + context.transcript_text(lines))
     start = time.perf_counter()
     prompt_tokens = await gen.prefill(prompt, CancelToken())
     prompt_tps = prompt_tokens / max(time.perf_counter() - start, 1e-9)

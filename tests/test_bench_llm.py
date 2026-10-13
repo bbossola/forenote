@@ -1,4 +1,6 @@
-from forenote.bench_llm import live_groups, memory_mib, run_bench
+import pytest
+
+from forenote.bench_llm import FixtureTooLong, live_groups, memory_mib, run_bench
 from forenote.llm.fake import FakeTextGenerator
 
 
@@ -39,3 +41,11 @@ async def test_run_bench_without_cold(tmp_path):
     gen = FakeTextGenerator(["x"])
     r = await run_bench(gen, lines(5), [], tmp_path, live_threads=1, cold=False)
     assert r.notes_cold_s is None and r.asr_cost is None
+
+
+async def test_run_bench_stops_before_any_prefill_when_the_fixture_is_too_long(tmp_path):
+    gen = FakeTextGenerator(["x"])
+    gen.context_size = 2048 + 10
+    with pytest.raises(FixtureTooLong, match=r"The fixture needs \d+ tokens\. Use --context 8192 or more\."):
+        await run_bench(gen, lines(20), [], tmp_path, live_threads=1)
+    assert gen.prefills == [] and gen.prompts == []
