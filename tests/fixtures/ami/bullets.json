@@ -1,0 +1,98 @@
+{
+  "ES2002a": [
+    {
+      "t_ms": 130000,
+      "text": "Craig: user interface"
+    },
+    {
+      "t_ms": 200000,
+      "text": "favourite animal drawings"
+    },
+    {
+      "t_ms": 515000,
+      "text": "selling price 25 euro"
+    },
+    {
+      "t_ms": 580000,
+      "text": "international market"
+    },
+    {
+      "t_ms": 960000,
+      "text": "remotes get lost"
+    },
+    {
+      "t_ms": null,
+      "text": "touch screen idea"
+    }
+  ],
+  "IS1009a": [
+    {
+      "t_ms": 420000,
+      "text": "selling price 25 euro"
+    },
+    {
+      "t_ms": 510000,
+      "text": "compact, multi-functional"
+    },
+    {
+      "t_ms": 590000,
+      "text": "beep or light when lost"
+    },
+    {
+      "t_ms": 750000,
+      "text": "working design next"
+    },
+    {
+      "t_ms": null,
+      "text": "light sensor"
+    }
+  ],
+  "TS3003a": [
+    {
+      "t_ms": 380000,
+      "text": "whiteboard pen tips"
+    },
+    {
+      "t_ms": 500000,
+      "text": "draw an animal"
+    },
+    {
+      "t_ms": 1160000,
+      "text": "price 25, profit 50 million"
+    },
+    {
+      "t_ms": 1310000,
+      "text": "one remote, many devices"
+    },
+    {
+      "t_ms": null,
+      "text": "battery status display"
+    }
+  ],
+  "ES2010c": [
+    {
+      "t_ms": 150000,
+      "text": "trend watching"
+    },
+    {
+      "t_ms": 1000000,
+      "text": "batteries, not solar"
+    },
+    {
+      "t_ms": 1170000,
+      "text": "keep price 25 euro"
+    },
+    {
+      "t_ms": 1290000,
+      "text": "lost-remote locator, no voice"
+    },
+    {
+      "t_ms": 1560000,
+      "text": "logo on a button"
+    },
+    {
+      "t_ms": null,
+      "text": "next meeting in 30 minutes"
+    }
+  ]
+}

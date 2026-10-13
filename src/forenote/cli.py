@@ -56,6 +56,16 @@ def build_parser() -> argparse.ArgumentParser:
     bsub = bench.add_subparsers(dest="bench_command", required=True)
     basr = bsub.add_parser("asr", help="measure speech recognition cost")
     basr.add_argument("--clips", default="tests/fixtures/ami", help="directory of 16 kHz mono WAV files")
+    bllm = bsub.add_parser("llm", help="measure language model speed and the time to notes")
+    bllm.add_argument("--model", help="model id (default: the language model of the tier)")
+    bllm.add_argument("--threads", type=_positive_int, help="job threads (default: from the hardware)")
+    bllm.add_argument("--live-threads", type=_positive_int, help="live reading threads (default: from the hardware)")
+    bllm.add_argument("--context", type=_positive_int, help="context size in tokens")
+    bllm.add_argument("--flash-attn", choices=["on", "off"], default="on")
+    bllm.add_argument("--swa-full", choices=["on", "off"], default="off")
+    bllm.add_argument("--clips", help="directory of WAV files: also measure speech recognition during the live reading")
+    bllm.add_argument("--fixture", default="tests/fixtures/ami", help="directory of the AMI fixture")
+    bllm.add_argument("--no-cold", action="store_true", help="skip the run without live reading")
     return ap
 
 
@@ -532,9 +542,104 @@ def _bench_asr_run(clips: Path) -> int:
     return 0
 
 
+def _bench_llm(args: argparse.Namespace) -> int:
+    from forenote.bench_llm import FixtureTooLong
+
+    try:
+        return _bench_llm_run(args)
+    except KeyboardInterrupt:
+        print("Interrupted.", file=sys.stderr)
+        return 130
+    except FixtureTooLong as e:
+        print(str(e), file=sys.stderr)
+        return 1
+    except (OSError, RuntimeError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+
+def _bench_llm_run(args: argparse.Namespace) -> int:
+    import asyncio
+    import tempfile
+
+    from forenote.bench_llm import run_bench
+    from forenote.hw import detect
+    from forenote.models.download import ModelStore
+    from forenote.models.manifest import CONTEXT_SIZE, ModelEntry, load_manifest, llm_for_tier
+
+    hw = detect()
+    manifest = load_manifest()
+    store = ModelStore(Paths.from_env().models_dir)
+    if args.model:
+        entry: ModelEntry | None = next((e for e in manifest if e.id == args.model and e.role == "llm"), None)
+    else:
+        entry = llm_for_tier(manifest, hw.tier)
+    if entry is None or not store.is_installed(entry):
+        print("No language model is installed. Run: forenote-cli models download.", file=sys.stderr)
+        return 1
+    fixture = Path(args.fixture)
+    try:
+        lines = [
+            {"id": n, **json.loads(row)}
+            for n, row in enumerate((fixture / "transcripts" / "ES2010c.jsonl").read_text().splitlines(), 1)
+            if row.strip()
+        ]
+        bullets = json.loads((fixture / "bullets.json").read_text())["ES2010c"]
+    except (OSError, ValueError, KeyError):
+        print(f"No fixture found in {fixture}.", file=sys.stderr)
+        return 1
+    asr = _bench_asr_callable(Path(args.clips), hw, store, manifest) if args.clips else None
+    threads = args.threads or hw.threads
+    live_threads = args.live_threads or hw.live_threads
+    context_size = args.context or CONTEXT_SIZE[entry.tiers[0]]
+    flash, swa = args.flash_attn == "on", args.swa_full == "on"
+
+    from forenote.llm.llamacpp import LlamaCppGenerator
+
+    path = Path(store.path(entry)) / entry.files[0].name
+    gen = LlamaCppGenerator(path, entry.id, context_size, threads, flash_attn=flash, swa_full=swa)
+    gen.load()
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            r = asyncio.run(run_bench(gen, lines, bullets, Path(tmp), live_threads, not args.no_cold, asr))
+    finally:
+        gen.close()
+    print(
+        f"Model {entry.id}; context {context_size}; threads {threads}, live {live_threads}; "
+        f"flash_attn {args.flash_attn}; swa_full {args.swa_full}"
+    )
+    print(f"Prompt: {r.prompt_tokens} tokens at {r.prompt_tps:.1f} tok/s")
+    print(f"Generation: {r.gen_tokens} tokens at {r.gen_tps:.1f} tok/s")
+    if r.notes_cold_s is not None:
+        print(f"Notes without live reading: {r.notes_cold_s:.0f} s")
+    print(f"Live reading: {r.live_steps} steps, {r.live_read_s:.0f} s of compute")
+    print(f"Notes from the stop, with live reading: {r.notes_live_s:.0f} s (target: 180 s or less, default tier, 8 cores)")
+    if r.asr_cost is not None:
+        print(f"Speech while the live reading runs: {r.asr_cost:.2f} s per s of speech (target: 0.5 or less)")
+    if r.rss_anon_mib is not None and r.rss_file_mib is not None:
+        print(f"Memory: {r.rss_anon_mib:.0f} MiB anonymous, {r.rss_file_mib:.0f} MiB file-backed")
+    return 0
+
+
+def _bench_asr_callable(clips: Path, hw, store, manifest):
+    """Return a function that measures the speech cost per second of speech, or None."""
+    from forenote.asr.transcriber import WhisperTranscriber
+    from forenote.bench import bench_transcriber, load_utterances
+
+    speech = next((e for e in manifest if e.role == "speech" and e.tiers and hw.tier in e.tiers and store.is_installed(e)), None)
+    utterances = load_utterances(clips) if clips.is_dir() else []
+    if speech is None or not utterances:
+        print("Warning: no speech measure. The speech model or the clips are missing.", file=sys.stderr)
+        return None
+    transcriber = WhisperTranscriber(store.path(speech), cpu_threads=hw.asr_threads, final_beam_size=BEAM_SIZE)
+    return lambda: bench_transcriber(transcriber, utterances).cost_per_speech_s
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "bench":
+        if args.bench_command == "llm":
+            return _bench_llm(args)
         return _bench_asr(Path(args.clips))
     try:
         return asyncio.run(_main(args))

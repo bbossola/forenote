@@ -2,13 +2,13 @@
 
 ## Start here
 
-- Plan B2 (notes job, engine wiring, RPC and CLI) is complete on
-  `feature/notes-b2`. It is in a PR. If that PR is not merged yet, ask the
-  owner before you start work that builds on it.
-- The next step is to write plan B3. Read
+- Plan B3 (live reading, quality tests, `bench llm`, speed target) is
+  complete on `feature/notes-b3`. It is in a PR. If that PR is not merged yet,
+  ask the owner before you start work that builds on it.
+- The next step is sub-project C (knowledge base and chat). Read
   `docs/superpowers/notes/2026-10-12-handoff.md` and
   `docs/superpowers/notes/2026-10-12-carry-into-next-plans.md` first. The
-  carry note section "Plan B3: from the B2 reviews" lists the first B3 task.
+  carry note section "Next plans: from plan B3" lists the open items.
 - To set up a new machine, run `scripts/bootstrap-dev.sh --help`.
 
 ## Rules

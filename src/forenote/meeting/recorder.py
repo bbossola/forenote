@@ -31,6 +31,7 @@ MAX_DECODE_FAILURES = 5
 TICK_S = 1.0
 JOIN_TIMEOUT_S = 5.0
 DRAIN_SLICE_S = 0.5  # a second stop() can shorten the drain between two slices
+ASR_BUSY_S = 5.0  # spec B 5.5.4: the live reading pauses above this ASR queue
 
 Emit = Callable[[str, dict], None]
 SourceFactory = Callable[[str], AudioSource]
@@ -342,6 +343,11 @@ class Recorder:
     def elapsed_ms(self) -> int:
         """The time since the meeting start, in ms. Transcript lines use the same base."""
         return self._now_ms()
+
+    def asr_busy(self) -> bool:
+        """True while speech recognition is behind (spec B 5.5.4). The live reading pauses then."""
+        worker = self._worker
+        return worker is not None and (worker.delayed or worker.queued_seconds() > ASR_BUSY_S)
 
     def _mark_lost(self, speaker: str, reason: str) -> None:
         self._lost.add(speaker)

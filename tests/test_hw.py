@@ -160,3 +160,10 @@ def test_asr_threads_leave_two_cores_free():
     assert HardwareReport(True, False, 8, 31.0, "default", "x", ()).asr_threads == 6
     assert HardwareReport(True, False, 2, 31.0, "default", "x", ()).asr_threads == 1
     assert HardwareReport(True, False, 8, 31.0, "default", "x", ()).to_dict()["asr_threads"] == 6
+
+
+def test_live_threads_are_half_the_cores():
+    base = dict(avx2=True, avx512=False, ram_gib=31.0, tier="default", audio_server=None, gpus=())
+    assert HardwareReport(physical_cores=8, **base).live_threads == 4
+    assert HardwareReport(physical_cores=1, **base).live_threads == 1
+    assert "live_threads" not in HardwareReport(physical_cores=8, **base).to_dict()

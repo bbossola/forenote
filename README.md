@@ -37,11 +37,14 @@ Run the engine and the CLI:
     uv run forenote-cli notes 4           # print the notes of meeting 4
     uv run forenote-cli enhance 4         # write the notes again; --force also replaces your edits
     uv run forenote-cli bench asr
+    uv run forenote-cli bench llm         # measure the notes speed (15 to 25 minutes)
     uv run forenote-cli shutdown
 
 `forenote-cli models download` starts the engine if it does not run.
 
-After a recording, the engine writes the notes with the local language model. On the default tier this takes about 6 to 7 minutes for a 30-minute meeting. A later version reads the transcript during the meeting to make this faster. `record` waits for the notes after the stop and prints them. Ctrl-C during that wait leaves the notes job running.
+`forenote-cli bench llm` measures the speed of the notes on your computer. It reads a 30-minute test meeting with the language model of your tier. It reports the prompt speed, the generation speed, the time to write the notes after the stop, and the memory. With `--clips DIR`, it also measures the cost of speech recognition while the model reads. A full run takes 15 to 25 minutes. The option `--no-cold` skips the run without live reading and saves about 8 minutes. Close other programs first, because they change the result.
+
+After a recording, the engine writes the notes with the local language model. During the meeting, the engine reads the new transcript lines with the model. Because of this, the notes are ready about 2 to 3 minutes after the stop of a 30-minute meeting (default tier, 8 cores). Without the live reading, the same notes take 7 minutes or more. `record` waits for the notes after the stop and prints them. Ctrl-C during that wait leaves the notes job running.
 
 ## Files
 

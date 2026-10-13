@@ -610,3 +610,22 @@ async def test_a_failed_final_status_gives_done(store):
     assert store.get(mid)["status"] == "done"
     assert events[-1][1]["status"] == "done"
     assert finished == ["done"]
+
+
+class BusyWorker:
+    def __init__(self, delayed=False, queued=0.0):
+        self.delayed, self._queued = delayed, queued
+
+    def queued_seconds(self):
+        return self._queued
+
+
+def test_asr_busy(store):
+    rec = Recorder(store, FakeTranscriber(), file_factory, ("others",), Events(), 300, clock=Clock())
+    assert rec.asr_busy() is False  # no worker yet
+    rec._worker = BusyWorker()
+    assert rec.asr_busy() is False
+    rec._worker = BusyWorker(delayed=True)
+    assert rec.asr_busy() is True
+    rec._worker = BusyWorker(queued=5.1)
+    assert rec.asr_busy() is True

@@ -287,3 +287,20 @@ async def test_a_listener_error_during_report_does_not_fail_the_job(jobs):
         task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await task
+
+
+async def test_running_type(sched):
+    s, rec = sched
+    started, release = asyncio.Event(), asyncio.Event()
+
+    async def job(token, report):
+        started.set()
+        await release.wait()
+
+    assert s.running_type is None
+    s.submit("notes.enhance", Priority.NOTES, job)
+    await asyncio.wait_for(started.wait(), 2.0)
+    assert s.running_type == "notes.enhance"
+    release.set()
+    await rec.wait_finished(1)
+    assert s.running_type is None

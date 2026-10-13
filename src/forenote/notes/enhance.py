@@ -15,6 +15,7 @@ from forenote.notes.search import keyword_times
 from forenote.scheduler import CancelToken, JobCancelled, Report
 from forenote.store.meetings import MeetingStore
 from forenote.store.notes import Bullet, NotesStore
+from forenote.workers import run_in_daemon_thread
 
 log = logging.getLogger(__name__)
 
@@ -24,6 +25,7 @@ ACTION_ITEMS_TOKENS = 500
 MAP_TOKENS = 300
 TEMPERATURE = 0.2
 ALL_LINES = 1_000_000
+NO_POINTS = "The language model wrote no points for the transcript."
 
 Emit = Callable[[str, dict[str, Any]], None]
 
@@ -95,7 +97,8 @@ class _Job:
     ) -> str:
         self.check()
         prompt = self.gen.render(user_text)
-        limit = first_token_limit(self.gen.count_tokens(prompt))
+        n = await run_in_daemon_thread(lambda: self.gen.count_tokens(prompt))
+        limit = first_token_limit(n)
 
         def on_delta(text: str) -> None:
             if part is None:
@@ -181,6 +184,8 @@ class _Job:
             if text:
                 parts.append(text)
             self.step_done(f"part {i} of {len(chunks)}")
+        if not parts:
+            raise NotesError(NO_POINTS)
         notes_text = context.bullets_text(bullets)
         for number, b in todo:
             times = self._times(b)
@@ -197,8 +202,16 @@ class _Job:
                 )
             await self._bullet(number, b, user_text)
         parts = await self._reduce(parts)
-        base = prompts.HEADER + prompts.REDUCE_TITLE + "".join(p + "\n" for p in parts) + "\n"
-        await self._summary_and_items(base, "map_reduce")
+        await self._summary_and_items(self._reduce_base(parts, bullets), "map_reduce")
+
+    def _reduce_base(self, parts: list[str], bullets: list[Bullet]) -> str:
+        """The base of the summary and the action items in map-reduce mode.
+
+        Add the notes of the user when they fit (carry item "Prompt quality").
+        """
+        points = prompts.HEADER + prompts.REDUCE_TITLE + "".join(p + "\n" for p in parts) + "\n"
+        with_notes = points + context.bullets_text(bullets) + "\n"
+        return with_notes if context.fits(self.gen, with_notes + prompts.SUMMARY_TASK) else points
 
     async def _reduce(self, parts: list[str]) -> list[str]:
         """Combine the chunk notes in groups until the summary prompt fits (spec 5.4)."""

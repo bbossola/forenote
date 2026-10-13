@@ -85,3 +85,31 @@ async def test_json_schema_output_parses(e2b):
     )
     items = json.loads(text)
     assert isinstance(items, list) and items
+
+
+async def test_prefill_fills_the_cache_for_the_generation(e2b, capsys):
+    from forenote.scheduler import JobCancelled
+
+    text = "Prefill test 1.\n" + long_prefix(70)  # the first line differs: the cache is cold
+    open_text = e2b.render(text + "\x00END").split("\x00END")[0]
+    n = e2b.count_tokens(open_text)
+    assert n > 1500
+    started = time.monotonic()
+    assert await e2b.prefill(open_text, CancelToken()) == n
+    prefill_s = time.monotonic() - started
+    first_token_s = await first_token_time(
+        e2b, e2b.render(text + "\nTask: say yes.\n")
+    )
+    with capsys.disabled():
+        print(f"\nprefill: {n} tokens in {prefill_s:.2f} s ({n / prefill_s:.1f} tok/s), first token {first_token_s:.2f} s")
+    assert first_token_s < 0.3 * prefill_s, (prefill_s, first_token_s)
+    # A thread change works on the real library.
+    other = "Prefill test 2.\n" + long_prefix(20)
+    assert await e2b.prefill(e2b.render(other + "\x00END").split("\x00END")[0], CancelToken(), threads=2) > 100
+    # A cancel stops a prefill between two slices.
+    token = CancelToken()
+    asyncio.get_running_loop().call_later(0.5, token.cancel)
+    started = time.monotonic()
+    with pytest.raises(JobCancelled):
+        await e2b.prefill(e2b.render("Prefill test 3.\n" + long_prefix(70) + "\x00END").split("\x00END")[0], token)
+    assert time.monotonic() - started < 3.0

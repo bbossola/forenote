@@ -118,3 +118,16 @@ def group_parts(gen: Any, parts: list[str], task: str) -> list[list[str]]:
     if current:
         groups.append(current)
     return groups
+
+
+_OPEN_MARK = "\x00open"
+
+
+def open_prompt(gen: Any, user_text: str) -> str:
+    """The rendered prompt up to the end of user_text, with no end of turn.
+
+    Each later prompt whose user text starts with user_text starts with this text.
+    A mark after the text keeps a template that trims the text from cutting it.
+    """
+    rendered = gen.render(user_text + _OPEN_MARK)
+    return rendered[: rendered.rindex(_OPEN_MARK)]

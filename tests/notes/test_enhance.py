@@ -1,5 +1,6 @@
 import logging
 import sqlite3
+import threading
 
 import pytest
 
@@ -93,7 +94,7 @@ async def test_the_bullet_task_has_the_window_and_the_keyword_matches(db):
     notes.add_bullet(mid, "budget", 240_000)
     gen = FakeTextGenerator(script())
     await run(conn, mid, gen)
-    assert "Expand note 1, «budget», written at 04:00." in gen.prompts[0]
+    assert 'Expand note 1, "budget", written at 04:00.' in gen.prompts[0]
     assert "between 01:00 and 05:00" in gen.prompts[0]
     assert "Transcript lines with words of the note start at: 01:00." in gen.prompts[0]
 
@@ -257,3 +258,20 @@ async def test_the_first_token_limit_grows_with_the_prompt(db, monkeypatch):
     monkeypatch.setattr(enhance, "collect", spy)
     await run(conn, mid, BigPrompt(script()))
     assert seen and set(seen) == {first_token_limit(10_000)} == {560.0}
+
+
+async def test_token_counts_run_off_the_event_loop(db):
+    conn, _, notes, mid = db
+    notes.add_bullet(mid, "budget", 65_000)
+    loop_thread = threading.get_ident()
+    threads = []
+
+    class Gen(FakeTextGenerator):
+        def count_tokens(self, prompt):
+            threads.append(threading.get_ident())
+            return super().count_tokens(prompt)
+
+    mode, _ = await run(conn, mid, Gen(script()))
+    assert mode == "prefix"
+    # The count for the first-token limit of each step runs in a worker thread.
+    assert any(t != loop_thread for t in threads)
