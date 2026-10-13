@@ -113,11 +113,13 @@ class MeetingsHandlers:
             self._check_not_closed()
         self._recorder = recorder
         self.scheduler.pause(Priority.NOTES)
+        self._start_live_reading(recorder)
         self._recording_debug = debug_file is not None
         return {"meeting_id": meeting_id, "started_at": self.meetings.get(meeting_id)["started_at"]}
 
     async def _undo_start(self, recorder: Recorder, meeting_id: int | None) -> None:
         """Clean up a start that failed after open(). Spec 8.1: no meeting record stays."""
+        self._stop_live_reading()  # a guard: today the live start is the last step of a start
         if meeting_id is None:
             await recorder.close()  # begin() did not run
         else:
@@ -150,6 +152,7 @@ class MeetingsHandlers:
         return None
 
     def _recording_finished(self, status: str) -> None:
+        self._stop_live_reading()
         recorder, self._recorder = self._recorder, None
         self._recording_debug = False
         self._set_detector_recording(False)

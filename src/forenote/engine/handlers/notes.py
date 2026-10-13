@@ -18,6 +18,7 @@ log = logging.getLogger(__name__)
 
 NOTES_JOB = "notes.enhance"
 MODEL_MISSING = "The language model is not downloaded. Run: forenote-cli models download."
+LLM_CLOSE_WAIT_S = 30.0  # carry item "Two models in RAM"
 OUT_OF_MEMORY = "The language model ran out of memory (MemoryError). Try the low tier: it uses a smaller model."
 
 
@@ -119,32 +120,51 @@ class NotesHandlers:
         return self.scheduler.submit(NOTES_JOB, Priority.NOTES, job, {"meeting_id": meeting_id, "force": force})
 
     async def _notes_generator(self):
-        """The loaded LLM of the tier. Load it at the first use and keep it (spec 4.2)."""
-        entry = self._llm_entry()
-        if entry is None or not self.models.is_installed(entry):
-            raise NotesError(MODEL_MISSING)
-        tier = self.tier()
-        key = (entry.id, tier)
-        if self._llm is not None and self._llm_key == key:
-            return self._llm
-        self._drop_llm()
-        path = Path(self.models.path(entry)) / entry.files[0].name
-        gen = self.llm_factory(path, entry.id, CONTEXT_SIZE[tier], self.hardware.threads)
-        try:
-            await run_in_daemon_thread(gen.load)
-        except Exception as e:  # noqa: BLE001 - out of memory, a broken file
-            log.error("the language model cannot load: %s", type(e).__name__)
-            raise NotesError(
-                f"The language model cannot load ({type(e).__name__}). Try the low tier: it uses a smaller model."
-            ) from None
-        self._llm, self._llm_key = gen, key
-        return gen
+        """The loaded LLM of the tier. Load it at the first use and keep it (spec 4.2).
+
+        One load runs at a time: a notes job that starts during the load of the
+        live reading waits and gets the same instance.
+        """
+        async with self._llm_load_lock:
+            entry = self._llm_entry()
+            if entry is None or not self.models.is_installed(entry):
+                raise NotesError(MODEL_MISSING)
+            tier = self.tier()
+            key = (entry.id, tier)
+            if self._llm is not None and self._llm_key == key:
+                return self._llm
+            self._drop_llm()
+            await self._wait_llm_closed()
+            path = Path(self.models.path(entry)) / entry.files[0].name
+            gen = self.llm_factory(path, entry.id, CONTEXT_SIZE[tier], self.hardware.threads)
+            try:
+                await run_in_daemon_thread(gen.load)
+            except Exception as e:  # noqa: BLE001 - out of memory, a broken file
+                log.error("the language model cannot load: %s", type(e).__name__)
+                raise NotesError(
+                    f"The language model cannot load ({type(e).__name__}). Try the low tier: it uses a smaller model."
+                ) from None
+            self._llm, self._llm_key = gen, key
+            return gen
+
+    async def _wait_llm_closed(self) -> None:
+        """Wait for the close of the old instance, so that two models are not in RAM together."""
+        closing = self._llm_closing
+        if closing is None:
+            return
+        alive = await run_in_daemon_thread(lambda: (closing.join(LLM_CLOSE_WAIT_S), closing.is_alive())[1])
+        if alive:
+            log.warning("the old language model did not close within %s s", LLM_CLOSE_WAIT_S)
+        else:
+            self._llm_closing = None
 
     def _drop_llm(self) -> None:
         """Forget the instance. Close it in a daemon thread: a hung model must not block the engine."""
         llm, self._llm, self._llm_key = self._llm, None, None
         if llm is not None:
-            threading.Thread(target=llm.close, daemon=True, name="forenote-llm-close").start()
+            closing = threading.Thread(target=llm.close, daemon=True, name="forenote-llm-close")
+            closing.start()
+            self._llm_closing = closing
 
     def _notes_job_ended(self, job_id: int, status: str) -> None:
         """Send notes.done and end the processing status (spec 5.1)."""

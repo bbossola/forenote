@@ -5,10 +5,12 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import threading
 from typing import Any
 
 from forenote import __version__
 from forenote.engine.handlers.jobs import JobsHandlers
+from forenote.engine.handlers.live import LiveHandlers
 from forenote.engine.handlers.meetings import MeetingsHandlers
 from forenote.engine.handlers.models import DOWNLOAD_JOB, ModelsHandlers  # noqa: F401 - DOWNLOAD_JOB is re-exported
 from forenote.engine.handlers.notes import NOTES_JOB, NotesHandlers
@@ -19,6 +21,7 @@ from forenote.llm.base import STALL_S
 from forenote.meeting.detector import MeetingDetector
 from forenote.models.download import Fetch, ModelStore, hf_fetch
 from forenote.models.manifest import ModelEntry, load_manifest
+from forenote.notes.live import LIVE_INTERVAL_S
 from forenote.paths import Paths
 from forenote.rpc.protocol import load_schema
 from forenote.rpc.server import RpcServer
@@ -50,7 +53,9 @@ def _llama(model_path, model_id, context_size, threads):
     return LlamaCppGenerator(model_path, model_id, context_size, threads)
 
 
-class Engine(SystemHandlers, SettingsHandlers, JobsHandlers, ModelsHandlers, MeetingsHandlers, NotesHandlers):
+class Engine(
+    SystemHandlers, SettingsHandlers, JobsHandlers, ModelsHandlers, MeetingsHandlers, LiveHandlers, NotesHandlers
+):
     def __init__(
         self,
         paths: Paths,
@@ -86,6 +91,11 @@ class Engine(SystemHandlers, SettingsHandlers, JobsHandlers, ModelsHandlers, Mee
         self._llm = None
         self._llm_key = None
         self.notes_stall_s = STALL_S
+        self.live_interval_s = LIVE_INTERVAL_S
+        self._live = None
+        self._live_task: asyncio.Task | None = None
+        self._llm_load_lock = asyncio.Lock()
+        self._llm_closing: threading.Thread | None = None
         self.debug_sources = debug_sources
         self.debug_realtime = debug_realtime
         self._watcher = None
@@ -176,6 +186,8 @@ class Engine(SystemHandlers, SettingsHandlers, JobsHandlers, ModelsHandlers, Mee
             with contextlib.suppress(asyncio.CancelledError):
                 await self._scheduler_task
         await self._stop_recording_for_shutdown()  # nothing can start now, but be sure
+        self._stop_live_reading()
+        await self._wait_live_reading(10.0)
         if self._llm is not None:
             llm, self._llm = self._llm, None
             try:

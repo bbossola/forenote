@@ -105,6 +105,10 @@ class Scheduler:
     def running_job_id(self) -> int | None:
         return self._running.job_id if self._running else None
 
+    @property
+    def running_type(self) -> str | None:
+        return self._running.type if self._running else None
+
     def submit(self, type: str, priority: Priority, fn: JobFn, payload: dict[str, Any] | None = None) -> int:
         if self._stopping:
             raise RuntimeError("scheduler is stopped")
