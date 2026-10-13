@@ -88,5 +88,6 @@ async def test_every_emitted_event_matches_the_schema(engine, client):
         if name in ("job.done", "job.failed"):
             ends.discard(params["id"])
     # test_meeting_rpc.py validates the meeting, transcript, audio and asr events.
-    recording = ("meeting.", "transcript.", "audio.", "asr.")
+    # test_notes_job.py validates the notes events.
+    recording = ("meeting.", "transcript.", "audio.", "asr.", "notes.")
     assert seen == {e for e in schema["events"] if not e.startswith(recording)}

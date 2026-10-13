@@ -1,3 +1,4 @@
+import asyncio
 import sys
 import threading
 import time
@@ -7,6 +8,8 @@ import pytest
 
 from forenote.llm.base import GenParams, PromptTooLong, collect
 from forenote.scheduler import CancelToken
+
+ABORT = {}  # id(ctx) -> the registered abort callback
 
 
 class FakeFormatter:
@@ -30,6 +33,10 @@ class FakeLlama:
         self.hold = None  # an Event to wait on before each chunk after the first
         self.produced = 0  # chunks yielded by the last create_completion
         self.finished = threading.Event()  # set when the last create_completion ends
+        self._ctx = types.SimpleNamespace(ctx=object())
+        self.prefill_steps = 0  # abort checks before the first chunk
+        self.prefill_s = 0.0  # sleep before each abort check
+        self.aborts = 0
         FakeLlama.instances.append(self)
 
     def token_bos(self):
@@ -47,6 +54,12 @@ class FakeLlama:
         self.produced = 0
         self.finished.clear()
         try:
+            for _ in range(self.prefill_steps):
+                time.sleep(self.prefill_s)
+                cb = ABORT.get(id(self._ctx.ctx))
+                if cb is not None and cb(None):
+                    self.aborts += 1
+                    raise RuntimeError("llama_decode returned 2")
             for i, word in enumerate(["one", " two", " three"]):
                 time.sleep(self.delay_s)
                 if i > 0 and self.hold is not None:
@@ -68,6 +81,9 @@ def fake_llama_cpp(monkeypatch):
     fmt = types.ModuleType("llama_cpp.llama_chat_format")
     fmt.Jinja2ChatFormatter = FakeFormatter
     mod.llama_chat_format = fmt
+    mod.ggml_abort_callback = lambda fn: fn
+    mod.llama_set_abort_callback = lambda ctx, cb, data: ABORT.__setitem__(id(ctx), cb)
+    ABORT.clear()
     monkeypatch.setitem(sys.modules, "llama_cpp", mod)
     monkeypatch.setitem(sys.modules, "llama_cpp.llama_chat_format", fmt)
     FakeLlama.instances.clear()
@@ -153,10 +169,10 @@ async def test_a_stall_releases_the_model_for_the_next_call(fake_llama_cpp, tmp_
 
     gen = make(tmp_path)
     llama = FakeLlama.instances[0]
-    llama.delay_s = 0.3
+    llama.delay_s = 1.0
     with pytest.raises(GenerationStalled):
-        await collect(gen, "a", GenParams(max_tokens=10), CancelToken(), lambda t: None, stall_s=0.05)
-    assert gen._lock.acquire(timeout=1)  # the worker stops at the next chunk
+        await collect(gen, "a", GenParams(max_tokens=10), CancelToken(), lambda t: None, stall_s=0.2)
+    assert gen._lock.acquire(timeout=3)  # the worker stops at the next chunk
     gen._lock.release()
     assert llama.produced == 1
     llama.delay_s = 0.0
@@ -193,6 +209,7 @@ async def test_generate_before_load_is_an_error(fake_llama_cpp, tmp_path):
 
 
 async def test_close_during_a_generation_is_not_an_attribute_error(fake_llama_cpp, tmp_path):
+    from forenote.llm.base import LlmError
     from forenote.llm.llamacpp import LlamaCppGenerator
 
     class RacyGenerator(LlamaCppGenerator):
@@ -206,22 +223,18 @@ async def test_close_during_a_generation_is_not_an_attribute_error(fake_llama_cp
             if value is not None and threading.current_thread().name == "forenote-llm" and self.closer is None:
                 self.closer = threading.Thread(target=self.close)
                 self.closer.start()
-                self.__dict__["cleared"].wait(5)  # close() sets _llm to None, then waits for the lock
+                while not self._closing.is_set():  # close() sets the flag, then waits for the lock
+                    time.sleep(0.001)
             return value
 
         @_llm.setter
         def _llm(self, value):
             self.__dict__["llm_value"] = value
-            self.__dict__.setdefault("cleared", threading.Event())
-            if value is None:
-                self.__dict__["cleared"].set()
-            else:
-                self.__dict__["cleared"].clear()
 
     gen = RacyGenerator(tmp_path / "m.gguf", "x", context_size=100, threads=1)
     gen.load()
-    text = await collect(gen, "a", GenParams(max_tokens=10), CancelToken(), lambda t: None)
-    assert text == "one two three"
+    with pytest.raises(LlmError):  # a clean error, not an AttributeError
+        await collect(gen, "a", GenParams(max_tokens=10), CancelToken(), lambda t: None)
     gen.closer.join(5)
     assert FakeLlama.instances[0].closed
 
@@ -267,3 +280,91 @@ def test_a_model_with_no_chat_template_is_refused_and_closed(fake_llama_cpp, tmp
         gen.load()
     assert FakeLlama.instances[0].closed
     assert not gen.loaded
+
+
+async def test_cancel_during_the_prompt_read_aborts_it(fake_llama_cpp, tmp_path):
+    from forenote.scheduler import JobCancelled
+
+    gen = make(tmp_path)
+    llama = FakeLlama.instances[0]
+    llama.prefill_steps, llama.prefill_s = 200, 0.01  # a 2 s prompt read
+    token = CancelToken()
+    asyncio.get_running_loop().call_later(0.1, token.cancel)
+    started = time.monotonic()
+    with pytest.raises(JobCancelled):
+        await collect(gen, "a", GenParams(max_tokens=10), token, lambda t: None)
+    assert llama.finished.wait(1)
+    assert time.monotonic() - started < 1.0
+    assert llama.aborts == 1 and llama.produced == 0
+    assert gen._lock.acquire(timeout=1)
+    gen._lock.release()
+
+
+async def test_a_stall_in_the_prompt_read_frees_the_model_for_the_next_call(fake_llama_cpp, tmp_path):
+    from forenote.llm.base import GenerationStalled
+
+    gen = make(tmp_path)
+    llama = FakeLlama.instances[0]
+    llama.prefill_steps, llama.prefill_s = 200, 0.01
+    with pytest.raises(GenerationStalled):
+        await collect(gen, "a", GenParams(max_tokens=10), CancelToken(), lambda t: None, first_token_s=0.2)
+    llama.prefill_steps = 0
+    text = await collect(gen, "a", GenParams(max_tokens=10), CancelToken(), lambda t: None, first_token_s=0.5)
+    assert text == "one two three"
+
+
+async def test_a_late_stop_of_an_old_call_does_not_abort_a_new_call(fake_llama_cpp, tmp_path):
+    gen = make(tmp_path)
+    llama = FakeLlama.instances[0]
+    first = gen.generate("a", GenParams(max_tokens=10), CancelToken())
+    assert await anext(first) == "one"  # the first worker ends; its stream stays open
+    assert await asyncio.to_thread(llama.finished.wait, 1)
+    llama.prefill_steps, llama.prefill_s = 30, 0.01  # the second call reads its prompt for 0.3 s
+    second = asyncio.ensure_future(collect(gen, "a", GenParams(max_tokens=10), CancelToken(), lambda t: None))
+    await asyncio.sleep(0.1)
+    await first.aclose()  # sets the stop event of the first call during the second prompt read
+    assert await second == "one two three"
+    assert llama.aborts == 0
+
+
+async def test_close_aborts_a_running_prompt_read(fake_llama_cpp, tmp_path):
+    from forenote.llm.base import LlmError
+    from forenote.workers import run_in_daemon_thread
+
+    gen = make(tmp_path)
+    llama = FakeLlama.instances[0]
+    llama.prefill_steps, llama.prefill_s = 500, 0.01  # a 5 s prompt read
+    task = asyncio.ensure_future(collect(gen, "a", GenParams(max_tokens=10), CancelToken(), lambda t: None))
+    await asyncio.sleep(0.1)
+    started = time.monotonic()
+    await run_in_daemon_thread(gen.close)
+    assert time.monotonic() - started < 1.0
+    with pytest.raises(LlmError):
+        await task
+    assert llama.closed and not gen.loaded
+
+
+def test_count_tokens_does_not_wait_for_a_generation(fake_llama_cpp, tmp_path):
+    gen = make(tmp_path)
+    with gen._lock:  # a generation holds the generation lock
+        started = time.monotonic()
+        assert gen.count_tokens("a b") == 2
+        assert time.monotonic() - started < 0.5
+
+
+def test_render_after_close_is_an_error(fake_llama_cpp, tmp_path):
+    from forenote.llm.base import LlmError
+
+    gen = make(tmp_path)
+    gen.close()
+    with pytest.raises(LlmError):
+        gen.render("x")
+    with pytest.raises(LlmError):
+        gen.count_tokens("x")
+
+
+def test_load_after_close_works(fake_llama_cpp, tmp_path):
+    gen = make(tmp_path)
+    gen.close()
+    gen.load()
+    assert gen.loaded and gen.render("x") == "<bos><u>x</u><m>"

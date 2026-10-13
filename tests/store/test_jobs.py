@@ -71,3 +71,13 @@ def test_final_status_does_not_change(jobs):
     assert jobs.get(jid)["status"] == "done"
     other = jobs.create("index", 3)
     assert jobs.set_status(other, "running") is True
+
+
+def test_latest_finds_the_newest_job_of_a_meeting(jobs):
+    a = jobs.create("notes.enhance", 2, {"meeting_id": 1})
+    jobs.create("notes.enhance", 2, {"meeting_id": 2})
+    c = jobs.create("notes.enhance", 2, {"meeting_id": 1, "force": True})
+    jobs.create("models.download", 9, {"meeting_id": 1})
+    assert jobs.latest("notes.enhance", 1)["id"] == c
+    assert jobs.latest("notes.enhance", 3) is None
+    assert a < c

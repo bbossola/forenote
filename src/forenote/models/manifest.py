@@ -100,3 +100,16 @@ def for_tier(entries: list[ModelEntry], tier: str) -> list[ModelEntry]:
         if count != 1:
             raise ManifestError(f"tier {tier} needs exactly one {role} model, found {count}")
     return chosen
+
+
+CONTEXT_SIZE = {"low": 8192, "default": 16384, "high": 32768}  # spec B 6.1, decision 0003
+
+
+def llm_for_tier(entries: list[ModelEntry], tier: str | None) -> ModelEntry | None:
+    """The LLM of a tier, or None when the tier or the model is not known."""
+    if tier is None:
+        return None
+    try:
+        return next((e for e in for_tier(entries, tier) if e.role == "llm"), None)
+    except (ManifestError, ValueError):
+        return None

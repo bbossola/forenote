@@ -36,8 +36,8 @@ def test_prompt_tail_starts_at_a_word():
 
 
 @pytest.mark.models
-def test_whisper_transcribes_meeting_speech(speech_model_dir):
-    t = WhisperTranscriber(speech_model_dir("whisper-base-en"), cpu_threads=4)
+def test_whisper_transcribes_meeting_speech(model_dir):
+    t = WhisperTranscriber(model_dir("whisper-base-en"), cpu_threads=4)
     with wave.open(str(AMI / "ES2002a.wav")) as w:
         audio = np.frombuffer(w.readframes(16000 * 20), dtype=np.int16)
     result = t.transcribe(audio, final=True)

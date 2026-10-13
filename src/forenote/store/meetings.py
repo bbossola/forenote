@@ -37,6 +37,20 @@ class MeetingStore:
             )
         return cur.rowcount == 1
 
+    def end_processing(self, meeting_id: int) -> bool:
+        """The notes job ended: processing becomes done. Return False for another status."""
+        with self._conn:
+            cur = self._conn.execute(
+                "UPDATE meetings SET status = 'done' WHERE id = ? AND status = 'processing'", (meeting_id,)
+            )
+        return cur.rowcount == 1
+
+    def finish_processing(self) -> int:
+        """At engine start: no notes job runs, so processing meetings become done (spec B 4.2)."""
+        with self._conn:
+            cur = self._conn.execute("UPDATE meetings SET status = 'done' WHERE status = 'processing'")
+        return cur.rowcount
+
     def mark_interrupted(self) -> int:
         """Mark meetings that were still recording as interrupted (engine start).
 

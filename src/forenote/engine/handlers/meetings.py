@@ -20,6 +20,7 @@ from forenote.audio.sources import FileAudioSource, PulseSource
 from forenote.meeting.recorder import Recorder, RecorderError
 from forenote.models.manifest import ManifestError, for_tier
 from forenote.rpc.protocol import APP_ERROR, RpcError
+from forenote.scheduler import Priority
 from forenote.workers import run_in_daemon_thread
 
 log = logging.getLogger(__name__)
@@ -85,6 +86,7 @@ class MeetingsHandlers:
             self._emit_event,
             self.settings.get("silence_timeout_min") * 60,
             on_finished=self._recording_finished,
+            final_status=self._final_status,
         )
         try:
             lost = await recorder.open()
@@ -110,6 +112,7 @@ class MeetingsHandlers:
             await self._undo_start(recorder, meeting_id)
             self._check_not_closed()
         self._recorder = recorder
+        self.scheduler.pause(Priority.NOTES)
         self._recording_debug = debug_file is not None
         return {"meeting_id": meeting_id, "started_at": self.meetings.get(meeting_id)["started_at"]}
 
@@ -153,6 +156,17 @@ class MeetingsHandlers:
         if recorder is not None and not recorder.worker_stopped:
             log.warning("the ASR thread did not stop; the speech model loads again next time")
             self._transcriber = None
+        self.scheduler.resume(Priority.NOTES)
+        if status == "processing" and recorder is not None:
+            mid = recorder.meeting_id
+            try:
+                self._queue_notes(mid, False)
+            except Exception as e:  # noqa: BLE001 - for example the scheduler stops: no job can run now
+                log.error("the notes job cannot start: %s", type(e).__name__)
+                # Send the events of a failed job, so that a waiting client does not wait forever.
+                if self.meetings.end_processing(mid):
+                    self._emit_event("meeting.state", {"meeting_id": mid, "status": "done"})
+                    self._emit_event("notes.done", {"meeting_id": mid, "status": "failed"})
 
     async def _stop_recording_for_shutdown(self) -> None:
         if self._recorder is not None:
