@@ -65,7 +65,7 @@ class _Conn:
             raise
         except Exception as e:  # noqa: BLE001 - safety net
             if not isinstance(e, (ConnectionError, RuntimeError)):
-                log.exception("RPC writer failed for client %s", self.client)
+                log.error("RPC writer failed for client %s: %s", self.client, type(e).__name__)
             self.abort()
 
 

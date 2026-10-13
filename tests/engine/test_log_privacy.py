@@ -32,7 +32,11 @@ async def test_a_notes_job_logs_no_user_content(engine, client, llm_installed, c
 
     engine.llm_factory = lambda *a: FakeTextGenerator(outputs)
     await client.call("notes.enhance", {"meeting_id": mid})
-    await events_until(client, done(mid))
+    seen = await events_until(client, done(mid))
+    assert seen[-1][1]["status"] == "done"
+    assert "did not parse" in caplog.text  # the job reached the parse-fail path
+    got = await client.call("notes.get", {"meeting_id": mid})
+    assert MARK in got["bullets"][0]["enhanced_text"]  # the marker went through the model output
     assert MARK not in caplog.text
 
 
