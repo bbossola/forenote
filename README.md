@@ -8,7 +8,7 @@ Inspiration: [Google AI Edge Foresight](https://developers.google.com/edge/fores
 an on-device meeting notetaker for macOS. Forenote is an independent project for
 Linux. It is not affiliated with Google and does not use Foresight code or models.
 
-Status: early development. The engine records meetings and transcribes them (CLI only).
+Status: early development. The engine records meetings, transcribes them, writes notes, and indexes local folders (CLI only).
 
 ## Requirements
 
@@ -36,6 +36,9 @@ Run the engine and the CLI:
     uv run forenote-cli note "budget"     # add a bullet to the running meeting
     uv run forenote-cli notes 4           # print the notes of meeting 4
     uv run forenote-cli enhance 4         # write the notes again; --force also replaces your edits
+    uv run forenote-cli index ~/Documents   # add a folder to the library and index its files
+    uv run forenote-cli library             # list the library folders
+    uv run forenote-cli bench embed         # measure the embedding speed
     uv run forenote-cli bench asr
     uv run forenote-cli bench llm         # measure the notes speed (15 to 25 minutes)
     uv run forenote-cli shutdown

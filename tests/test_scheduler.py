@@ -304,3 +304,17 @@ async def test_running_type(sched):
     release.set()
     await rec.wait_finished(1)
     assert s.running_type is None
+
+
+async def test_has_waiting_sees_only_higher_jobs_that_can_run(jobs):
+    s = Scheduler(jobs)
+
+    async def nothing(token, report):
+        return None
+
+    assert not s.has_waiting(Priority.INDEX)
+    s.submit("notes", Priority.NOTES, nothing)
+    assert s.has_waiting(Priority.INDEX)
+    assert not s.has_waiting(Priority.NOTES)  # the same priority does not count
+    s.pause(Priority.NOTES)
+    assert not s.has_waiting(Priority.INDEX)  # a paused job cannot run

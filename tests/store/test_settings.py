@@ -72,3 +72,14 @@ def test_asr_final_beam_size():
     assert default == 5
     assert valid(1) and valid(10)
     assert not valid(0) and not valid(11) and not valid(True)
+
+
+def test_kb_limits_have_defaults_and_ranges(settings):
+    s = settings
+    assert s.get("kb_max_file_mb") == 50
+    assert s.get("kb_max_pages") == 500
+    s.set("kb_max_file_mb", 500)
+    s.set("kb_max_pages", 5000)
+    for key, bad in (("kb_max_file_mb", 0), ("kb_max_file_mb", 501), ("kb_max_pages", 0), ("kb_max_pages", 5001), ("kb_max_pages", True)):
+        with pytest.raises(ValueError):
+            s.set(key, bad)

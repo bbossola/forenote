@@ -23,6 +23,12 @@ class Paths:
     data_dir: Path
     state_dir: Path
     runtime_dir: Path
+    cache_home: Path | None = None  # $XDG_CACHE_HOME/forenote. None: a folder in state_dir (tests).
+
+    @property
+    def cache_dir(self) -> Path:
+        """Files that the app can make again, for example the LiteRT-LM cache (spec C 4.3)."""
+        return self.cache_home if self.cache_home is not None else self.state_dir / "cache"
 
     @property
     def models_dir(self) -> Path:
@@ -46,17 +52,18 @@ class Paths:
         home = _absolute(env.get("HOME")) or Path.home()
         data = _absolute(env.get("XDG_DATA_HOME")) or home / ".local" / "share"
         state = _absolute(env.get("XDG_STATE_HOME")) or home / ".local" / "state"
+        cache = _absolute(env.get("XDG_CACHE_HOME")) or home / ".cache"
         runtime = _absolute(env.get("XDG_RUNTIME_DIR"))
         if runtime:
             runtime_dir = runtime / APP
         else:
             runtime_dir = Path(tempfile.gettempdir()) / f"{APP}-{os.getuid()}"
-        return cls(data / APP, state / APP, runtime_dir)
+        return cls(data / APP, state / APP, runtime_dir, cache / APP)
 
     def ensure(self) -> None:
         if len(os.fsencode(self.socket_path)) > MAX_SOCKET_PATH:
             raise ValueError(f"socket path is too long: {self.socket_path}")
-        for d in (self.data_dir, self.models_dir, self.state_dir, self.log_dir):
+        for d in (self.data_dir, self.models_dir, self.state_dir, self.log_dir, self.cache_dir):
             d.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.runtime_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
         st = os.lstat(self.runtime_dir)

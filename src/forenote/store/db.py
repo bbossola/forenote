@@ -25,3 +25,15 @@ def connect(path: Path | str) -> sqlite3.Connection:
     finally:
         conn.enable_load_extension(False)
     return conn
+
+
+def connect_kb(path: Path | str) -> sqlite3.Connection:
+    """The connection of the KB writer thread (spec C 5.4). Use it in one thread only.
+
+    The engine can build the index again from the files, so synchronous=NORMAL
+    is safe here. The loop connection keeps synchronous=FULL for the transcript.
+    """
+    conn = connect(path)
+    conn.execute("PRAGMA busy_timeout = 5000")
+    conn.execute("PRAGMA synchronous = NORMAL")
+    return conn

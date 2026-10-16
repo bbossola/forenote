@@ -450,3 +450,13 @@ async def test_device_events_after_engine_stop_are_ignored(engine):
     engine._on_device_event(DefaultsChanged(Defaults("mic", "sink")))
     assert engine._detector._streams == {}
     assert engine._audio_defaults is None
+
+
+async def test_a_recording_pauses_the_index_jobs(engine, client, speech_installed):
+    from forenote.scheduler import Priority
+
+    engine.debug_realtime = True
+    await call(client, "meeting.start", {"debug_file": CLIP})
+    assert int(Priority.INDEX) in engine.scheduler._paused
+    await call(client, "meeting.stop", {})
+    assert int(Priority.INDEX) not in engine.scheduler._paused

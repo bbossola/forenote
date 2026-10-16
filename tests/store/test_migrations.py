@@ -10,7 +10,7 @@ from forenote.store.migrations import SchemaTooNew, current_version, migrate
 TABLES = {
     "settings", "meetings", "transcript_lines", "bullets", "meeting_outputs",
     "folders", "documents", "chunks", "chunks_fts", "chunks_vec",
-    "chat_sessions", "chat_messages", "jobs", "schema_version", "meeting_markers",
+    "chat_sessions", "chat_messages", "jobs", "schema_version", "meeting_markers", "meeting_index",
     "transcript_fts",
 }
 
@@ -102,11 +102,11 @@ def test_deleting_a_document_removes_its_index_rows(tmp_path):
             "INSERT INTO documents(id, folder_id, path, mtime, status) VALUES (1, 1, '/f/a.md', 0, 'indexed')"
         )
         conn.execute(
-            "INSERT INTO chunks(id, document_id, kind, text, locator) "
-            "VALUES (1, 1, 'file', 'budget review on Thursday', '{}')"
+            "INSERT INTO chunks(id, document_id, kind, position, embed_model, text, locator) "
+            "VALUES (1, 1, 'file', 0, 'm', 'budget review on Thursday', '{}')"
         )
         conn.execute(
-            "INSERT INTO chunks_vec(chunk_id, embedding) VALUES (1, ?)",
+            "INSERT INTO chunks_vec(chunk_id, embedding, kind) VALUES (1, ?, 'file')",
             (sqlite_vec.serialize_float32([0.1] * 768),),
         )
     assert conn.execute("SELECT COUNT(*) FROM chunks_fts WHERE chunks_fts MATCH 'budget'").fetchone()[0] == 1
@@ -124,7 +124,7 @@ def test_chunk_needs_exactly_one_owner(tmp_path):
     migrate(conn)
     with pytest.raises(sqlite3.IntegrityError):
         with conn:
-            conn.execute("INSERT INTO chunks(kind, text, locator) VALUES ('file', 'x', '{}')")
+            conn.execute("INSERT INTO chunks(kind, position, embed_model, text, locator) VALUES ('file', 0, 'm', 'x', '{}')")
 
 
 def test_chunk_ids_are_not_reused(tmp_path):
@@ -135,11 +135,11 @@ def test_chunk_ids_are_not_reused(tmp_path):
         conn.execute(
             "INSERT INTO documents(id, folder_id, path, mtime, status) VALUES (1, 1, '/f/a.md', 0, 'indexed')"
         )
-        conn.execute("INSERT INTO chunks(document_id, kind, text, locator) VALUES (1, 'file', 'a', '{}')")
+        conn.execute("INSERT INTO chunks(document_id, kind, position, embed_model, text, locator) VALUES (1, 'file', 0, 'm', 'a', '{}')")
     first = conn.execute("SELECT id FROM chunks").fetchone()[0]
     with conn:
         conn.execute("DELETE FROM chunks WHERE id = ?", (first,))
-        conn.execute("INSERT INTO chunks(document_id, kind, text, locator) VALUES (1, 'file', 'b', '{}')")
+        conn.execute("INSERT INTO chunks(document_id, kind, position, embed_model, text, locator) VALUES (1, 'file', 0, 'm', 'b', '{}')")
     assert first == 1
     assert conn.execute("SELECT id FROM chunks").fetchone()[0] == 2
 
@@ -153,7 +153,7 @@ def test_chunk_kind_must_match_owner(tmp_path):
         )
     with pytest.raises(sqlite3.IntegrityError):
         with conn:
-            conn.execute("INSERT INTO chunks(meeting_id, kind, text, locator) VALUES (1, 'file', 'x', '{}')")
+            conn.execute("INSERT INTO chunks(meeting_id, kind, position, embed_model, text, locator) VALUES (1, 'file', 0, 'm', 'x', '{}')")
 
 
 def _columns(conn, table):
@@ -218,3 +218,63 @@ def test_the_transcript_index_follows_updates(tmp_path):
     conn.execute("UPDATE transcript_lines SET text = 'yellow banana' WHERE id = 1")
     assert _fts_rowids(conn, "buttons") == []
     assert _fts_rowids(conn, "banana") == [1]
+
+
+def test_v4_makes_the_kb_tables_again(tmp_path, monkeypatch):
+    db = tmp_path / "t.db"
+    conn = connect(db)
+    monkeypatch.setattr(migrations, "MIGRATIONS", migrations.MIGRATIONS[:3])
+    migrate(conn, db)
+    conn.execute("INSERT INTO meetings(id, title, started_at, status) VALUES (1, 'm', '2026-10-15T09:00:00+00:00', 'done')")
+    conn.execute("INSERT INTO transcript_lines(meeting_id, speaker, t_start_ms, t_end_ms, text) VALUES (1, 'me', 0, 900, 'kept line')")
+    conn.execute("INSERT INTO chat_sessions(id, title, created_at) VALUES (1, 't', '2026-10-15T10:00:00+00:00')")
+    conn.execute("INSERT INTO chat_messages(session_id, role, text, created_at) VALUES (1, 'user', 'q', '2026-10-15T10:00:00+00:00')")
+    conn.commit()
+    monkeypatch.undo()
+    migrate(conn, db)
+    chunks = _columns(conn, "chunks")
+    assert {"position", "embed_model"} <= set(chunks)
+    assert {"size", "indexed_at"} <= set(_columns(conn, "documents"))
+    row = conn.execute("SELECT status, scope, model FROM chat_messages").fetchone()
+    assert tuple(row) == ("done", None, None)
+    assert (tmp_path / "t.db.v3.bak").exists()
+    assert [tuple(r) for r in conn.execute("SELECT id, title FROM meetings")] == [(1, "m")]
+    assert [tuple(r) for r in conn.execute("SELECT meeting_id, text FROM transcript_lines")] == [(1, "kept line")]
+
+
+def test_v4_chunks_accept_the_notes_kind_and_the_fts_stems(tmp_path):
+    conn = connect(tmp_path / "t.db")
+    migrate(conn)
+    conn.execute("INSERT INTO meetings(id, title, started_at, status) VALUES (1, 'm', '2026-10-15T10:00:00+00:00', 'done')")
+    conn.execute(
+        "INSERT INTO chunks(id, meeting_id, kind, position, text, locator, embed_model) "
+        "VALUES (1, 1, 'notes', 0, 'the budgets grow', '{}', 'm')"
+    )
+    assert [r[0] for r in conn.execute("SELECT rowid FROM chunks_fts WHERE chunks_fts MATCH 'budget'")] == [1]
+
+
+def test_v4_vectors_filter_by_kind(tmp_path):
+    import numpy as np
+
+    conn = connect(tmp_path / "t.db")
+    migrate(conn)
+    a = np.zeros(768, np.float32)
+    a[0] = 1.0
+    b = np.zeros(768, np.float32)
+    b[1] = 1.0
+    conn.execute("INSERT INTO chunks_vec(chunk_id, embedding, kind) VALUES (1, ?, 'file')", (a.tobytes(),))
+    conn.execute("INSERT INTO chunks_vec(chunk_id, embedding, kind) VALUES (2, ?, 'transcript')", (b.tobytes(),))
+    rows = conn.execute(
+        "SELECT chunk_id FROM chunks_vec WHERE embedding MATCH ? AND k = 5 AND kind IN ('transcript', 'notes')",
+        (a.tobytes(),),
+    ).fetchall()
+    assert [r[0] for r in rows] == [2]
+
+
+def test_v4_meeting_index_follows_the_meeting(tmp_path):
+    conn = connect(tmp_path / "t.db")
+    migrate(conn)
+    conn.execute("INSERT INTO meetings(id, title, started_at, status) VALUES (1, 'm', '2026-10-15T10:00:00+00:00', 'done')")
+    conn.execute("INSERT INTO meeting_index VALUES (1, 'transcript', 'abc', '2026-10-15T10:00:00+00:00')")
+    conn.execute("DELETE FROM meetings WHERE id = 1")
+    assert conn.execute("SELECT COUNT(*) FROM meeting_index").fetchone()[0] == 0

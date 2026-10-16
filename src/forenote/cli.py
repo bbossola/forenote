@@ -52,6 +52,9 @@ def build_parser() -> argparse.ArgumentParser:
     enhance = sub.add_parser("enhance", help="write the notes of a meeting again and stream them")
     enhance.add_argument("meeting_id", type=int)
     enhance.add_argument("--force", action="store_true", help="also replace the expansions that you edited")
+    index = sub.add_parser("index", help="add a folder to the library and index its files")
+    index.add_argument("path")
+    sub.add_parser("library", help="list the library folders")
     bench = sub.add_parser("bench", help="measure performance on this computer")
     bsub = bench.add_subparsers(dest="bench_command", required=True)
     basr = bsub.add_parser("asr", help="measure speech recognition cost")
@@ -66,6 +69,9 @@ def build_parser() -> argparse.ArgumentParser:
     bllm.add_argument("--clips", help="directory of WAV files: also measure speech recognition during the live reading")
     bllm.add_argument("--fixture", default="tests/fixtures/ami", help="directory of the AMI fixture")
     bllm.add_argument("--no-cold", action="store_true", help="skip the run without live reading")
+    bembed = bsub.add_parser("embed", help="measure the embedding speed and the index speed")
+    bembed.add_argument("--threads", type=_positive_int, help="embedding threads (default: from the hardware)")
+    bembed.add_argument("--pdf", help="also parse, chunk and embed this PDF, and measure the pages per minute")
     return ap
 
 
@@ -333,6 +339,45 @@ async def run(args: argparse.Namespace, client: Any, out: TextIO = sys.stdout, i
         say("The connection to the engine closed.")
         return 1
 
+    if args.command == "index":
+        path = str(Path(args.path).expanduser().resolve())
+        r = await client.call("library.add_folder", {"path": path}, timeout=ADD_FOLDER_TIMEOUT)
+        fid = r["folder_id"]
+        say(f"Folder {fid} added." if r["added"] else f"Folder {fid} is already in the library. The engine scanned it again.")
+        if r["pending"] == 0:
+            return await _print_folder(client, fid, say)
+        say(f"{r['pending']} files to index. Press Ctrl-C to leave; the index job continues.")
+        try:
+            async for name, p in client.events():
+                if not name.startswith("job.") or p.get("type") != INDEX_JOB:
+                    continue
+                if name == "job.progress" and p.get("fraction") is not None:
+                    say(f"[index: {p['message']}]")
+                elif name == "job.failed":
+                    say(f"The index job failed: {p['error']}")
+                    return 1
+                elif name == "job.done":
+                    if p["status"] == "cancelled":
+                        say("The index job was cancelled.")
+                        return 1
+                    folder = await _folder(client, fid)
+                    if folder is None or folder["counts"]["pending"] == 0:
+                        return await _print_folder(client, fid, say, folder)
+                    say("Some files wait for a recording or another job. The index continues after it.")
+        except (KeyboardInterrupt, asyncio.CancelledError):
+            say("The index job continues in the engine. Run 'forenote-cli library' to see the progress.")
+            return 130
+        say("The connection to the engine closed.")
+        return 1
+
+    if args.command == "library":
+        folders = await client.call("library.list")
+        if not folders:
+            say("No folders. Run 'forenote-cli index PATH'.")
+        for f in folders:
+            say(f"{f['id']:>4}  {f['status']:<7}  {_counts_text(f['counts'])}  {f['path']}")
+        return 0
+
     return 2
 
 
@@ -386,6 +431,23 @@ async def _finish_notes(client: Any, mid: int, status: str, say: Any, error: str
         say(f"The notes job failed: {error}")
     say(f"The notes were not written. Run 'forenote-cli enhance {mid}' to try again.")
     return 1
+
+
+def _counts_text(c: dict[str, int]) -> str:
+    return f"{c['indexed']} indexed, {c['pending']} pending, {c['error']} with errors, {c['skipped']} skipped"
+
+
+async def _folder(client: Any, folder_id: int) -> dict[str, Any] | None:
+    return next((f for f in await client.call("library.list") if f["id"] == folder_id), None)
+
+
+async def _print_folder(client: Any, folder_id: int, say: Any, folder: dict[str, Any] | None = None) -> int:
+    folder = folder or await _folder(client, folder_id)
+    if folder is None:
+        say("The folder is not in the library.")
+        return 1
+    say(f"Done: {_counts_text(folder['counts'])}.")
+    return 0
 
 
 async def _read_bullets(client: Any, meeting_id: int, inp: Any, say: Any) -> None:
@@ -442,15 +504,19 @@ def _interrupt_text(args: argparse.Namespace) -> str:
         return "The download continues in the engine."
     if args.command == "record":
         return "The recording continues in the engine. Run 'forenote-cli stop' to stop it."
+    if args.command == "index":
+        return "The index job continues in the engine."
     return "Interrupted."
 
 
 PAGE = 1000
 NOTES_JOB = "notes.enhance"
+INDEX_JOB = "kb.index"
+ADD_FOLDER_TIMEOUT = 600.0  # the scan hashes the new files before the reply
 WRITING_NOTES = "Writing the notes. Press Ctrl-C to leave; the notes job continues."
 STOP_TIMEOUT = 90.0  # the engine can drain for 60 s
 BEAM_SIZE = 5
-NO_START = ("status", "shutdown", "stop", "meetings", "transcript", "note", "notes")
+NO_START = ("status", "shutdown", "stop", "meetings", "transcript", "note", "notes", "library")
 
 
 async def _main(args: argparse.Namespace) -> int:
@@ -635,11 +701,65 @@ def _bench_asr_callable(clips: Path, hw, store, manifest):
     return lambda: bench_transcriber(transcriber, utterances).cost_per_speech_s
 
 
+def _bench_embed(args: argparse.Namespace) -> int:
+    try:
+        return _bench_embed_run(args)
+    except KeyboardInterrupt:
+        print("Interrupted.", file=sys.stderr)
+        return 130
+    except (OSError, RuntimeError) as e:  # EmbedError is a RuntimeError
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+
+def _bench_embed_run(args: argparse.Namespace) -> int:
+    import time
+
+    from forenote.bench_embed import PAGE_TOKENS, run_bench
+    from forenote.embed.litert import LiteRtEmbedder
+    from forenote.hw import detect
+    from forenote.kb.parse_process import ParserProcess
+    from forenote.models.download import ModelStore
+    from forenote.models.manifest import load_manifest, model_for_tier
+
+    hw = detect()
+    paths = Paths.from_env()
+    store = ModelStore(paths.models_dir)
+    entry = model_for_tier(load_manifest(), hw.tier or "default", "embedding")
+    if entry is None or not store.is_installed(entry):
+        print("No embedding model is installed. Run: forenote-cli models download.", file=sys.stderr)
+        return 1
+    pdf = Path(args.pdf) if args.pdf else None
+    if pdf is not None and not pdf.is_file():
+        print(f"No such file: {args.pdf}", file=sys.stderr)
+        return 1
+    threads = args.threads or hw.threads
+    embedder = LiteRtEmbedder(store.path(entry, entry.files[0]), entry.id, paths.cache_dir / "litert", threads)
+    parser = ParserProcess() if pdf is not None else None
+    start = time.perf_counter()
+    embedder.load()
+    load_s = time.perf_counter() - start
+    try:
+        r = run_bench(embedder, parser, pdf)
+    finally:
+        embedder.close()
+        if parser is not None:
+            parser.close()
+    print(f"Model {entry.id}; threads {threads}; load {load_s:.1f} s")
+    print(f"Embedding: {r.chunks_per_s:.2f} chunks/s (target: 2 or more, 8 cores)")
+    print(f"Index estimate: {r.pages_per_min:.0f} pages/min for pages of {PAGE_TOKENS} tokens (target: 100 or more)")
+    if r.pdf_pages is not None:
+        print(f"PDF: {r.pdf_pages} pages at {r.pdf_pages_per_min:.0f} pages/min (parse, chunk and embed)")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "bench":
         if args.bench_command == "llm":
             return _bench_llm(args)
+        if args.bench_command == "embed":
+            return _bench_embed(args)
         return _bench_asr(Path(args.clips))
     try:
         return asyncio.run(_main(args))

@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from importlib import resources
 
 TIERS = ("low", "default", "high")
-ROLES = ("llm", "speech")
+ROLES = ("llm", "speech", "embedding")
 
 _REVISION = re.compile(r"^[0-9a-f]{40}$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
@@ -105,11 +105,16 @@ def for_tier(entries: list[ModelEntry], tier: str) -> list[ModelEntry]:
 CONTEXT_SIZE = {"low": 8192, "default": 16384, "high": 32768}  # spec B 6.1, decision 0003
 
 
-def llm_for_tier(entries: list[ModelEntry], tier: str | None) -> ModelEntry | None:
-    """The LLM of a tier, or None when the tier or the model is not known."""
+def model_for_tier(entries: list[ModelEntry], tier: str | None, role: str) -> ModelEntry | None:
+    """The model of a role in a tier, or None when the tier or the model is not known."""
     if tier is None:
         return None
     try:
-        return next((e for e in for_tier(entries, tier) if e.role == "llm"), None)
+        return next((e for e in for_tier(entries, tier) if e.role == role), None)
     except (ManifestError, ValueError):
         return None
+
+
+def llm_for_tier(entries: list[ModelEntry], tier: str | None) -> ModelEntry | None:
+    """The LLM of a tier, or None when the tier or the model is not known."""
+    return model_for_tier(entries, tier, "llm")

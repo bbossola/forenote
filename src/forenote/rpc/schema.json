@@ -362,6 +362,49 @@
         "additionalProperties": false
       },
       "result": {"type": "object", "additionalProperties": false}
+    },
+    "library.add_folder": {
+      "params": {
+        "type": "object",
+        "properties": {"path": {"type": "string", "minLength": 1}},
+        "required": ["path"],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "folder_id": {"type": "integer"},
+          "added": {"type": "boolean"},
+          "pending": {"type": "integer", "minimum": 0},
+          "job_id": {"type": ["integer", "null"]}
+        },
+        "required": ["folder_id", "added", "pending", "job_id"]
+      }
+    },
+    "library.list": {
+      "params": {"type": "object", "additionalProperties": false},
+      "result": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {"type": "integer"},
+            "path": {"type": "string"},
+            "status": {"enum": ["ok", "missing"]},
+            "counts": {
+              "type": "object",
+              "properties": {
+                "indexed": {"type": "integer"},
+                "pending": {"type": "integer"},
+                "error": {"type": "integer"},
+                "skipped": {"type": "integer"}
+              },
+              "required": ["indexed", "pending", "error", "skipped"]
+            }
+          },
+          "required": ["id", "path", "status", "counts"]
+        }
+      }
     }
   },
   "events": {

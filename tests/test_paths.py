@@ -78,3 +78,29 @@ def test_ensure_rejects_long_socket_path(tmp_path):
     with pytest.raises(ValueError):
         p.ensure()
     assert not p.data_dir.exists()
+
+
+def test_cache_dir_follows_xdg_cache_home(tmp_path):
+    p = Paths.from_env({"HOME": str(tmp_path), "XDG_CACHE_HOME": str(tmp_path / "c")})
+    assert p.cache_dir == tmp_path / "c" / "forenote"
+
+
+def test_cache_dir_defaults_to_home_cache(tmp_path):
+    p = Paths.from_env({"HOME": str(tmp_path)})
+    assert p.cache_dir == tmp_path / ".cache" / "forenote"
+
+
+def test_a_relative_cache_home_is_ignored(tmp_path):
+    p = Paths.from_env({"HOME": str(tmp_path), "XDG_CACHE_HOME": "rel"})
+    assert p.cache_dir == tmp_path / ".cache" / "forenote"
+
+
+def test_paths_without_a_cache_home_use_the_state_dir(tmp_path):
+    p = Paths(tmp_path / "d", tmp_path / "s", tmp_path / "r")
+    assert p.cache_dir == tmp_path / "s" / "cache"
+
+
+def test_ensure_makes_the_cache_dir(tmp_path, short_tmp):
+    p = Paths(tmp_path / "d", tmp_path / "s", short_tmp / "r", tmp_path / "c")
+    p.ensure()
+    assert (tmp_path / "c").is_dir()

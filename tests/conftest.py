@@ -11,7 +11,8 @@ from forenote.paths import Paths
 
 LLM_BYTES = b"fake llm weights"
 SPEECH_BYTES = b"fake speech model"
-CONTENT = {"llm.gguf": LLM_BYTES, "model.bin": SPEECH_BYTES}
+EMBED_BYTES = b"fake embedding model"
+CONTENT = {"llm.gguf": LLM_BYTES, "model.bin": SPEECH_BYTES, "embed.litertlm": EMBED_BYTES}
 
 
 def _sha(b: bytes) -> str:
@@ -64,6 +65,8 @@ def test_manifest():
                    (ModelFile("llm.gguf", len(LLM_BYTES), _sha(LLM_BYTES)),)),
         ModelEntry("speech-test", "speech", ("default",), "org/speech", "b" * 40, "mit",
                    (ModelFile("model.bin", len(SPEECH_BYTES), _sha(SPEECH_BYTES)),)),
+        ModelEntry("embed-test", "embedding", ("default",), "org/embed", "c" * 40, "apache-2.0",
+                   (ModelFile("embed.litertlm", len(EMBED_BYTES), _sha(EMBED_BYTES)),)),
     ]
 
 
@@ -89,6 +92,7 @@ def fake_llm_outputs(prompt):
 
 @pytest.fixture
 async def engine(paths, hardware, test_manifest):
+    from forenote.embed.fake import FakeEmbedder
     from forenote.engine.app import Engine
     from forenote.llm.fake import FakeTextGenerator
 
@@ -101,6 +105,7 @@ async def engine(paths, hardware, test_manifest):
         debug_sources=True,
         debug_realtime=False,
         llm_factory=lambda path, model_id, context_size, threads: FakeTextGenerator(fake_llm_outputs),
+        embedder_factory=lambda path, model_id, cache_dir, threads: FakeEmbedder(model_id),
     )
     await e.start()
     yield e
@@ -121,6 +126,14 @@ def llm_installed(paths):
     d = paths.models_dir / "llm-test"
     d.mkdir(parents=True, exist_ok=True)
     (d / "llm.gguf").write_bytes(CONTENT["llm.gguf"])
+
+
+@pytest.fixture
+def embed_installed(paths):
+    """Mark the test embedding model as installed."""
+    d = paths.models_dir / "embed-test"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "embed.litertlm").write_bytes(CONTENT["embed.litertlm"])
 
 
 @pytest.fixture

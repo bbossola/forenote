@@ -21,6 +21,7 @@ CALLS = [
     ("meeting.list", {}),
     ("meeting.keep_recording", {}),
     ("meeting.dismiss_detection", {"app": "zoom"}),
+    ("library.list", {}),
 ]
 
 

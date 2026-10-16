@@ -37,6 +37,8 @@ SPEC: dict[str, tuple[Any, Callable[[Any], bool]]] = {
     "bullet_window_after_s": (60, _is_int_in(0, 1800)),
     "asr_final_beam_size": (5, _is_int_in(1, 10)),
     "ollama_url": ("", lambda v: isinstance(v, str)),
+    "kb_max_file_mb": (50, _is_int_in(1, 500)),  # spec C 4.5
+    "kb_max_pages": (500, _is_int_in(1, 5000)),
 }
 
 
