@@ -113,6 +113,7 @@ class MeetingsHandlers:
             self._check_not_closed()
         self._recorder = recorder
         self.scheduler.pause(Priority.NOTES)
+        self.scheduler.pause(Priority.INDEX)  # spec 8.7: indexing pauses during a recording
         self._start_live_reading(recorder)
         self._recording_debug = debug_file is not None
         return {"meeting_id": meeting_id, "started_at": self.meetings.get(meeting_id)["started_at"]}
@@ -160,6 +161,7 @@ class MeetingsHandlers:
             log.warning("the ASR thread did not stop; the speech model loads again next time")
             self._transcriber = None
         self.scheduler.resume(Priority.NOTES)
+        self.scheduler.resume(Priority.INDEX)
         if status == "processing" and recorder is not None:
             mid = recorder.meeting_id
             try:

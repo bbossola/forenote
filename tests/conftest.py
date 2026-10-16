@@ -92,6 +92,7 @@ def fake_llm_outputs(prompt):
 
 @pytest.fixture
 async def engine(paths, hardware, test_manifest):
+    from forenote.embed.fake import FakeEmbedder
     from forenote.engine.app import Engine
     from forenote.llm.fake import FakeTextGenerator
 
@@ -104,6 +105,7 @@ async def engine(paths, hardware, test_manifest):
         debug_sources=True,
         debug_realtime=False,
         llm_factory=lambda path, model_id, context_size, threads: FakeTextGenerator(fake_llm_outputs),
+        embedder_factory=lambda path, model_id, cache_dir, threads: FakeEmbedder(model_id),
     )
     await e.start()
     yield e

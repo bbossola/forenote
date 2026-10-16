@@ -10,13 +10,17 @@ from typing import Any
 
 from forenote import __version__
 from forenote.engine.handlers.jobs import JobsHandlers
+from forenote.engine.handlers.library import LibraryHandlers
 from forenote.engine.handlers.live import LiveHandlers
 from forenote.engine.handlers.meetings import MeetingsHandlers
-from forenote.engine.handlers.models import DOWNLOAD_JOB, ModelsHandlers  # noqa: F401 - DOWNLOAD_JOB is re-exported
+from forenote.engine.handlers.models import DOWNLOAD_JOB, ModelsHandlers
 from forenote.engine.handlers.notes import NOTES_JOB, NotesHandlers
 from forenote.engine.handlers.settings import SettingsHandlers
 from forenote.engine.handlers.system import SystemHandlers
 from forenote.hw import HardwareReport
+from forenote.kb.indexer import INDEX_JOB
+from forenote.kb.parse_process import ParserProcess
+from forenote.kb.writer import KbWriter
 from forenote.llm.base import STALL_S
 from forenote.meeting.detector import MeetingDetector
 from forenote.models.download import Fetch, ModelStore, hf_fetch
@@ -28,6 +32,7 @@ from forenote.rpc.server import RpcServer
 from forenote.scheduler import Scheduler
 from forenote.store.db import connect
 from forenote.store.jobs import JobStore
+from forenote.store.library import LibraryStore
 from forenote.store.meetings import MeetingStore
 from forenote.store.migrations import migrate
 from forenote.store.notes import NotesStore
@@ -53,8 +58,22 @@ def _llama(model_path, model_id, context_size, threads):
     return LlamaCppGenerator(model_path, model_id, context_size, threads)
 
 
+def _litert(model_path, model_id, cache_dir, threads):
+    # Import at call time: keep the engine import light.
+    from forenote.embed.litert import LiteRtEmbedder
+
+    return LiteRtEmbedder(model_path, model_id, cache_dir, threads)
+
+
 class Engine(
-    SystemHandlers, SettingsHandlers, JobsHandlers, ModelsHandlers, MeetingsHandlers, LiveHandlers, NotesHandlers
+    SystemHandlers,
+    SettingsHandlers,
+    JobsHandlers,
+    ModelsHandlers,
+    MeetingsHandlers,
+    LiveHandlers,
+    NotesHandlers,
+    LibraryHandlers,
 ):
     def __init__(
         self,
@@ -65,6 +84,8 @@ class Engine(
         transcriber_factory=None,
         watcher_factory=None,
         llm_factory=None,
+        embedder_factory=None,
+        parser_factory=None,
         debug_sources: bool = False,
         debug_realtime: bool = True,
     ):
@@ -111,6 +132,16 @@ class Engine(
         self._detector_recording = False  # the engine records or starts a recording
         self._watcher_connected = True  # False while the device watcher has no server
         self._detector_task: asyncio.Task | None = None
+        self.embedder_factory = embedder_factory or _litert
+        self.parser_factory = parser_factory or ParserProcess
+        self.library = None
+        self.kb_writer = None
+        self.parser = None
+        self._embedder = None
+        self._embed_lock = asyncio.Lock()
+        self._index_job: int | None = None
+        self._index_again = False
+        self._scan_task: asyncio.Task | None = None
 
     # Lifecycle
 
@@ -126,6 +157,10 @@ class Engine(
                 log.warning("%d unfinished jobs marked as failed", stale)
             self.meetings = MeetingStore(self.conn)
             self.notes = NotesStore(self.conn)
+            self.library = LibraryStore(self.conn)
+            self.kb_writer = KbWriter(self.paths.db_path)
+            await run_in_daemon_thread(self.kb_writer.start)
+            self.parser = self.parser_factory()
             interrupted = self.meetings.mark_interrupted()
             if interrupted:
                 log.warning("%d meetings were still recording and are now interrupted", interrupted)
@@ -138,11 +173,15 @@ class Engine(
             await self.rpc.start()
             self._rpc_started = True
         except BaseException:
+            if self.kb_writer is not None:
+                await run_in_daemon_thread(self.kb_writer.stop)
+                self.kb_writer = None
             self.conn.close()
             self.conn = None
             self.scheduler = None
             raise
         self._scheduler_task = asyncio.create_task(self.scheduler.run())
+        self._scan_task = asyncio.create_task(self._scan_all())
         self._detector.set_call_apps(self.settings.get("call_apps"))
         if self._watcher_factory is not None and self.hardware.audio_server:
             loop = asyncio.get_running_loop()
@@ -185,6 +224,18 @@ class Engine(
             self._scheduler_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await self._scheduler_task
+        if self._scan_task is not None:
+            self._scan_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._scan_task
+        if self.parser is not None:
+            await run_in_daemon_thread(self.parser.close)  # a parse that waits in the child ends now
+        if self._embedder is not None:
+            embedder, self._embedder = self._embedder, None
+            try:
+                await asyncio.wait_for(run_in_daemon_thread(embedder.close), 10.0)
+            except TimeoutError:
+                log.warning("the embedding model did not close within 10 s")
         await self._stop_recording_for_shutdown()  # nothing can start now, but be sure
         self._stop_live_reading()
         await self._wait_live_reading(10.0)
@@ -202,6 +253,8 @@ class Engine(
             # gather() does not yield when all tasks are done, so the done callbacks
             # cannot run. Remove the done tasks here, or this loop never ends.
             self._tasks.difference_update([t for t in self._tasks if t.done()])
+        if self.kb_writer is not None:
+            await run_in_daemon_thread(lambda: self.kb_writer.stop(10.0))
         if self._rpc_started:
             await self.rpc.close()
         if self.conn is not None:
@@ -240,6 +293,10 @@ class Engine(
             self._spawn(self.rpc.broadcast("job.failed", {**base, "error": job["error"] or ""}))
         if job["type"] == NOTES_JOB and status in ("done", "failed", "cancelled"):
             self._notes_job_ended(job["id"], status)
+        if job["type"] == INDEX_JOB and status in ("done", "failed", "cancelled"):
+            self._index_job_ended(job["id"], status)
+        if job["type"] == DOWNLOAD_JOB and status == "done":
+            self._kick_index()  # the embedding model can be new
 
     def _report(self, job_id: int, type: str, status: str, error: str | None = None) -> None:
         self.jobs.set_status(job_id, status, error)
@@ -273,4 +330,6 @@ class Engine(
             "notes.get": self._notes_get,
             "notes.update_enhanced": self._notes_update_enhanced,
             "notes.enhance": self._notes_enhance,
+            "library.add_folder": self._library_add_folder,
+            "library.list": self._library_list,
         }
