@@ -173,10 +173,10 @@ def restore_modes():
         p.chmod(0o755)
 
 
-root_only = pytest.mark.skipif(os.geteuid() == 0, reason="root reads every directory")
+not_root = pytest.mark.skipif(os.geteuid() == 0, reason="root reads every directory")
 
 
-@root_only
+@not_root
 def test_an_unreadable_subdirectory_keeps_its_documents(lib, restore_modes):
     _, store, folder, root = lib
     make(root, "sub/a.md")
@@ -188,7 +188,7 @@ def test_an_unreadable_subdirectory_keeps_its_documents(lib, restore_modes):
     assert plan.removed == [] and len(store.documents(folder.id)) == 2
 
 
-@root_only
+@not_root
 def test_an_unreadable_root_makes_the_folder_missing_and_keeps_documents(lib, restore_modes):
     _, store, folder, root = lib
     make(root, "a.md")
@@ -209,7 +209,7 @@ def test_an_empty_root_with_known_documents_is_missing(lib):
     assert plan.missing and plan.removed == [] and len(store.documents(folder.id)) == 1
 
 
-@root_only
+@not_root
 def test_an_unreadable_file_comes_back_after_a_chmod(lib):
     _, store, folder, root = lib
     p = make(root, "a.md")
@@ -244,7 +244,7 @@ def test_a_file_that_goes_away_after_the_walk_is_removed(lib, monkeypatch):
     assert plan.unreadable == [] and plan.pending == []
 
 
-@root_only
+@not_root
 def test_a_subdirectory_that_lists_but_cannot_be_searched_keeps_its_documents(lib, restore_modes):
     _, store, folder, root = lib
     make(root, "sub/a.md")

@@ -225,6 +225,8 @@ def test_v4_makes_the_kb_tables_again(tmp_path, monkeypatch):
     conn = connect(db)
     monkeypatch.setattr(migrations, "MIGRATIONS", migrations.MIGRATIONS[:3])
     migrate(conn, db)
+    conn.execute("INSERT INTO meetings(id, title, started_at, status) VALUES (1, 'm', '2026-10-15T09:00:00+00:00', 'done')")
+    conn.execute("INSERT INTO transcript_lines(meeting_id, speaker, t_start_ms, t_end_ms, text) VALUES (1, 'me', 0, 900, 'kept line')")
     conn.execute("INSERT INTO chat_sessions(id, title, created_at) VALUES (1, 't', '2026-10-15T10:00:00+00:00')")
     conn.execute("INSERT INTO chat_messages(session_id, role, text, created_at) VALUES (1, 'user', 'q', '2026-10-15T10:00:00+00:00')")
     conn.commit()
@@ -235,6 +237,9 @@ def test_v4_makes_the_kb_tables_again(tmp_path, monkeypatch):
     assert {"size", "indexed_at"} <= set(_columns(conn, "documents"))
     row = conn.execute("SELECT status, scope, model FROM chat_messages").fetchone()
     assert tuple(row) == ("done", None, None)
+    assert (tmp_path / "t.db.v3.bak").exists()
+    assert [tuple(r) for r in conn.execute("SELECT id, title FROM meetings")] == [(1, "m")]
+    assert [tuple(r) for r in conn.execute("SELECT meeting_id, text FROM transcript_lines")] == [(1, "kept line")]
 
 
 def test_v4_chunks_accept_the_notes_kind_and_the_fts_stems(tmp_path):

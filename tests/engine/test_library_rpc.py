@@ -164,6 +164,12 @@ async def test_engine_stop_during_a_slow_parse_is_fast(paths, hardware, test_man
     finally:
         if not stopped:
             await e.stop()
+    conn = sqlite3.connect(paths.db_path)
+    try:
+        row = conn.execute("SELECT status, reason FROM documents").fetchone()
+    finally:
+        conn.close()
+    assert tuple(row) == ("pending", None)  # the stop is not a parse failure
 
 
 async def test_the_index_logs_no_path_and_no_text(engine, client, embed_installed, tmp_path, caplog):
