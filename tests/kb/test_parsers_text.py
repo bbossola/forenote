@@ -75,3 +75,36 @@ def test_a_missing_file_is_unreadable(tmp_path):
 def test_parse_failure_needs_a_known_code():
     with pytest.raises(ValueError):
         ParseFailure("something else")
+
+
+def test_html_mismatched_heading_end_tag_keeps_the_text(tmp_path):
+    p = write(tmp_path, "a.html", "<h2>Budget</h3><p>Body text.</p>")
+    assert parse(p, L) == [Section("Budget\nBody text.", {"heading": "Budget"})]
+
+
+def test_html_unclosed_heading_loses_no_text(tmp_path):
+    p = write(tmp_path, "a.html", "<p>Intro</p><h2>Budget<p>Body text.</p>")
+    assert parse(p, L) == [
+        Section("Intro", {}),
+        Section("Budget\nBody text.", {"heading": "Budget"}),
+    ]
+    only = write(tmp_path, "b.html", "<h2>Just a heading")
+    assert parse(only, L) == [Section("Just a heading", {"heading": "Just a heading"})]
+
+
+def test_html_nested_heading_start_keeps_the_first_heading(tmp_path):
+    p = write(tmp_path, "a.html", "<h2>One<h3>Two</h3>Body")
+    assert parse(p, L) == [
+        Section("One", {"heading": "One"}),
+        Section("Two\nBody", {"heading": "Two"}),
+    ]
+
+
+def test_markdown_heading_keeps_a_hash_inside_a_word(tmp_path):
+    p = write(tmp_path, "a.md", "# Learning C#\nText.")
+    assert parse(p, L) == [Section("Learning C#\nText.", {"heading": "Learning C#"})]
+
+
+def test_markdown_closing_hashes_are_removed(tmp_path):
+    p = write(tmp_path, "a.md", "## Title ##\nText.")
+    assert parse(p, L) == [Section("Title\nText.", {"heading": "Title"})]

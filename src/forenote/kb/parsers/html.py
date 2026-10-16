@@ -39,6 +39,8 @@ class _Collector(HTMLParser):
             return
         if self._skip:
             return
+        if tag in _BLOCK:
+            self.close_heading()  # an open heading ends at the next block
         if tag in _HEADINGS:
             self.flush()
             self._in_heading = tag
@@ -46,17 +48,24 @@ class _Collector(HTMLParser):
         if tag in _BLOCK:
             self._buf.append("\n")
 
+    def close_heading(self) -> None:
+        """End an open heading. Keep its text, even if the end tag is wrong or missing."""
+        if self._in_heading is None:
+            return
+        heading = " ".join("".join(self._heading_text).split())
+        self._heading = heading or self._heading
+        self._buf.append(heading + "\n")
+        self._in_heading = None
+        self._heading_text = []
+
     def handle_endtag(self, tag: str) -> None:
         if tag in _SKIP:
             self._skip = max(0, self._skip - 1)
             return
         if self._skip:
             return
-        if tag == self._in_heading:
-            heading = " ".join("".join(self._heading_text).split())
-            self._heading = heading or self._heading
-            self._buf.append(heading + "\n")
-            self._in_heading = None
+        if tag in _HEADINGS:
+            self.close_heading()  # any heading end tag closes the open heading
         if tag in _BLOCK:
             self._buf.append("\n")
 
@@ -73,5 +82,6 @@ def parse_html(path: Path, limits) -> list[Section]:
     c = _Collector()
     c.feed(read_text(path))
     c.close()
+    c.close_heading()
     c.flush()
     return c.sections

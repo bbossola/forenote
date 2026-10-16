@@ -7,13 +7,22 @@ from pathlib import Path
 
 from forenote.kb.sections import Section
 
-_HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
+_HEADING = re.compile(r"^(#{1,6})\s+(.*)$")
 _FENCE = ("```", "~~~")
 
 
 def read_text(path: Path) -> str:
     """UTF-8 with replacement characters for bad bytes. A BOM is removed."""
     return path.read_bytes().decode("utf-8-sig", errors="replace")
+
+
+def _heading_title(raw: str) -> str:
+    """Remove closing hashes. They need white space before them (CommonMark)."""
+    title = raw.strip()
+    bare = title.rstrip("#")
+    if bare != title and (not bare or bare[-1].isspace()):
+        title = bare.strip()
+    return title
 
 
 def parse_plain(path: Path, limits) -> list[Section]:
@@ -40,8 +49,9 @@ def parse_markdown(path: Path, limits) -> list[Section]:
         m = None if fenced else _HEADING.match(line)
         if m:
             flush()
-            heading = m.group(2).strip() or heading
-            buf.append(m.group(2).strip())
+            title = _heading_title(m.group(2))
+            heading = title or heading
+            buf.append(title)
         else:
             buf.append(line)
     flush()
