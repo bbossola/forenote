@@ -1,6 +1,5 @@
 # Pinned model files (spec section 9.2).
 # Each tier needs exactly one model for each role.
-# The embedding role comes after the embedding spike.
 
 [[model]]
 id = "gemma-4-e2b-q4_0"
@@ -96,3 +95,18 @@ sha256 = "929c5252409436dce1b38a75d1abbcb5e132d170d8e324e4e04ed915fa2d22df"
 name = "vocabulary.txt"
 size = 422309
 sha256 = "ff77588746d3a2595d32ab5b69ffd7b95ce2441ac57533cb66fc3eb575a115cf"
+
+# Decision 0001: the text-270m file gives the same text vectors as the 740M file.
+# Spec C 5.1: C uses it for all tiers. The 740M file comes with images.
+[[model]]
+id = "embeddinggemma-2-text-270m"
+role = "embedding"
+tiers = ["low", "default", "high"]
+repo = "litert-community/embeddinggemma-2-text-270m-litert-lm"
+revision = "9be6e8b90982095dc05c2bd162e4b954ee4dbac7"
+license = "apache-2.0"
+
+[[model.files]]
+name = "embeddinggemma-2-text-270m.litertlm"
+size = 164626432
+sha256 = "2d079ee2f6f066b1f368e8d7c819f55214eaef1d0513b312321901f30ab286fb"

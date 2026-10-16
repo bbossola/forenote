@@ -28,7 +28,7 @@ async def test_status_reports_hardware_and_models(client):
     assert s["tier"] == "default"
     assert s["hardware"]["physical_cores"] == 8
     assert s["hardware"]["threads"] == 7
-    assert {m["id"] for m in s["models"]} == {"llm-test", "speech-test"}
+    assert {m["id"] for m in s["models"]} == {"llm-test", "speech-test", "embed-test"}
     assert not any(m["installed"] for m in s["models"])
     assert s["running_job"] is None
 
@@ -53,7 +53,7 @@ async def test_models_download_installs_files(client):
     job = await client.call("models.download", {})
     events = await collect_until_job_end(client, job["job_id"], schema)
     assert events[-1] == ("job.done", {"id": job["job_id"], "type": "models.download", "status": "done"})
-    assert [p["model"] for n, p in events if n == "models.progress"] == ["llm-test", "speech-test"]
+    assert [p["model"] for n, p in events if n == "models.progress"] == ["llm-test", "speech-test", "embed-test"]
     assert all(m["installed"] for m in await client.call("models.list"))
     assert (await client.call("jobs.list"))[0]["status"] == "done"
 

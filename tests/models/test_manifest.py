@@ -1,6 +1,13 @@
 import pytest
 
-from forenote.models.manifest import ROLES, TIERS, ManifestError, for_tier, load_manifest
+from forenote.models.manifest import (
+    ROLES,
+    TIERS,
+    ManifestError,
+    for_tier,
+    load_manifest,
+    model_for_tier,
+)
 
 VALID = """
 [[model]]
@@ -27,7 +34,7 @@ def test_real_manifest_has_one_model_per_role_for_each_tier():
 
 def test_default_tier_uses_gemma_4_e4b_and_whisper_base():
     ids = {e.id for e in for_tier(load_manifest(), "default")}
-    assert ids == {"gemma-4-e4b-q4_0", "whisper-base-en"}
+    assert ids == {"gemma-4-e4b-q4_0", "whisper-base-en", "embeddinggemma-2-text-270m"}
 
 
 def test_high_tier_uses_whisper_small():
@@ -83,3 +90,19 @@ def test_llm_for_tier_and_context_size():
     assert llm_for_tier(entries, None) is None
     assert llm_for_tier([], "default") is None
     assert CONTEXT_SIZE == {"low": 8192, "default": 16384, "high": 32768}
+
+
+def test_each_tier_has_the_text_embedding_model():
+    entries = load_manifest()
+    for tier in ("low", "default", "high"):
+        emb = model_for_tier(entries, tier, "embedding")
+        assert emb is not None and emb.id == "embeddinggemma-2-text-270m"
+        assert emb.files[0].name == "embeddinggemma-2-text-270m.litertlm"
+        assert emb.files[0].size == 164626432
+    assert ROLES == ("llm", "speech", "embedding")
+
+
+def test_model_for_tier_returns_none_for_no_tier_or_a_bad_tier():
+    entries = load_manifest()
+    assert model_for_tier(entries, None, "embedding") is None
+    assert model_for_tier(entries, "nonsense", "embedding") is None
