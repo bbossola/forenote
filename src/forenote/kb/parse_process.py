@@ -15,7 +15,6 @@ import logging
 import os
 import resource
 import select
-import signal
 import subprocess
 import sys
 import threading
@@ -49,16 +48,22 @@ def _encode(answer: dict) -> bytes:
         return json.dumps(answer).encode()
 
 
-def _die_with_parent() -> None:
-    """Linux only: the kernel kills this process when the parent dies."""
-    try:
-        import ctypes
+def _exit_with_parent() -> None:
+    """Exit when the parent is gone. A thread checks the parent pid each second.
 
-        ctypes.CDLL(None, use_errno=True).prctl(1, signal.SIGKILL)  # PR_SET_PDEATHSIG
-    except Exception:  # noqa: BLE001 - this is a best effort
-        pass
-    if os.getppid() == 1:  # the parent is already gone
-        sys.exit(0)
+    PR_SET_PDEATHSIG does not work here: it fires when the parent thread ends.
+    """
+    parent = os.getppid()
+    if parent == 1:  # the parent is already gone
+        os._exit(0)
+
+    def watch() -> None:
+        while True:
+            time.sleep(1.0)
+            if os.getppid() != parent:
+                os._exit(0)
+
+    threading.Thread(target=watch, daemon=True).start()
 
 
 def serve(parse_fn=None, inp=None, out=None) -> None:
@@ -87,7 +92,7 @@ def main(argv: list[str] | None = None, parse_fn=None) -> None:
     ap = argparse.ArgumentParser(prog="forenote-parse")
     ap.add_argument("--memory-limit", type=int, default=MEMORY_LIMIT)
     args = ap.parse_args(argv)
-    _die_with_parent()
+    _exit_with_parent()
     _, hard = resource.getrlimit(resource.RLIMIT_AS)
     limit = args.memory_limit if hard == resource.RLIM_INFINITY else min(args.memory_limit, hard)
     resource.setrlimit(resource.RLIMIT_AS, (limit, hard))

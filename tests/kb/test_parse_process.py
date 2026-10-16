@@ -1,6 +1,7 @@
 import io
 import os
 import json
+import subprocess
 import sys
 import textwrap
 import threading
@@ -182,3 +183,53 @@ def test_serve_escapes_a_lone_surrogate():
     out = io.BytesIO()
     serve(lambda path, limits: [Section("a\udcffb")], io.BytesIO(b'{"path": "/x.md", "max_pages": 5}\n'), out)
     assert json.loads(out.getvalue())["sections"][0]["text"] == "a\udcffb"
+
+
+def test_parse_from_short_lived_threads_keeps_the_same_child(proc, tmp_path):
+    f = tmp_path / "a.md"
+    f.write_text("# T\nbody")
+    results, pids = [], []
+
+    def call():
+        results.append(proc.parse(f, 500))
+        pids.append(proc._proc.pid)
+
+    for _ in range(2):
+        t = threading.Thread(target=call)
+        t.start()
+        t.join()
+    assert [r.error for r in results] == [None, None]
+    assert pids[0] == pids[1]
+
+
+def test_the_child_exits_when_the_parent_dies(tmp_path):
+    (tmp_path / "slow.txt").write_text("x")
+    helper = (
+        "import json, os, sys, threading, time\n"
+        "from pathlib import Path\n"
+        "from forenote.kb.parse_process import ParserProcess\n"
+        "p = ParserProcess(json.loads(sys.argv[1]), timeout_s=30)\n"
+        "threading.Thread(target=p.parse, args=(Path(sys.argv[2]), 500), daemon=True).start()\n"
+        "while p._proc is None:\n"
+        "    time.sleep(0.05)\n"
+        "print(p._proc.pid, flush=True)\n"
+        "time.sleep(0.5)\n"
+        "os._exit(0)\n"
+    )
+    out = subprocess.run(
+        [sys.executable, "-c", helper, json.dumps(child(tmp_path)), str(tmp_path / "slow.txt")],
+        capture_output=True, text=True, timeout=20,
+    )
+    pid = int(out.stdout.strip())
+    deadline = time.monotonic() + 3
+    while time.monotonic() < deadline and _alive(pid):
+        time.sleep(0.1)
+    assert not _alive(pid)
+
+
+def _alive(pid: int) -> bool:
+    try:
+        state = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0]
+    except OSError:
+        return False
+    return state != "Z"
