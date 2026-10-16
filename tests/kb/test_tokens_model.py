@@ -31,7 +31,23 @@ def code() -> str:
     return "def f(x):\n    return {'key': x[0], \"value\": x[1:] or None}  # note\n" * 80
 
 
-@pytest.mark.parametrize("make", [prose, numbers, code])
+def japanese() -> str:
+    return "今日の会議では、来年度の予算について話し合いました。新しいプロジェクトの開始時期と必要な人員を確認しました。" * 60
+
+
+def chinese() -> str:
+    return "今天的会议讨论了明年的预算安排。我们确认了新项目的启动时间和所需人员，并为每个团队指定了负责人。" * 60
+
+
+def russian() -> str:
+    return "На сегодняшней встрече мы обсудили бюджет на следующий год. Мы уточнили сроки начала нового проекта. " * 60
+
+
+def greek() -> str:
+    return "Στη σημερινή συνάντηση συζητήσαμε τον προϋπολογισμό για το επόμενο έτος και ορίσαμε υπεύθυνους. " * 60
+
+
+@pytest.mark.parametrize("make", [prose, numbers, code, japanese, chinese, russian, greek])
 def test_no_chunk_is_over_the_limit(count, make):
     for chunk in split_text(make()):
         assert count(chunk) <= LIMIT

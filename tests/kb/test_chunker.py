@@ -1,6 +1,6 @@
 from forenote.kb.chunker import CHUNK_TOKENS, chunk_sections, split_text
 from forenote.kb.sections import Section
-from forenote.kb.tokens import estimate
+from forenote.kb.tokens import estimate, word_cost
 
 
 def test_estimate_counts_each_digit_and_adds_a_margin():
@@ -9,6 +9,12 @@ def test_estimate_counts_each_digit_and_adds_a_margin():
     assert estimate("the cat") == 3  # ceil(2.3)
     assert estimate("2026") == 5  # ceil(4 * 1.15)
     assert estimate("internationalization") == 4  # ceil(3 * 1.15)
+
+
+def test_a_non_ascii_word_costs_more_than_the_same_number_of_ascii_letters():
+    assert word_cost("привет" * 4) > word_cost("a" * 24)
+    assert word_cost("会議の予算") > word_cost("a" * 5)
+    assert word_cost("会議の予算") > word_cost("привет")
 
 
 def test_empty_text_gives_no_chunks():
