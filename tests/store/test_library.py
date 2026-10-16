@@ -130,3 +130,24 @@ def test_documents_by_path_and_folder_status(store):
     store.set_folder_status(f.id, "missing")
     assert store.folder(f.id).status == "missing"
     assert store.folder(999) is None
+
+
+def test_mark_with_a_hash_changes_only_a_document_with_that_hash(store):
+    f, _ = store.add_folder("/d")
+    doc = store.put_document(f.id, "/d/a.md", 1.0, 10, "h2")  # a scan set the new content
+    assert store.mark(doc, "error", "parse_error", sha256="h1") is False
+    assert (store.document(doc).status, store.document(doc).reason) == ("pending", None)
+    assert store.mark(doc, "error", "parse_error", sha256="h2") is True
+    assert store.document(doc).status == "error"
+
+
+def test_delete_chunks_batch_deletes_at_most_the_limit(store, conn):
+    f, _ = store.add_folder("/d")
+    doc = store.put_document(f.id, "/d/a.md", 1.0, 10, "h1")
+    chunks = [ChunkIn(i, f"text {i}") for i in range(5)]
+    store.replace_chunks(doc, "h1", chunks, np.stack([vec(i) for i in range(5)]), "m")
+    assert store.delete_chunks_batch(doc, 2, sha256="other") == 0  # the document has another hash
+    assert [store.delete_chunks_batch(doc, 2) for _ in range(4)] == [2, 2, 1, 0]
+    assert conn.execute("SELECT COUNT(*) FROM chunks_vec").fetchone()[0] == 0
+    assert conn.execute("SELECT COUNT(*) FROM chunks_fts WHERE chunks_fts MATCH 'text'").fetchone()[0] == 0
+    assert store.document(doc).status == "indexed"  # the row does not change

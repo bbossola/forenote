@@ -11,7 +11,7 @@ from pathlib import Path
 
 from forenote.kb.parsers import EXTENSIONS
 from forenote.kb.writer import KbWriter
-from forenote.store.library import Document, Folder, LibraryStore
+from forenote.store.library import ANY_HASH, DELETE_BATCH, Document, Folder, LibraryStore
 from forenote.workers import run_in_daemon_thread
 
 TEMP_PATTERNS = ("~$*", "*.swp", "*.part", "*.tmp", "*.crdownload", ".~lock.*#")
@@ -147,6 +147,26 @@ def plan_scan(root: Path, known: dict[str, Document], max_bytes: int, rehash: bo
     return plan
 
 
+def chunk_owners(plan: ScanPlan, known: dict[str, Document]) -> list[int]:
+    """The ids of the known documents that lose their chunks when the plan is applied."""
+    if plan.missing:
+        return []
+    marked = [known[f.path].id for f in plan.skipped + plan.unreadable if f.path in known]
+    return marked + list(plan.removed)
+
+
+async def delete_chunks(writer: KbWriter, doc_id: int, sha256: str | None = ANY_HASH) -> None:
+    """Delete the chunks of a document in short transactions of DELETE_BATCH rows.
+
+    A long delete holds the write lock, and a write on the loop connection
+    then fails (for example a transcript line of a recording). Use it before
+    a removal or a mark. A partial delete is safe: the chunks go away anyway.
+    """
+    limit = DELETE_BATCH
+    while await writer.run(lambda conn: LibraryStore(conn).delete_chunks_batch(doc_id, limit, sha256)):
+        pass
+
+
 def apply_plan(store: LibraryStore, folder_id: int, plan: ScanPlan) -> int:
     """Write the plan. Run it in the KB thread. Return the pending count of the folder."""
     if plan.missing:
@@ -172,6 +192,8 @@ async def scan_folder(folder: Folder, library: LibraryStore, writer: KbWriter, m
     known = library.documents(folder.id)
     # All file system calls, including the is_dir check, run in the worker thread.
     plan = await run_in_daemon_thread(lambda: plan_scan(root, known, max_bytes, rehash))
+    for doc_id in chunk_owners(plan, known):
+        await delete_chunks(writer, doc_id)  # short transactions first; apply_plan then deletes few rows or none
 
     def write(conn) -> int:
         store = LibraryStore(conn)

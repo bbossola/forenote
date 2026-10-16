@@ -1,12 +1,14 @@
 import os
 import shutil
 
+import numpy as np
 import pytest
 
+from forenote.kb import scan as scan_module
 from forenote.kb.scan import apply_plan, plan_scan, scan_folder, sha256_file, walk
 from forenote.kb.writer import KbWriter
 from forenote.store.db import connect
-from forenote.store.library import LibraryStore
+from forenote.store.library import VECTOR_SIZE, ChunkIn, LibraryStore
 from forenote.store.migrations import migrate
 from forenote.workers import run_in_daemon_thread
 
@@ -264,3 +266,66 @@ def test_a_root_with_only_an_ignored_file_removes_the_documents(lib):
     make(root, ".hidden")
     plan, _ = scan(lib)
     assert not plan.missing and len(plan.removed) == 1
+
+
+@pytest.fixture
+def spy_batches(monkeypatch):
+    """Record each delete_chunks_batch() call: (a transaction was open before it, rows deleted)."""
+    monkeypatch.setattr(scan_module, "DELETE_BATCH", 2)
+    calls = []
+    real = LibraryStore.delete_chunks_batch
+
+    def spy(self, doc_id, limit, sha256=scan_module.ANY_HASH):
+        before = self._conn.in_transaction
+        n = real(self, doc_id, limit, sha256)
+        calls.append((before, n))
+        return n
+
+    monkeypatch.setattr(LibraryStore, "delete_chunks_batch", spy)
+    return calls
+
+
+async def give_chunks(writer, doc, count):
+    vectors = np.eye(count, VECTOR_SIZE, dtype=np.float32)
+    chunks = [ChunkIn(i, f"text {i}") for i in range(count)]
+    assert await writer.run(lambda c: LibraryStore(c).replace_chunks(doc.id, doc.sha256, chunks, vectors, "m"))
+
+
+@pytest.mark.parametrize("change", ["remove", "too_large", pytest.param("unreadable", marks=not_root)])
+async def test_scan_folder_deletes_old_chunks_in_short_batches(tmp_path, spy_batches, change):
+    db = tmp_path / "t.db"
+    conn = connect(db)
+    migrate(conn)
+    writer = KbWriter(db)
+    writer.start()
+    p = None
+    try:
+        root = tmp_path / "root"
+        make(root, "keep.md")
+        p = make(root, "a.md")
+        folder, _ = await writer.run(lambda c: LibraryStore(c).add_folder(str(root)))
+        store = LibraryStore(conn)
+        await scan_folder(folder, store, writer, BIG)
+        doc = store.documents(folder.id)[str(p)]
+        await give_chunks(writer, doc, 5)
+        max_bytes = BIG
+        if change == "remove":
+            p.unlink()
+        elif change == "too_large":
+            p.write_bytes(b"x" * 100)
+            max_bytes = 10
+        else:
+            p.write_bytes(b"new")
+            p.chmod(0)
+        await scan_folder(store.folder(folder.id), store, writer, max_bytes)
+        assert spy_batches == [(False, 2), (False, 2), (False, 1), (False, 0)]
+        assert conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM chunks_vec").fetchone()[0] == 0
+        after = store.documents(folder.id).get(str(p))
+        expected = {"remove": None, "too_large": ("skipped", "too_large"), "unreadable": ("error", "unreadable")}[change]
+        assert (after and (after.status, after.reason)) == expected
+    finally:
+        if p is not None and p.exists():
+            p.chmod(0o644)
+        await run_in_daemon_thread(writer.stop)
+        conn.close()

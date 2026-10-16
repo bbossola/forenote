@@ -18,6 +18,8 @@ from forenote.store.jobs import now_iso
 
 VECTOR_SIZE = 768  # the size of chunks_vec.embedding
 DOC_STATUSES = ("indexed", "pending", "error", "skipped")
+DELETE_BATCH = 1000  # the chunks that one delete_chunks_batch() call removes at most
+ANY_HASH: Any = object()  # mark() and delete_chunks_batch() do not check the hash
 
 
 @dataclass(frozen=True)
@@ -117,14 +119,23 @@ class LibraryStore:
         """The file has the same content and a new mtime or size."""
         self._conn.execute("UPDATE documents SET mtime = ?, size = ? WHERE id = ?", (mtime, size, doc_id))
 
-    def mark(self, doc_id: int, status: str, reason: str) -> None:
-        """Set error or skipped with a reason code, and remove the chunks."""
+    def mark(self, doc_id: int, status: str, reason: str, sha256: str | None = ANY_HASH) -> bool:
+        """Set error or skipped with a reason code, and remove the chunks.
+
+        With a hash, change only a document with that hash, as replace_chunks()
+        does. Return False and write nothing when no document matches.
+        """
         if status not in ("error", "skipped"):
             raise ValueError(f"mark() takes error or skipped, not {status}")
-        self._conn.execute(
-            "UPDATE documents SET status = ?, reason = ?, indexed_at = NULL WHERE id = ?", (status, reason, doc_id)
-        )
+        sql = "UPDATE documents SET status = ?, reason = ?, indexed_at = NULL WHERE id = ?"
+        args: tuple = (status, reason, doc_id)
+        if sha256 is not ANY_HASH:
+            sql += " AND sha256 IS ?"
+            args += (sha256,)
+        if self._conn.execute(sql, args).rowcount == 0:
+            return False
         self._conn.execute("DELETE FROM chunks WHERE document_id = ?", (doc_id,))
+        return True
 
     def remove_document(self, doc_id: int) -> None:
         """The cascade removes the chunks. The triggers remove the FTS rows and the vectors."""
@@ -185,6 +196,24 @@ class LibraryStore:
                 (cur.lastrowid, vector.tobytes()),
             )
         return True
+
+    def delete_chunks_batch(self, doc_id: int, limit: int = DELETE_BATCH, sha256: str | None = ANY_HASH) -> int:
+        """Delete at most limit chunks of a document. Return the count. The document row does not change.
+
+        Call it in a loop of short KbWriter.run() calls before a large removal,
+        until it returns 0. Then each transaction holds the write lock for a
+        short time only. With a hash, delete only when the document has that hash.
+        """
+        if sha256 is ANY_HASH:
+            sub = "SELECT id FROM chunks WHERE document_id = ? LIMIT ?"
+            args: tuple = (doc_id, limit)
+        else:
+            sub = (
+                "SELECT c.id FROM chunks c JOIN documents d ON d.id = c.document_id "
+                "WHERE c.document_id = ? AND d.sha256 IS ? LIMIT ?"
+            )
+            args = (doc_id, sha256, limit)
+        return self._conn.execute(f"DELETE FROM chunks WHERE id IN ({sub})", args).rowcount
 
     def chunk_texts(self, doc_id: int) -> list[str]:
         rows = self._conn.execute("SELECT text FROM chunks WHERE document_id = ? ORDER BY position", (doc_id,))
