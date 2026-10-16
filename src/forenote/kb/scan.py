@@ -76,6 +76,20 @@ def sha256_file(path: str | Path) -> str:
     return h.hexdigest()
 
 
+def root_is_empty(root: Path) -> bool:
+    """True if the root has no entry or cannot be listed. Blocking."""
+    try:
+        with os.scandir(root) as it:
+            return next(it, None) is None
+    except OSError:
+        return True
+
+
+def root_missing(root: Path) -> bool:
+    """True if the root is not a directory, cannot be listed, or is empty (for example an unmounted drive). Blocking."""
+    return not root.is_dir() or root_is_empty(root)
+
+
 @dataclass
 class ScanPlan:
     pending: list[tuple[FileStat, str]] = field(default_factory=list)  # new content, with its hash
@@ -99,12 +113,7 @@ def plan_scan(root: Path, known: dict[str, Document], max_bytes: int, rehash: bo
         plan.missing = True
         return plan
     if known and not files and not failed:
-        try:
-            with os.scandir(root) as it:
-                empty = next(it, None) is None
-        except OSError:
-            empty = True
-        if empty:
+        if root_is_empty(root):
             plan.missing = True  # for example an unmounted drive
             return plan
     for f in files:

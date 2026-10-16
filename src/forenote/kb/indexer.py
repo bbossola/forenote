@@ -15,7 +15,7 @@ from forenote.embed.base import DIMENSION, EmbedError, Embedder
 from forenote.kb.chunker import chunk_sections
 from forenote.kb.parse_process import ParseResult
 from forenote.kb.parsers import SKIP_CODES
-from forenote.kb.scan import sha256_file
+from forenote.kb.scan import root_missing, sha256_file
 from forenote.kb.writer import KbWriter
 from forenote.scheduler import CancelToken, Report
 from forenote.store.library import Document, LibraryStore
@@ -66,6 +66,7 @@ async def index_files(deps: IndexDeps, cancel: CancelToken, report: Report) -> I
     result = IndexResult()
     total = deps.library.pending_count()
     done = 0
+    reported = 0
     last_id = 0
     last_report = time.monotonic()
     embedder: Embedder | None = None
@@ -86,8 +87,12 @@ async def index_files(deps: IndexDeps, cancel: CancelToken, report: Report) -> I
         now = time.monotonic()
         if now - last_report >= REPORT_EVERY_S:
             last_report = now
+            reported = done
             count = max(total, done)
             report(f"{done} of {count} files", done / count)
+    if done > reported:
+        count = max(total, done)  # the last report is always sent
+        report(f"{done} of {count} files", done / count)
     log.info(
         "index job: %d indexed, %d failed, %d skipped, %d removed, %d left, yielded %s",
         result.indexed, result.failed, result.skipped, result.removed, result.left, result.yielded,
@@ -103,17 +108,25 @@ async def _index_one(deps: IndexDeps, embedder: Embedder, doc: Document, cancel:
         # Each write is short. The parse, the hash, and the embed run outside.
         return await deps.writer.run(lambda conn: fn(LibraryStore(conn)))
 
+    folder = deps.library.folder(doc.folder_id)  # a read on the loop connection
+
+    def probe():
+        """Blocking file system calls: run them in a worker thread."""
+        try:
+            return path.stat(), False
+        except FileNotFoundError:
+            return None, folder is None or root_missing(Path(folder.path))
+
     try:
-        st = path.stat()
-    except FileNotFoundError:
-        folder = deps.library.folder(doc.folder_id)
-        if folder is None or not Path(folder.path).is_dir():
-            return "left"  # the folder is missing: keep its documents (spec 10.2)
-        await write(lambda s: s.remove_document(doc.id))
-        return "removed"
+        st, folder_gone = await run_in_daemon_thread(probe)
     except OSError:
         await write(lambda s: s.mark(doc.id, "error", "unreadable"))
         return "failed"
+    if st is None:
+        if folder_gone:
+            return "left"  # the folder is missing or empty: keep its documents (spec 10.2)
+        await write(lambda s: s.remove_document(doc.id))
+        return "removed"
     if st.st_size > deps.max_bytes:
         await write(lambda s: s.mark(doc.id, "skipped", "too_large"))
         return "skipped"
@@ -134,7 +147,7 @@ async def _index_one(deps: IndexDeps, embedder: Embedder, doc: Document, cancel:
         await write(lambda s: s.put_document(doc.folder_id, doc.path, st.st_mtime, st.st_size, sha))
         return "left"
 
-    chunks = chunk_sections(parsed.sections or [])
+    chunks = await run_in_daemon_thread(lambda: chunk_sections(parsed.sections or []))
     parts = []
     try:
         for i in range(0, len(chunks), EMBED_BATCH):
@@ -144,6 +157,8 @@ async def _index_one(deps: IndexDeps, embedder: Embedder, doc: Document, cancel:
     except EmbedError:
         await write(lambda s: s.mark(doc.id, "error", "embed_failed"))
         return "failed"
-    vectors = np.concatenate(parts) if parts else np.zeros((0, DIMENSION), np.float32)
+    vectors = await run_in_daemon_thread(
+        lambda: np.concatenate(parts) if parts else np.zeros((0, DIMENSION), np.float32)
+    )
     written = await write(lambda s: s.replace_chunks(doc.id, doc.sha256, chunks, vectors, embedder.model_id))
     return "indexed" if written else "left"

@@ -212,3 +212,29 @@ async def test_a_document_removed_during_the_embed_is_not_written(kb):
     r = await index_files(make_deps(kb, embedder=RemovingEmbedder()), CancelToken(), no_report)
     assert r.left == 1
     assert kb.conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0] == 0
+
+
+async def test_a_gone_file_in_an_empty_root_stays_pending(kb):
+    p = await add(kb, "a.md", "x")
+    p.unlink()  # the root is a directory but empty, like an unmounted drive
+    r = await index_files(make_deps(kb), CancelToken(), no_report)
+    assert (r.left, r.removed) == (1, 0)
+    assert doc(kb, "a.md").status == "pending"
+
+
+async def test_the_final_progress_report_is_sent_for_a_short_job(kb):
+    for name in ("a.md", "b.md", "c.md"):
+        await add(kb, name, name)
+    reports = []
+    await index_files(make_deps(kb), CancelToken(), lambda m, f=None: reports.append((m, f)))
+    assert reports == [("3 of 3 files", 1.0)]
+
+
+async def test_progress_reports_keep_the_rate_limit(kb, monkeypatch):
+    for name in ("a.md", "b.md", "c.md", "d.md"):
+        await add(kb, name, name)
+    times = iter([0.0, 0.2, 0.4, 1.5, 1.6, 99.0, 99.0])  # start, then one time for each file
+    monkeypatch.setattr(indexer, "time", SimpleNamespace(monotonic=lambda: next(times)))
+    reports = []
+    await index_files(make_deps(kb), CancelToken(), lambda m, f=None: reports.append((m, f)))
+    assert reports == [("3 of 4 files", 0.75), ("4 of 4 files", 1.0)]
