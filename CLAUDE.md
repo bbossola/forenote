@@ -6,8 +6,8 @@
   merged on `main` (PR #3, #4 and #5).
 - Sub-project C (knowledge base and chat) is in progress. The spec is
   `docs/superpowers/specs/2026-10-15-knowledge-base-chat-design.md`. Plan C1
-  (`docs/superpowers/plans/2026-10-15-kb-c1-index.md`) indexes files. It is done
-  on branch `feature/kb-c1` and it is not merged yet. Plan C2 (the live watch,
+  (`docs/superpowers/plans/2026-10-15-kb-c1-index.md`) indexes files. It is merged
+  on `main`. Plan C2 (the live watch,
   the other library methods, and the meeting index) comes next. Plan C3 (search
   and chat) follows.
   Read `docs/superpowers/notes/2026-10-12-handoff.md` and
