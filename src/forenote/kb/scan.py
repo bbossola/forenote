@@ -38,10 +38,18 @@ class FileStat:
     size: int
 
 
-def walk(root: Path) -> list[FileStat]:
-    """The supported regular files under root. No symlinks, no hidden or temporary files."""
+def walk(root: Path, failed: list[str] | None = None) -> list[FileStat]:
+    """The supported regular files under root. No symlinks, no hidden or temporary files.
+
+    The scan adds the path of each directory that it cannot list to the optional list failed.
+    """
     out = []
-    for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
+
+    def on_error(err: OSError) -> None:
+        if failed is not None and err.filename is not None:
+            failed.append(os.fsdecode(err.filename))
+
+    for dirpath, dirnames, filenames in os.walk(root, followlinks=False, onerror=on_error):
         dirnames[:] = sorted(d for d in dirnames if not ignored_name(d) and _utf8(d))
         for name in sorted(filenames):
             if ignored_name(name) or not _utf8(name) or os.path.splitext(name)[1].lower() not in EXTENSIONS:
@@ -71,24 +79,41 @@ class ScanPlan:
     unreadable: list[FileStat] = field(default_factory=list)
     stat_only: list[tuple[int, FileStat]] = field(default_factory=list)  # same content, new mtime or size
     removed: list[int] = field(default_factory=list)  # document ids
+    missing: bool = False  # the folder is not there or not readable: change nothing
 
 
 def plan_scan(root: Path, known: dict[str, Document], max_bytes: int, rehash: bool = False) -> ScanPlan:
     """Compare the files with the known documents. Blocking: run it in a worker thread."""
     plan = ScanPlan()
     known = dict(known)
-    for f in walk(root):
+    failed: list[str] = []
+    if not root.is_dir():
+        plan.missing = True
+        return plan
+    files = walk(root, failed)
+    if str(root) in failed:
+        plan.missing = True
+        return plan
+    if known and not files and not failed and not any(True for _ in os.scandir(root)):
+        plan.missing = True  # for example an unmounted drive
+        return plan
+    for f in files:
         doc = known.pop(f.path, None)
         same_stat = doc is not None and doc.mtime == f.mtime and doc.size == f.size
         too_large_before = doc is not None and doc.reason == "too_large"
+        retry = too_large_before or (doc is not None and doc.reason == "unreadable")
         if f.size > max_bytes:
             if not (same_stat and too_large_before):
                 plan.skipped.append(f)
             continue
-        if same_stat and not rehash and not too_large_before:
+        if same_stat and not rehash and not retry:
             continue
         try:
             sha = sha256_file(f.path)
+        except FileNotFoundError:
+            if doc is not None:
+                plan.removed.append(doc.id)  # the file went away after the walk
+            continue
         except OSError:
             plan.unreadable.append(f)
             continue
@@ -97,12 +122,16 @@ def plan_scan(root: Path, known: dict[str, Document], max_bytes: int, rehash: bo
                 plan.stat_only.append((doc.id, f))
             continue
         plan.pending.append((f, sha))
-    plan.removed = [d.id for d in known.values()]
+    # A document below a directory that failed stays as it is.
+    blocked = tuple(d + os.sep for d in failed)
+    plan.removed += [d.id for path, d in known.items() if not path.startswith(blocked)]
     return plan
 
 
 def apply_plan(store: LibraryStore, folder_id: int, plan: ScanPlan) -> int:
     """Write the plan. Run it in the KB thread. Return the pending count of the folder."""
+    if plan.missing:
+        return store.pending_count(folder_id)
     for f, sha in plan.pending:
         store.put_document(folder_id, f.path, f.mtime, f.size, sha)
     for f in plan.skipped:
@@ -120,17 +149,14 @@ async def scan_folder(folder: Folder, library: LibraryStore, writer: KbWriter, m
                       rehash: bool = False) -> int:
     """Scan one folder. A missing folder gets the status missing, and its documents stay (spec 10.2)."""
     root = Path(folder.path)
-    if not root.is_dir():
-        if folder.status != "missing":
-            await writer.run(lambda c: LibraryStore(c).set_folder_status(folder.id, "missing"))
-        return library.pending_count(folder.id)
+    # The read uses the loop connection, so it stays on the loop.
     known = library.documents(folder.id)
+    # All file system calls, including the is_dir check, run in the worker thread.
     plan = await run_in_daemon_thread(lambda: plan_scan(root, known, max_bytes, rehash))
 
     def write(conn) -> int:
         store = LibraryStore(conn)
-        if folder.status != "ok":
-            store.set_folder_status(folder.id, "ok")
+        store.set_folder_status(folder.id, "missing" if plan.missing else "ok")
         return apply_plan(store, folder.id, plan)
 
     return await writer.run(write)

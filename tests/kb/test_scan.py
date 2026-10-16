@@ -109,10 +109,11 @@ def test_rehash_finds_a_change_with_the_same_stat(lib):
 def test_a_removed_file_is_removed(lib):
     _, store, folder, root = lib
     p = make(root, "a.md")
+    make(root, "b.md")  # an empty folder counts as missing, so keep one file
     scan(lib)
     p.unlink()
     plan, _ = scan(lib)
-    assert len(plan.removed) == 1 and store.documents(folder.id) == {}
+    assert len(plan.removed) == 1 and list(store.documents(folder.id)) == [str(root / "b.md")]
 
 
 def test_a_large_file_is_skipped_and_comes_back_when_the_limit_grows(lib):
@@ -162,3 +163,82 @@ async def test_scan_folder_marks_a_missing_folder_and_keeps_its_documents(tmp_pa
     finally:
         await run_in_daemon_thread(writer.stop)
         conn.close()
+
+
+@pytest.fixture
+def restore_modes():
+    paths = []
+    yield paths
+    for p in paths:
+        p.chmod(0o755)
+
+
+root_only = pytest.mark.skipif(os.geteuid() == 0, reason="root reads every directory")
+
+
+@root_only
+def test_an_unreadable_subdirectory_keeps_its_documents(lib, restore_modes):
+    _, store, folder, root = lib
+    make(root, "sub/a.md")
+    make(root, "b.md")
+    scan(lib)
+    restore_modes.append(root / "sub")
+    (root / "sub").chmod(0)
+    plan, _ = scan(lib)
+    assert plan.removed == [] and len(store.documents(folder.id)) == 2
+
+
+@root_only
+def test_an_unreadable_root_makes_the_folder_missing_and_keeps_documents(lib, restore_modes):
+    _, store, folder, root = lib
+    make(root, "a.md")
+    make(root, "sub/b.md")
+    scan(lib)
+    restore_modes.append(root)
+    root.chmod(0)
+    plan, _ = scan(lib)
+    assert plan.missing and plan.removed == [] and len(store.documents(folder.id)) == 2
+
+
+def test_an_empty_root_with_known_documents_is_missing(lib):
+    _, store, folder, root = lib
+    p = make(root, "a.md")
+    scan(lib)
+    p.unlink()
+    plan, _ = scan(lib)
+    assert plan.missing and plan.removed == [] and len(store.documents(folder.id)) == 1
+
+
+@root_only
+def test_an_unreadable_file_comes_back_after_a_chmod(lib):
+    _, store, folder, root = lib
+    p = make(root, "a.md")
+    p.chmod(0)
+    try:
+        scan(lib)
+        assert store.documents(folder.id)[str(p)].reason == "unreadable"
+    finally:
+        p.chmod(0o644)
+    _, pending = scan(lib)
+    assert pending == 1 and store.documents(folder.id)[str(p)].status == "pending"
+
+
+def test_a_file_that_goes_away_after_the_walk_is_removed(lib, monkeypatch):
+    _, store, folder, root = lib
+    p = make(root, "a.md")
+    make(root, "keep.md")
+    scan(lib)
+    doc_id = store.documents(folder.id)[str(p)].id
+    p.write_bytes(b"changed")
+
+    def gone(path):
+        raise FileNotFoundError(path)
+
+    monkeypatch.setattr("forenote.kb.scan.sha256_file", gone)
+    plan, _ = scan(lib)
+    assert plan.unreadable == [] and plan.removed == [doc_id]
+    monkeypatch.undo()
+    make(root, "new.md")
+    monkeypatch.setattr("forenote.kb.scan.sha256_file", gone)
+    plan, _ = scan(lib)
+    assert plan.unreadable == [] and plan.pending == []
