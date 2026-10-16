@@ -140,6 +140,10 @@ class Scheduler:
         self._paused.discard(int(priority))
         self._wake.set()
 
+    def has_waiting(self, above: Priority) -> bool:
+        """True if a queued job with a higher priority (a lower value) waits and is not paused."""
+        return any(q.priority < int(above) and q.priority not in self._paused for q in self._heap)
+
     async def run(self) -> None:
         while not self._stopping:
             q = self._next()
