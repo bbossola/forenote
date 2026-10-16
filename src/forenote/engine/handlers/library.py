@@ -10,6 +10,7 @@ from typing import Any
 from forenote.embed.base import Embedder
 from forenote.kb.indexer import INDEX_JOB, IndexDeps, KbError, index_files
 from forenote.kb.scan import scan_folder
+from forenote.kb.writer import KbWriterStopped
 from forenote.models.manifest import model_for_tier
 from forenote.rpc.protocol import APP_ERROR, RpcError
 from forenote.scheduler import CancelToken, Priority, Report
@@ -20,31 +21,51 @@ log = logging.getLogger(__name__)
 
 MB = 1024 * 1024
 EMBED_MISSING = "The embedding model is not downloaded. Run: forenote-cli models download."
+STOPPING = "the engine is stopping"
+NO_FOLDER = "No such folder."
+NESTED = "The folder is inside a library folder, or it contains one."
 
 
 def _inside(path: str, parent: str) -> bool:
     return os.path.commonpath([path, parent]) == parent
 
 
+def _real_folder(given: Path) -> str:
+    """The one name of a folder: no symlink, no trailing slash. Blocking: run it in a worker thread."""
+    try:
+        path = str(given.resolve(strict=True))
+        path.encode("utf-8")
+    except (OSError, RuntimeError, UnicodeEncodeError, ValueError):  # ValueError: a NUL byte
+        raise RpcError(APP_ERROR, NO_FOLDER) from None
+    if not os.path.isdir(path):
+        raise RpcError(APP_ERROR, NO_FOLDER)
+    return path
+
+
+def _add_folder(conn, path: str) -> tuple[Folder, bool]:
+    """Check the nesting and add the folder in one transaction."""
+    conn.execute("BEGIN IMMEDIATE")
+    store = LibraryStore(conn)
+    for f in store.folders():
+        if f.path != path and (_inside(path, f.path) or _inside(f.path, path)):
+            raise RpcError(APP_ERROR, NESTED)
+    return store.add_folder(path)
+
+
 class LibraryHandlers:
     async def _library_add_folder(self, params: dict[str, Any]) -> dict[str, Any]:
         if self._closed:
-            raise RpcError(APP_ERROR, "the engine is stopping")
+            raise RpcError(APP_ERROR, STOPPING)
         given = Path(params["path"])
         if not given.is_absolute():
             raise RpcError(APP_ERROR, "The folder path must be absolute.")
+        # A stale network mount can block these calls, so they run outside the loop.
+        path = await run_in_daemon_thread(lambda: _real_folder(given))
         try:
-            path = str(given.resolve(strict=True))  # one name for the same folder: no symlink, no trailing slash
-            path.encode("utf-8")
-        except (OSError, RuntimeError, UnicodeEncodeError):
-            raise RpcError(APP_ERROR, "No such folder.") from None
-        if not os.path.isdir(path):
-            raise RpcError(APP_ERROR, "No such folder.")
-        for f in self.library.folders():
-            if f.path != path and (_inside(path, f.path) or _inside(f.path, path)):
-                raise RpcError(APP_ERROR, "The folder is inside a library folder, or it contains one.")
-        folder, added = await self.kb_writer.run(lambda c: LibraryStore(c).add_folder(path))
-        pending = await self._scan(folder)
+            folder, added = await self.kb_writer.run(lambda c: _add_folder(c, path))
+            pending = await self._scan(folder)
+        except KbWriterStopped:
+            raise RpcError(APP_ERROR, STOPPING) from None
         log.info("library folder %d %s; %d files pending", folder.id, "added" if added else "scanned", pending)
         return {"folder_id": folder.id, "added": added, "pending": pending, "job_id": self._kick_index()}
 
@@ -69,7 +90,10 @@ class LibraryHandlers:
                 await self._scan(folder)
             except Exception as e:  # noqa: BLE001 - one folder must not stop the others
                 log.error("the scan of folder %d failed: %s", folder.id, type(e).__name__)
-        self._kick_index()
+        try:
+            self._kick_index()
+        except Exception as e:  # noqa: BLE001 - stop() must not get this error
+            log.error("the index job cannot start after the scan: %s", type(e).__name__)
 
     # Index jobs
 
@@ -78,6 +102,8 @@ class LibraryHandlers:
         if self._closed or self.scheduler is None:
             return None
         if self._index_job is not None:
+            # The job can be past a document that the scan set back to pending. Run the next job after it.
+            self._index_kicked = True
             return self._index_job
         if self.library.pending_count() == 0:
             return None
@@ -104,7 +130,9 @@ class LibraryHandlers:
         if job_id != self._index_job:
             return
         self._index_job = None
-        if status == "done" and self._index_again:
+        again = status == "done" and (self._index_again or self._index_kicked)
+        self._index_kicked = False  # only a scan sets it, so this cannot loop
+        if again:
             self._kick_index()  # a yielded job continues later; the paused priority waits for the recording
 
     async def _kb_embedder(self) -> Embedder:

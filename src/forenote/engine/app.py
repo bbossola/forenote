@@ -141,6 +141,7 @@ class Engine(
         self._embed_lock = asyncio.Lock()
         self._index_job: int | None = None
         self._index_again = False
+        self._index_kicked = False  # a scan asked for an index job while one was queued or running
         self._scan_task: asyncio.Task | None = None
 
     # Lifecycle
