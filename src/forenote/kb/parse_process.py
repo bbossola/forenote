@@ -15,6 +15,7 @@ import logging
 import os
 import resource
 import select
+import signal
 import subprocess
 import sys
 import threading
@@ -28,6 +29,7 @@ from forenote.kb.sections import Section
 
 PARSE_TIMEOUT_S = 60.0
 MEMORY_LIMIT = 2 * 1024**3
+ANSWER_LIMIT = 256 * 1024**2  # bytes: the largest answer line that the parent reads
 
 
 @dataclass(frozen=True)
@@ -37,6 +39,26 @@ class ParseResult:
 
 
 # The child side
+
+
+def _encode(answer: dict) -> bytes:
+    """Encode an answer as one UTF-8 line. Escape only what is needed."""
+    try:
+        return json.dumps(answer, ensure_ascii=False).encode("utf-8")
+    except UnicodeEncodeError:  # a lone surrogate: use the ASCII escapes
+        return json.dumps(answer).encode()
+
+
+def _die_with_parent() -> None:
+    """Linux only: the kernel kills this process when the parent dies."""
+    try:
+        import ctypes
+
+        ctypes.CDLL(None, use_errno=True).prctl(1, signal.SIGKILL)  # PR_SET_PDEATHSIG
+    except Exception:  # noqa: BLE001 - this is a best effort
+        pass
+    if os.getppid() == 1:  # the parent is already gone
+        sys.exit(0)
 
 
 def serve(parse_fn=None, inp=None, out=None) -> None:
@@ -57,7 +79,7 @@ def serve(parse_fn=None, inp=None, out=None) -> None:
             answer = {"error": "parse_crash"}
         except Exception:  # noqa: BLE001 - never send an exception text: it can hold file content
             answer = {"error": "parse_error"}
-        out.write(json.dumps(answer).encode() + b"\n")
+        out.write(_encode(answer) + b"\n")
         out.flush()
 
 
@@ -65,8 +87,10 @@ def main(argv: list[str] | None = None, parse_fn=None) -> None:
     ap = argparse.ArgumentParser(prog="forenote-parse")
     ap.add_argument("--memory-limit", type=int, default=MEMORY_LIMIT)
     args = ap.parse_args(argv)
+    _die_with_parent()
     _, hard = resource.getrlimit(resource.RLIMIT_AS)
-    resource.setrlimit(resource.RLIMIT_AS, (args.memory_limit, hard))
+    limit = args.memory_limit if hard == resource.RLIM_INFINITY else min(args.memory_limit, hard)
+    resource.setrlimit(resource.RLIMIT_AS, (limit, hard))
     logging.disable(logging.CRITICAL)
     warnings.simplefilter("ignore")
     serve(parse_fn)
@@ -75,20 +99,23 @@ def main(argv: list[str] | None = None, parse_fn=None) -> None:
 # The parent side
 
 _TIMEOUT = object()
+_TOO_LARGE = object()
 
 
 class ParserProcess:
     """Call parse() from one thread at a time. close() can come from any thread."""
 
     def __init__(self, command: list[str] | None = None, timeout_s: float = PARSE_TIMEOUT_S,
-                 memory_limit: int = MEMORY_LIMIT):
+                 memory_limit: int = MEMORY_LIMIT, answer_limit: int = ANSWER_LIMIT):
         self._command = command or [
             sys.executable, "-m", "forenote.kb.parse_process", "--memory-limit", str(memory_limit),
         ]
         self._timeout_s = timeout_s
+        self._answer_limit = answer_limit
         self._lock = threading.Lock()
         self._proc: subprocess.Popen | None = None
-        self._buf = b""
+        self._buf = bytearray()
+        self._scanned = 0
         self._busy = False
         self._closed = False
 
@@ -107,6 +134,9 @@ class ParserProcess:
             if line is _TIMEOUT:
                 self._stop(proc)
                 return ParseResult(error="parse_timeout")
+            if line is _TOO_LARGE:
+                self._stop(proc)
+                return ParseResult(error="too_large")
             if line is None:
                 self._stop(proc)
                 return ParseResult(error="parse_crash")
@@ -121,6 +151,8 @@ class ParserProcess:
         finally:
             with self._lock:
                 self._busy = False
+                if self._closed:  # close() did not close the pipes of a busy call
+                    self._close_pipes(proc)
 
     def close(self) -> None:
         with self._lock:
@@ -137,17 +169,28 @@ class ParserProcess:
             if self._proc is None or self._proc.poll() is not None:
                 if self._proc is not None:
                     self._kill(self._proc, close_pipes=True)
-                self._buf = b""
-                self._proc = subprocess.Popen(
-                    self._command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                    stderr=subprocess.DEVNULL, bufsize=0,
-                )
+                self._buf = bytearray()
+                self._scanned = 0
+                try:
+                    self._proc = subprocess.Popen(
+                        self._command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                        stderr=subprocess.DEVNULL, bufsize=0,
+                    )
+                except OSError:
+                    self._proc = None
+                    return None
             self._busy = True
             return self._proc
 
     def _read_line(self, proc: subprocess.Popen, deadline: float):
         fd = proc.stdout.fileno()
-        while b"\n" not in self._buf:
+        while True:
+            end = self._buf.find(b"\n", self._scanned)  # scan only the new bytes
+            if end >= 0:
+                break
+            self._scanned = len(self._buf)
+            if len(self._buf) > self._answer_limit:
+                return _TOO_LARGE
             left = deadline - time.monotonic()
             if left <= 0:
                 return _TIMEOUT
@@ -164,7 +207,9 @@ class ParserProcess:
             if not data:
                 return None
             self._buf += data
-        line, _, self._buf = self._buf.partition(b"\n")
+        line = bytes(self._buf[:end])
+        del self._buf[: end + 1]
+        self._scanned = 0
         return line
 
     def _stop(self, proc: subprocess.Popen) -> None:
@@ -180,9 +225,13 @@ class ParserProcess:
         with contextlib.suppress(subprocess.TimeoutExpired):
             proc.wait(5)
         if close_pipes:
-            for pipe in (proc.stdin, proc.stdout):
-                with contextlib.suppress(OSError):
-                    pipe.close()
+            ParserProcess._close_pipes(proc)
+
+    @staticmethod
+    def _close_pipes(proc: subprocess.Popen) -> None:
+        for pipe in (proc.stdin, proc.stdout):
+            with contextlib.suppress(OSError, ValueError):
+                pipe.close()
 
 
 if __name__ == "__main__":

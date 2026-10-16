@@ -1,4 +1,5 @@
 import io
+import os
 import json
 import sys
 import textwrap
@@ -13,12 +14,17 @@ from forenote.kb.sections import Section
 
 FIX = Path(__file__).resolve().parents[1] / "fixtures" / "kb"
 
-CHILD = '''
+CHILD = r'''
 def special(path, limits):
     if path.name == "slow.txt":
         time.sleep(30)
     if path.name == "crash.txt":
         os._exit(3)
+    if path.name == "big.txt":
+        return [Section("\u0436" * 20_000_000)]
+    if path.name == "garbage.txt":
+        sys.stdout.buffer.write(b"not json\n")
+        sys.stdout.buffer.flush()
     if path.name == "hog.txt":
         data = bytearray(1500 * 1024 * 1024)
     return parse(path, limits)
@@ -33,7 +39,8 @@ def child(tmp_path) -> list[str]:
     script.write_text(
         "import os, sys, time\n"
         "from forenote.kb.parse_process import main\n"
-        "from forenote.kb.parsers import parse\n" + textwrap.dedent(CHILD)
+        "from forenote.kb.parsers import parse\n"
+        "from forenote.kb.sections import Section\n" + textwrap.dedent(CHILD)
     )
     return [sys.executable, str(script)]
 
@@ -120,3 +127,58 @@ def test_serve_never_returns_an_exception_text():
 
     serve(bad, io.BytesIO(b'{"path": "/x.md", "max_pages": 5}\n'), out)
     assert json.loads(out.getvalue()) == {"error": "parse_error"}
+
+
+def test_a_large_non_ascii_answer_is_read_fast(tmp_path):
+    p = ParserProcess(child(tmp_path), timeout_s=30)
+    try:
+        (tmp_path / "big.txt").write_text("x")
+        start = time.monotonic()
+        result = p.parse(tmp_path / "big.txt", 500)
+        assert time.monotonic() - start < 5
+        assert len(result.sections[0].text) == 20_000_000
+    finally:
+        p.close()
+
+
+def test_an_answer_over_the_limit_is_too_large(tmp_path):
+    p = ParserProcess(child(tmp_path), answer_limit=1_000_000)
+    try:
+        (tmp_path / "big.txt").write_text("x")
+        (tmp_path / "ok.txt").write_text("fine")
+        assert p.parse(tmp_path / "big.txt", 500).error == "too_large"
+        assert p.parse(tmp_path / "ok.txt", 500).sections == [Section("fine")]
+    finally:
+        p.close()
+
+
+def test_a_garbage_answer_is_parse_crash_and_the_next_file_works(tmp_path):
+    p = ParserProcess(child(tmp_path))
+    try:
+        (tmp_path / "garbage.txt").write_text("x")
+        (tmp_path / "ok.txt").write_text("fine")
+        assert p.parse(tmp_path / "garbage.txt", 500).error == "parse_crash"
+        assert p.parse(tmp_path / "ok.txt", 500).sections == [Section("fine")]
+    finally:
+        p.close()
+
+
+def test_a_missing_command_is_parse_crash():
+    p = ParserProcess(["/nonexistent/forenote-parser"])
+    try:
+        assert p.parse(Path("/x.md"), 500).error == "parse_crash"
+    finally:
+        p.close()
+
+
+def test_a_path_that_is_not_utf8_reaches_the_child(proc, tmp_path):
+    name = os.fsdecode(b"bad\xff.md")
+    f = tmp_path / name
+    f.write_text("# T\nbody")
+    assert proc.parse(f, 500).sections == [Section("T\nbody", {"heading": "T"})]
+
+
+def test_serve_escapes_a_lone_surrogate():
+    out = io.BytesIO()
+    serve(lambda path, limits: [Section("a\udcffb")], io.BytesIO(b'{"path": "/x.md", "max_pages": 5}\n'), out)
+    assert json.loads(out.getvalue())["sections"][0]["text"] == "a\udcffb"
