@@ -44,7 +44,11 @@ class KbWriter:
     - Keep each function short: one batch for each call. Never sleep, parse,
       or embed inside the function.
     - A long function holds the write lock. A write on the loop connection
-      then blocks the event loop for up to 5 s.
+      then blocks the event loop for up to 5 s, and after 5 s it fails with
+      "database is locked". A failed transcript write stops a recording.
+    - Delete many rows in batches: LibraryStore.delete_chunks_batch() in a
+      loop of run() calls. replace_chunks() is one transaction (spec 5.4), so
+      the index job waits for the end of a recording before a large one.
     - The transaction starts at the first write statement. A read before it
       is not in the transaction.
     - For an atomic read-then-write, run conn.execute("BEGIN IMMEDIATE") first.

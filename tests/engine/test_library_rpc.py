@@ -116,6 +116,31 @@ async def test_the_index_job_waits_during_a_recording(engine, client, embed_inst
     assert engine.library.pending_count() == 0
 
 
+async def test_the_index_job_sees_a_recording_that_runs_or_starts(engine, monkeypatch):
+    from forenote.engine.handlers import library as handlers
+    from forenote.kb.indexer import IndexResult
+    from forenote.scheduler import CancelToken
+
+    seen = []
+
+    async def fake_index_files(deps, cancel, report):
+        seen.append(deps.recording)
+        return IndexResult()
+
+    monkeypatch.setattr(handlers, "index_files", fake_index_files)
+    await engine._run_index(CancelToken(), lambda m, f=None: None)
+    recording = seen[0]
+    assert recording() is False
+    engine._starting = True
+    assert recording() is True
+    engine._starting = False
+    engine._recorder = object()
+    try:
+        assert recording() is True
+    finally:
+        engine._recorder = None
+
+
 async def test_engine_start_scans_the_folders(paths, hardware, test_manifest, embed_installed, tmp_path):
     root = docs(tmp_path, {"a.md": "hello"})
     e = make_engine(paths, hardware, test_manifest)

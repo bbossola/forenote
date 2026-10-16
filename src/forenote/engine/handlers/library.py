@@ -118,13 +118,17 @@ class LibraryHandlers:
         deps = IndexDeps(
             self.library, self.kb_writer, self.parser, self._kb_embedder,
             self.settings.get("kb_max_file_mb") * MB, self.settings.get("kb_max_pages"),
-            self._index_should_yield,
+            self._index_should_yield, self._index_recording,
         )
         result = await index_files(deps, cancel, report)
         self._index_again = result.yielded or result.progressed
 
     def _index_should_yield(self) -> bool:
-        return self._recorder is not None or self.scheduler.has_waiting(Priority.INDEX)
+        return self._index_recording() or self.scheduler.has_waiting(Priority.INDEX)
+
+    def _index_recording(self) -> bool:
+        """A recording runs or starts. A large index write waits for its end."""
+        return self._recorder is not None or self._starting
 
     def _index_job_ended(self, job_id: int, status: str) -> None:
         if job_id != self._index_job:
