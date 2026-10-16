@@ -782,3 +782,76 @@ def test_bench_llm_fixture_too_long_message(capsys, monkeypatch):
     monkeypatch.setattr(forenote.bench_llm, "run_bench", too_long)
     assert cli.main(["bench", "llm", "--model", "gemma-4-e2b-q4_0"]) == 1
     assert "The fixture needs 10197 tokens. Use --context 16384 or more." in capsys.readouterr().err
+
+
+FOLDER = {"id": 1, "path": "/docs", "status": "ok", "counts": {"indexed": 2, "pending": 0, "error": 1, "skipped": 0}}
+
+
+async def test_index_adds_the_folder_and_follows_the_job(tmp_path):
+    client = FakeClient(
+        {"library.add_folder": {"folder_id": 1, "added": True, "pending": 3, "job_id": 7}, "library.list": [FOLDER]},
+        events=[
+            ("job.progress", {"id": 7, "type": "kb.index", "message": "1 of 3 files", "fraction": 0.33}),
+            ("job.progress", {"id": 9, "type": "notes.enhance", "message": "other", "fraction": 0.5}),
+            ("job.done", {"id": 7, "type": "kb.index", "status": "done"}),
+        ],
+    )
+    code, out = await run_cli(["index", str(tmp_path)], client)
+    assert code == 0
+    assert client.calls[0] == ("library.add_folder", {"path": str(tmp_path.resolve())})
+    assert client.timeouts["library.add_folder"] == 600.0
+    assert "Folder 1 added." in out
+    assert "[index: 1 of 3 files]" in out and "other" not in out
+    assert "Done: 2 indexed, 0 pending, 1 with errors, 0 skipped." in out
+
+
+async def test_index_waits_for_the_next_job_when_files_stay_pending(tmp_path):
+    waiting = {**FOLDER, "counts": {**FOLDER["counts"], "pending": 1}}
+    lists = [[waiting], [FOLDER]]
+    client = FakeClient(
+        {"library.add_folder": {"folder_id": 1, "added": False, "pending": 2, "job_id": 7},
+         "library.list": lambda params: lists.pop(0)},
+        events=[
+            ("job.done", {"id": 7, "type": "kb.index", "status": "done"}),
+            ("job.done", {"id": 8, "type": "kb.index", "status": "done"}),
+        ],
+    )
+    code, out = await run_cli(["index", str(tmp_path)], client)
+    assert code == 0
+    assert "already in the library" in out and "Done:" in out
+
+
+async def test_index_with_nothing_to_do(tmp_path):
+    client = FakeClient({"library.add_folder": {"folder_id": 1, "added": False, "pending": 0, "job_id": None},
+                         "library.list": [FOLDER]})
+    code, out = await run_cli(["index", str(tmp_path)], client)
+    assert code == 0 and "Done:" in out
+
+
+async def test_index_reports_a_failed_job(tmp_path):
+    client = FakeClient(
+        {"library.add_folder": {"folder_id": 1, "added": True, "pending": 1, "job_id": 7}},
+        events=[("job.failed", {"id": 7, "type": "kb.index", "error": "The embedding model is not downloaded."})],
+    )
+    code, out = await run_cli(["index", str(tmp_path)], client)
+    assert code == 1 and "The index job failed: The embedding model is not downloaded." in out
+
+
+async def test_library_lists_the_folders():
+    code, out = await run_cli(["library"], FakeClient({"library.list": [FOLDER]}))
+    assert code == 0
+    assert "   1  ok       2 indexed, 0 pending, 1 with errors, 0 skipped  /docs" in out
+
+
+async def test_library_without_folders():
+    code, out = await run_cli(["library"], FakeClient({"library.list": []}))
+    assert code == 0 and "No folders." in out
+
+
+def test_library_does_not_start_the_engine():
+    assert "library" in cli.NO_START and "index" not in cli.NO_START
+
+
+def test_bench_embed_parser():
+    args = build_parser().parse_args(["bench", "embed", "--threads", "2", "--pdf", "x.pdf"])
+    assert (args.bench_command, args.threads, args.pdf) == ("embed", 2, "x.pdf")

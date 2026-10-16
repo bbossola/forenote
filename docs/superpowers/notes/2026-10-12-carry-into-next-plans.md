@@ -13,12 +13,12 @@ Each next plan must read this list first and handle the items that apply to it.
 
 ## Knowledge base plan
 
-- **Database threading.** The engine has one `sqlite3` connection on the event loop thread, with `synchronous=FULL`. Each commit does an fsync on the loop. Indexing writes and live ASR writes need a writer thread or queue, or one connection for each thread. Decide this before the plan writes chunks and vectors.
-- **Embedding role.** Add `"embedding"` to `ROLES` in `models/manifest.py`. Decision 0001: the 740M file for the default and high tiers. The text-270m file gives bit-identical text vectors, so the low tier can use it for text with no re-index. The low tier then has no image embeddings.
-- **Cache directory.** LiteRT-LM needs an existing cache directory. Add `$XDG_CACHE_HOME/forenote` to `Paths` and to `Paths.ensure()`.
-- **Settings.** The 50 MB and 500-page limits (spec 8.3) are not in `SPEC` yet. The UI cannot discover valid ranges from `settings.get`. Consider a `settings.schema` method (protocol 1.x, additive).
+- **Database threading.** The engine has one `sqlite3` connection on the event loop thread, with `synchronous=FULL`. Each commit does an fsync on the loop. Indexing writes and live ASR writes need a writer thread or queue, or one connection for each thread. Decide this before the plan writes chunks and vectors. Done in plan C1.
+- **Embedding role.** Add `"embedding"` to `ROLES` in `models/manifest.py`. Decision 0001: the 740M file for the default and high tiers. The text-270m file gives bit-identical text vectors, so the low tier can use it for text with no re-index. The low tier then has no image embeddings. Done in plan C1.
+- **Cache directory.** LiteRT-LM needs an existing cache directory. Add `$XDG_CACHE_HOME/forenote` to `Paths` and to `Paths.ensure()`. Done in plan C1.
+- **Settings.** The 50 MB and 500-page limits (spec 8.3) are not in `SPEC` yet. The UI cannot discover valid ranges from `settings.get`. Consider a `settings.schema` method (protocol 1.x, additive). Plan C1 adds `kb_max_file_mb` and `kb_max_pages` to `SPEC`. The `settings.schema` method stays open for the UI plan.
 - **Image quality risk.** The spike image check is a smoke test (4 synthetic shapes). Add a real image retrieval check with diagrams and screenshots.
-- **Throughput.** The spike measured 3.96 chunks/s on 12 threads, with one pass. `forenote-cli bench` must confirm at least 2 chunks/s on the 8-core baseline.
+- **Throughput.** The spike measured 3.96 chunks/s on 12 threads, with one pass. `forenote-cli bench` must confirm at least 2 chunks/s on the 8-core baseline. Measured in plan C1 with `bench embed`: 8.69 chunks/s with 7 threads (about 234 pages/min for pages of 500 tokens). A PDF of 3 pages ran at 806 pages/min (parse, chunk, and embed).
 
 ## Scheduler (knowledge base, notes, LLM plans)
 
@@ -173,3 +173,16 @@ Source: the task reviews, the final review of plan B3 (branch `feature/notes-b3`
   - `test_engine_stop_during_a_live_prefill_is_fast` has no `try/finally` around `e.stop()`.
   - `tests/rpc/test_launcher.py` has a long `late_cmd` line and a 1.5 s start delay (2 s more test time).
 - **Queue order after a stop.** The user can run `notes.enhance` for an earlier meeting during a recording. That job can run before the job of the new meeting and evict its live cache. The new notes then take the cold time.
+
+## Next plans: from plan C1
+
+Source: the task reviews of plan C1 (branch `feature/kb-c1`). Plans C2 and C3 handle these items.
+
+- **Pending after a change.** A document stays `pending` when its file changes during the parse, or when its folder root is missing. It waits for the next trigger: an engine start, `library.add_folder`, or a finished model download. C1 has no watch. The C2 live watch closes this gap.
+- **Embedder load error code.** Spec 8.1 says a failed embedder load fails the job "with `embed_load_failed`". The C1 job error is the message "The embedding model cannot load (TypeName)." and has no code. Decide in C2 or C3 whether the code goes into the job error.
+- **Large file during a recording.** A recording start does not stop a large file. The index job checks `should_yield` only between files (spec 5.5: "a file in progress completes first"). A 50 MB text file can take hours to embed, and it competes for CPU with the recording. This is an owner decision for C2.
+- **Token estimate.** The estimate charges non-ASCII letters more. Measured on the Gemma tokenizer: ja 0.49, zh 0.59, ko 0.46, ru 0.21, el 0.36 tokens per char. Emoji and other non-letter symbols cost 0.5 token per char, and the real cost can be 1 or more. Emoji-heavy text can pass 320 tokens. This is still far below the limit of 1,024 tokens.
+- **Parser child process.** The child caps one answer at 256 MB (`ANSWER_LIMIT`). A larger answer gives `too_large`. The child exits when the engine process dies. It uses a `getppid` watchdog, not `PR_SET_PDEATHSIG`, because each parse runs in a new short-lived thread.
+- **Missing folders.** The scan keeps the documents of a directory it cannot read. It marks a folder `missing` when its root is unreadable or empty (an unmounted drive). A folder whose files the user deletes shows `missing` and keeps its old chunks. This lasts until a file comes back or the user removes the folder (C2 `library.remove_folder`).
+- **Very large folder.** The first scan hashes all files before the first write. It has no progress report and no cancel. `apply_plan` writes in one transaction. Batches can come in C2.
+- **No `watch` field.** `library.list` has no `watch` field yet (spec 7.1). C2 adds it.

@@ -4,11 +4,15 @@
 
 - Sub-project B (notes enhancement) is complete. Plans B1, B2 and B3 are
   merged on `main` (PR #3, #4 and #5).
-- The next step is sub-project C (knowledge base and chat). C has no spec yet:
-  write the spec first, with the brainstorming skill. Read
-  `docs/superpowers/notes/2026-10-12-handoff.md` and
+- Sub-project C (knowledge base and chat) is in progress. The spec is
+  `docs/superpowers/specs/2026-10-15-knowledge-base-chat-design.md`. Plan C1
+  (`docs/superpowers/plans/2026-10-15-kb-c1-index.md`) indexes files. It is done
+  on branch `feature/kb-c1` and it is not merged yet. Plan C2 (the live watch,
+  the other library methods, and the meeting index) comes next. Plan C3 (search
+  and chat) follows.
+  Read `docs/superpowers/notes/2026-10-12-handoff.md` and
   `docs/superpowers/notes/2026-10-12-carry-into-next-plans.md` first. The
-  carry note section "Next plans: from plan B3" lists the open items.
+  carry note section "Next plans: from plan C1" lists the open items.
 - To set up a new machine, run `scripts/bootstrap-dev.sh --help`.
 
 ## Rules
