@@ -59,6 +59,17 @@ def test_the_child_parses_a_file(proc, tmp_path):
     assert proc.parse(f, 500) == ParseResult(sections=[Section("T\nbody", {"heading": "T"})])
 
 
+def test_a_module_in_the_working_directory_does_not_shadow_the_child(proc, tmp_path, monkeypatch):
+    cwd = tmp_path / "cwd"
+    cwd.mkdir()
+    for name in ("json.py", "argparse.py"):
+        (cwd / name).write_text("raise ImportError('a shadow module')\n")
+    monkeypatch.chdir(cwd)
+    f = tmp_path / "a.md"
+    f.write_text("# T\nbody")
+    assert proc.parse(f, 500) == ParseResult(sections=[Section("T\nbody", {"heading": "T"})])
+
+
 def test_the_child_returns_reason_codes_and_keeps_working(proc, tmp_path):
     assert proc.parse(FIX / "encrypted.pdf", 500).error == "encrypted"
     assert proc.parse(FIX / "broken.docx", 500).error == "parse_error"
@@ -233,3 +244,9 @@ def _alive(pid: int) -> bool:
     except OSError:
         return False
     return state != "Z"
+
+
+def test_a_relative_path_is_from_the_working_directory_of_the_caller(proc, tmp_path, monkeypatch):
+    (tmp_path / "a.md").write_text("body")
+    monkeypatch.chdir(tmp_path)
+    assert proc.parse(Path("a.md"), 500) == ParseResult(sections=[Section("body")])

@@ -112,8 +112,9 @@ class ParserProcess:
 
     def __init__(self, command: list[str] | None = None, timeout_s: float = PARSE_TIMEOUT_S,
                  memory_limit: int = MEMORY_LIMIT, answer_limit: int = ANSWER_LIMIT):
+        # -P and cwd "/": the child does not load modules from the working directory of the engine.
         self._command = command or [
-            sys.executable, "-m", "forenote.kb.parse_process", "--memory-limit", str(memory_limit),
+            sys.executable, "-P", "-m", "forenote.kb.parse_process", "--memory-limit", str(memory_limit),
         ]
         self._timeout_s = timeout_s
         self._answer_limit = answer_limit
@@ -130,7 +131,8 @@ class ParserProcess:
             return ParseResult(error="parse_crash")
         try:
             try:
-                proc.stdin.write(json.dumps({"path": str(path), "max_pages": max_pages}).encode() + b"\n")
+                # The child runs in "/", so it gets an absolute path.
+                proc.stdin.write(json.dumps({"path": os.path.abspath(path), "max_pages": max_pages}).encode() + b"\n")
                 proc.stdin.flush()
             except (OSError, ValueError):
                 self._stop(proc)
@@ -179,7 +181,7 @@ class ParserProcess:
                 try:
                     self._proc = subprocess.Popen(
                         self._command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                        stderr=subprocess.DEVNULL, bufsize=0,
+                        stderr=subprocess.DEVNULL, bufsize=0, cwd="/",
                     )
                 except OSError:
                     self._proc = None
