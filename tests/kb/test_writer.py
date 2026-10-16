@@ -1,4 +1,5 @@
 import asyncio
+import sqlite3
 import threading
 import time
 
@@ -60,15 +61,23 @@ async def test_an_error_rolls_the_call_back_and_reaches_the_caller(writer, db):
 
 
 async def test_the_loop_connection_reads_during_a_long_write(writer, db):
+    started = threading.Event()
+    release = threading.Event()
+
     def slow(c):
         LibraryStore(c).add_folder("/d")
-        time.sleep(0.5)
+        started.set()
+        release.wait(10)
 
     task = asyncio.ensure_future(writer.run(slow))
-    await asyncio.sleep(0.1)
-    start = time.monotonic()
-    assert LibraryStore(db[1]).folders() == []  # WAL: the reader sees the last commit and does not wait
-    assert time.monotonic() - start < 0.3
+    try:
+        while not started.is_set():
+            await asyncio.sleep(0.01)
+        # WAL: the reader sees the last commit and does not wait for the write.
+        assert LibraryStore(db[1]).folders() == []
+        assert not task.done()  # the read ended before the write
+    finally:
+        release.set()
     await task
     assert len(LibraryStore(db[1]).folders()) == 1
 
@@ -93,5 +102,27 @@ async def test_run_before_start_fails(db):
 
 def test_a_connect_error_reaches_start(tmp_path):
     w = KbWriter(tmp_path / "no" / "such" / "dir" / "t.db")
-    with pytest.raises(Exception):
+    with pytest.raises(sqlite3.OperationalError):
         w.start()
+
+
+async def test_start_twice_fails(writer):
+    with pytest.raises(RuntimeError):
+        writer.start()
+
+
+async def test_a_call_behind_the_sentinel_gets_KbWriterStopped(db):
+    w = KbWriter(db[0])
+    w.start()
+    loop = asyncio.get_running_loop()
+    fut = loop.create_future()
+    gate = threading.Event()
+    blocker = asyncio.ensure_future(w.run(lambda c: gate.wait(5)))  # holds the thread
+    await asyncio.sleep(0.05)
+    w._queue.put(None)  # white-box: the sentinel comes first, the late item second
+    w._queue.put((lambda c: 1, loop, fut))
+    gate.set()
+    await blocker
+    await run_in_daemon_thread(lambda: w._thread.join(5))
+    with pytest.raises(KbWriterStopped):
+        await asyncio.wait_for(fut, 5)

@@ -38,14 +38,29 @@ def _resolve(fut: asyncio.Future, ok: bool, value: Any) -> None:
 
 
 class KbWriter:
+    """Run short database calls in one thread with its own connection.
+
+    Rules for the function that you give to run():
+    - Keep each function short: one batch for each call. Never sleep, parse,
+      or embed inside the function.
+    - A long function holds the write lock. A write on the loop connection
+      then blocks the event loop for up to 5 s.
+    - The transaction starts at the first write statement. A read before it
+      is not in the transaction.
+    - For an atomic read-then-write, run conn.execute("BEGIN IMMEDIATE") first.
+    """
+
     def __init__(self, db_path: Path | str, connect_fn: Callable[[Path | str], sqlite3.Connection] = connect_kb):
         self._db_path = db_path
         self._connect = connect_fn
         self._queue: queue.Queue = queue.Queue()
         self._thread: threading.Thread | None = None
         self._running = False
+        self._lock = threading.Lock()  # makes the check and the put in run() atomic against stop()
 
     def start(self) -> None:
+        if self._thread is not None:
+            raise RuntimeError("the KB writer is already started")
         ready = threading.Event()
         errors: list[BaseException] = []
         self._thread = threading.Thread(target=self._run, args=(ready, errors), daemon=True, name="forenote-kb-writer")
@@ -78,21 +93,37 @@ class KbWriter:
                     loop.call_soon_threadsafe(_resolve, fut, ok, value)
         finally:
             conn.close()
+            self._fail_waiting()
+
+    def _fail_waiting(self) -> None:
+        """Resolve each call that is behind the sentinel with KbWriterStopped."""
+        while True:
+            try:
+                item = self._queue.get_nowait()
+            except queue.Empty:
+                return
+            if item is None:
+                continue
+            _fn, loop, fut = item
+            with contextlib.suppress(RuntimeError):  # the loop can be closed already
+                loop.call_soon_threadsafe(_resolve, fut, False, KbWriterStopped("the KB writer stopped"))
 
     async def run(self, fn: Callable[[sqlite3.Connection], T]) -> T:
-        if not self._running:
-            raise KbWriterStopped("the KB writer does not run")
         loop = asyncio.get_running_loop()
         fut = loop.create_future()
-        self._queue.put((fn, loop, fut))
+        with self._lock:
+            if not self._running:
+                raise KbWriterStopped("the KB writer does not run")
+            self._queue.put((fn, loop, fut))
         return await fut
 
     def stop(self, timeout: float = 10.0) -> bool:
         """Complete the queued calls, then end the thread. Blocking: call it from a worker thread."""
         if self._thread is None:
             return True
-        self._running = False
-        self._queue.put(None)
+        with self._lock:
+            self._running = False
+            self._queue.put(None)
         self._thread.join(timeout)
         alive = self._thread.is_alive()
         if alive:
