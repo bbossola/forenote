@@ -57,8 +57,12 @@ def walk(root: Path, failed: list[str] | None = None) -> list[FileStat]:
             full = os.path.join(dirpath, name)
             try:
                 st = os.lstat(full)
-            except OSError:
+            except FileNotFoundError:
                 continue  # the file went away
+            except OSError:
+                if failed is not None:
+                    failed.append(dirpath)  # the known documents below this directory stay
+                break
             if stat.S_ISREG(st.st_mode):
                 out.append(FileStat(full, st.st_mtime, st.st_size))
     return out
@@ -94,9 +98,15 @@ def plan_scan(root: Path, known: dict[str, Document], max_bytes: int, rehash: bo
     if str(root) in failed:
         plan.missing = True
         return plan
-    if known and not files and not failed and not any(True for _ in os.scandir(root)):
-        plan.missing = True  # for example an unmounted drive
-        return plan
+    if known and not files and not failed:
+        try:
+            with os.scandir(root) as it:
+                empty = next(it, None) is None
+        except OSError:
+            empty = True
+        if empty:
+            plan.missing = True  # for example an unmounted drive
+            return plan
     for f in files:
         doc = known.pop(f.path, None)
         same_stat = doc is not None and doc.mtime == f.mtime and doc.size == f.size

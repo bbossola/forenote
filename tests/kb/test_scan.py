@@ -242,3 +242,25 @@ def test_a_file_that_goes_away_after_the_walk_is_removed(lib, monkeypatch):
     monkeypatch.setattr("forenote.kb.scan.sha256_file", gone)
     plan, _ = scan(lib)
     assert plan.unreadable == [] and plan.pending == []
+
+
+@root_only
+def test_a_subdirectory_that_lists_but_cannot_be_searched_keeps_its_documents(lib, restore_modes):
+    _, store, folder, root = lib
+    make(root, "sub/a.md")
+    make(root, "b.md")
+    scan(lib)
+    restore_modes.append(root / "sub")
+    (root / "sub").chmod(0o444)
+    plan, _ = scan(lib)
+    assert plan.removed == [] and len(store.documents(folder.id)) == 2
+
+
+def test_a_root_with_only_an_ignored_file_removes_the_documents(lib):
+    _, store, folder, root = lib
+    p = make(root, "a.md")
+    scan(lib)
+    p.unlink()
+    make(root, ".hidden")
+    plan, _ = scan(lib)
+    assert not plan.missing and len(plan.removed) == 1
